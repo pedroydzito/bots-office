@@ -347,21 +347,12 @@ export function Hints() {
   )
 }
 
-export function ConnectBanner() {
-  const [v, setV] = useState('')
-  const ok = /^[A-Za-z0-9_-]{1,64}$/.test(v)
+export function ConnectBanner({ onSignIn }) {
   return (
-    <form
-      className="card connect"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (ok) window.location.hash = v
-      }}
-    >
+    <div className="card connect">
       <span className="demo-tag">Demo</span>
-      <span className="muted">Simulated bots. Open <code>/#your-topic</code> to watch yours live.</span>
-      <input value={v} onChange={(e) => setV(e.target.value.trim())} placeholder="ntfy topic" aria-label="ntfy topic" spellCheck={false} />
-      <button className="dark sm" disabled={!ok}>Connect</button>
-    </form>
+      <span className="muted">Simulated bots. Have an access code?</span>
+      <button className="dark sm" onClick={onSignIn}>Enter access code</button>
+    </div>
   )
 }
