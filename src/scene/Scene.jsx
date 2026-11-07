@@ -88,8 +88,8 @@ function SunWithTarget({ sunRef, low }) {
         shadow-camera-bottom={-11}
         shadow-camera-near={1}
         shadow-camera-far={45}
-        shadow-bias={-0.0004}
-        shadow-normalBias={0.02}
+        shadow-bias={-0.0008}
+        shadow-normalBias={0.045}
         shadow-radius={4}
       />
       <object3D ref={target} />

@@ -65,7 +65,15 @@ function setLook(d, name, l) {
     if (!l.shape) b.shape = 'photo'
   }
   // hidden in the Grok app: still on its floor, drawn quieter with a tag
-  if (typeof l.hidden === 'boolean') b.hidden = l.hidden
+  // accept the usual spellings: hidden/isHidden/is_hidden true|"true"|1, visible:false, status/visibility "hidden"
+  const truthy = (v) => v === true || v === 1 || (typeof v === 'string' && /^(true|1|yes|sim)$/i.test(v.trim()))
+  const falsy = (v) => v === false || v === 0 || (typeof v === 'string' && /^(false|0|no|nao|não)$/i.test(v.trim()))
+  const hv = l.hidden ?? l.isHidden ?? l.is_hidden
+  if (hv != null) b.hidden = truthy(hv) ? true : falsy(hv) ? false : b.hidden
+  if (l.visible != null) b.hidden = falsy(l.visible) ? true : truthy(l.visible) ? false : b.hidden
+  const vis = typeof l.visibility === 'string' ? l.visibility : ''
+  if (/^hidden$/i.test(vis)) b.hidden = true
+  else if (/^(visible|shown)$/i.test(vis)) b.hidden = false
   // personal desk items and birthday (MM-DD or YYYY-MM-DD)
   if (Array.isArray(l.desk)) b.desk = l.desk.filter((x) => typeof x === 'string').map((x) => x.trim().toLowerCase()).filter((x) => /^(plant|photo|trophy|lamp|cactus|books)$/.test(x)).slice(0, 2)
   if (typeof l.birthday === 'string' && /^(\d{4}-)?\d{2}-\d{2}$/.test(l.birthday.trim())) b.birthday = l.birthday.trim().slice(-5)
