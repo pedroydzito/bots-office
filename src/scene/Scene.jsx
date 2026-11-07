@@ -3,34 +3,43 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, Lightformer, OrbitControls, PerformanceMonitor } from '@react-three/drei'
 import * as THREE from 'three'
 import Building from './Building'
+import Weather from './Weather'
 import { FLOOR_H } from './layout'
 import { botPositions, floorOffset, ridePositions, sceneSignals } from './registry'
 
 const DAY_BG = new THREE.Color('#eceef2')
 const NIGHT_BG = new THREE.Color('#0c1120')
 
-function Lights({ night, low }) {
+const C = (h) => new THREE.Color(h)
+const DUSK_SUN = C('#ffad6b'), MOON = C('#9fb4ff'), SUN = C('#fff8ef'), DUSK_BG = C('#f2d6c2'), GREY_BG = C('#d9dce2')
+const tmpC = new THREE.Color()
+
+/** nightness: 0 day … 1 night (fractions = dawn/dusk, warm tones). weather dims and greys the sky. */
+function Lights({ nightness, weather, low }) {
   const { scene } = useThree()
   const hemi = useRef(), sun = useRef(), amb = useRef()
-  const k = useRef(night ? 1 : 0)
+  const k = useRef(nightness)
+  const wk = useRef(0)
   useEffect(() => {
     scene.background = DAY_BG.clone()
   }, [scene])
   useFrame((_, dt) => {
-    k.current += ((night ? 1 : 0) - k.current) * Math.min(1, dt * 2.5)
-    const n = k.current
-    scene.background.copy(DAY_BG).lerp(NIGHT_BG, n)
-    if (scene.fog) scene.fog.color.copy(scene.background)
-    scene.environmentIntensity = THREE.MathUtils.lerp(0.9, 0.18, n)
+    k.current += (nightness - k.current) * Math.min(1, dt * 2.5)
+    const overcast = weather === 'rain' || weather === 'storm' ? 1 : weather === 'cloudy' || weather === 'snow' ? 0.6 : 0
+    wk.current += (overcast - wk.current) * Math.min(1, dt * 1.5)
+    const n = k.current, w = wk.current
+    const warm = Math.max(0, 1 - Math.abs(n * 2 - 1) * 1.6) // peaks at dawn/dusk
+    scene.background.copy(DAY_BG).lerp(DUSK_BG, warm * 0.6).lerp(GREY_BG, w * 0.6 * (1 - n)).lerp(NIGHT_BG, n)
+    scene.environmentIntensity = THREE.MathUtils.lerp(0.9, 0.18, n) * (1 - w * 0.25)
     if (hemi.current) {
-      hemi.current.intensity = THREE.MathUtils.lerp(1.15, 0.25, n)
-      hemi.current.color.set('#ffffff').lerp(new THREE.Color('#7f8fc9'), n)
+      hemi.current.intensity = THREE.MathUtils.lerp(1.15, 0.25, n) * (1 - w * 0.15)
+      hemi.current.color.set('#ffffff').lerp(tmpC.set('#ffd9bf'), warm * 0.5).lerp(tmpC.set('#7f8fc9'), n)
     }
     if (sun.current) {
-      sun.current.intensity = THREE.MathUtils.lerp(2.1, 0.35, n)
-      sun.current.color.set('#fff8ef').lerp(new THREE.Color('#9fb4ff'), n)
+      sun.current.intensity = THREE.MathUtils.lerp(2.1, 0.35, n) * (1 - w * 0.55)
+      sun.current.color.copy(SUN).lerp(DUSK_SUN, warm * 0.8).lerp(MOON, n)
     }
-    if (amb.current) amb.current.intensity = THREE.MathUtils.lerp(0.35, 0.12, n)
+    if (amb.current) amb.current.intensity = THREE.MathUtils.lerp(0.35, 0.12, n) + w * 0.08
   })
   return (
     <>
@@ -186,7 +195,7 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove }) {
     // focus request zooms in on the bot
     if (sceneSignals.focusRequest) {
       sceneSignals.focusRequest = null
-      zoomGoal.current = 8
+      zoomGoal.current = 11.5
     }
     if (zoomGoal.current != null) {
       const off = camera.position.clone().sub(target)
@@ -203,7 +212,7 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove }) {
 const MOBILE = typeof window !== 'undefined' && (window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth < 820)
 
 export default function Scene(props) {
-  const { night, tour, floorIdx, focus, selectedBot, onPointerMissed, onUserMove } = props
+  const { night, nightness, weather, tour, floorIdx, focus, selectedBot, onPointerMissed, onUserMove } = props
   // Adaptive quality: phones start light; any device drops resolution and shadows if FPS falls.
   const [low, setLow] = useState(MOBILE)
   const [dpr, setDpr] = useState(MOBILE ? 1.25 : Math.min(1.75, window.devicePixelRatio || 1))
@@ -230,7 +239,8 @@ export default function Scene(props) {
           setDpr((d) => Math.min(MOBILE ? 1.5 : Math.min(2, window.devicePixelRatio || 1), d + 0.25))
         }}
       />
-      <Lights night={night} low={low} />
+      <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={low} />
+      <Weather kind={weather} low={low} />
       <Environment resolution={64} frames={1}>
         <Lightformer form="rect" intensity={2.5} position={[0, 6, 0]} rotation-x={Math.PI / 2} scale={[12, 12, 1]} />
         <Lightformer form="rect" intensity={1.2} position={[8, 3, 4]} rotation-y={-Math.PI / 2} scale={[8, 4, 1]} />

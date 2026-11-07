@@ -10,6 +10,9 @@ import { captureHash, clearCode, getCode, setCode } from './lib/auth'
 import { demoApprove, startDemo } from './lib/demo'
 import { Activity, Brand, ConnectBanner, Hints, LeftPanel, ModeToggles, Pills, RightPanel, Toast, Weekly } from './ui/Panels'
 import { Login, Settings } from './ui/Login'
+import { Celebration, MobileFloors, Timeline, TvExit } from './ui/Extras'
+import { botsAt } from './lib/metrics'
+import { notifyWaiting, prefs } from './lib/notify'
 
 function openLink(link) {
   if (!link) return
@@ -53,18 +56,25 @@ export default function App() {
 
 function Office({ topic, onSignOut, onSignIn }) {
   const [conn, setConn] = useState(topic ? 'syncing' : 'demo')
-  const [night, setNight] = useState(() => {
-    const h = new Date().getHours()
-    return h >= 19 || h < 6
-  })
+  // light: 'auto' follows the real local time (dawn/dusk tones), or forced day/night
+  const [lightMode, setLightMode] = useState(() => prefs.get('light', 'auto'))
+  useEffect(() => prefs.set('light', lightMode), [lightMode])
+  const [replayT, setReplayT] = useState(null) // timeline replay (ms) or null = live
+  const [tv, setTv] = useState(false)
+  const [celebration, setCelebration] = useState(null)
   const [tour, setTour] = useState(false)
   const [floorKey, setFloorKey] = useState(null)
   const [selectedBot, setSelectedBot] = useState(null)
   const [spotlight, setSpotlight] = useState(null)
   const [dismissed, setDismissed] = useState({})
 
-  const data = useStore(dataStore)
+  const live = useStore(dataStore)
   const now = useNow(2000)
+  // replaying the timeline shows the office as it was at that moment
+  const data = useMemo(() => (replayT ? { ...live, bots: botsAt(live, replayT), talks: {} } : live), [live, replayT])
+  const nightness = lightMode === 'night' ? 1 : lightMode === 'day' ? 0 : autoNightness(new Date(now))
+  const night = nightness > 0.5
+  const setNight = (v) => setLightMode(v === 'auto' ? 'auto' : v ? 'night' : 'day')
 
   // ---- data source: ntfy topic (signed in) or demo mode
   useEffect(() => {
@@ -221,7 +231,8 @@ function Office({ topic, onSignOut, onSignIn }) {
         goFloor(floors[i].key)
       } else if (e.key === 'Escape') setSelectedBot(null)
       else if (e.key === 't' || e.key === 'T') setTour((x) => !x)
-      else if (e.key === 'n' || e.key === 'N') setNight((x) => !x)
+      else if (e.key === 'n' || e.key === 'N') setLightMode((m) => (m === 'night' ? 'day' : 'night'))
+      else if (e.key === 'f' || e.key === 'F') setTv((x) => !x)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -255,13 +266,47 @@ function Office({ topic, onSignOut, onSignIn }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tour, floors])
 
+  // browser notification (+ optional sound) when a bot starts waiting on you
+  const prevWaiting = useRef(null)
+  useEffect(() => {
+    const w = new Set(live.order.filter((n) => effStatus(live.bots[n], Date.now()) === 'waiting_user'))
+    if (prevWaiting.current) for (const n of w) if (!prevWaiting.current.has(n)) notifyWaiting(live.bots[n], () => pickBot(n))
+    prevWaiting.current = w
+  }, [live, pickBot])
+
+  // celebrate when a whole floor has finished everything
+  const prevAllDone = useRef(null)
+  useEffect(() => {
+    const done = new Set(floors.filter((f) => f.bots.length > 1 && f.bots.every((n) => effStatus(live.bots[n], Date.now()) === 'done')).map((f) => f.key))
+    if (prevAllDone.current) for (const k of done) if (!prevAllDone.current.has(k)) setCelebration({ key: k, name: k, t: Date.now() })
+    prevAllDone.current = done
+  }, [live, floors])
+  useEffect(() => {
+    if (!celebration) return
+    const id = setTimeout(() => setCelebration(null), 6000)
+    return () => clearTimeout(id)
+  }, [celebration])
+
+  // TV mode: full screen, no panels, guided tour
+  useEffect(() => {
+    if (tv) {
+      setTour(true)
+      document.documentElement.requestFullscreen?.().catch(() => {})
+    } else if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {})
+  }, [tv])
+  useEffect(() => {
+    const onFs = () => !document.fullscreenElement && setTv(false)
+    document.addEventListener('fullscreenchange', onFs)
+    return () => document.removeEventListener('fullscreenchange', onFs)
+  }, [])
+
   const onUserMove = useCallback((wasd) => {
     setTour(false)
     if (wasd === true) setSelectedBot(null)
   }, [])
 
   return (
-    <div className={`app ${night ? 'night' : ''}`}>
+    <div className={`app ${night ? 'night' : ''} ${tv ? 'tv' : ''}`}>
       <Scene
         floors={floors}
         selectedIdx={floorIdx}
@@ -272,6 +317,9 @@ function Office({ topic, onSignOut, onSignIn }) {
         data={data}
         now={now}
         night={night}
+        nightness={nightness}
+        weather={live.weather?.kind || null}
+        celebrate={celebration}
         tour={tour}
         selectedBot={selectedBot}
         spotlight={spotlight}
@@ -282,8 +330,8 @@ function Office({ topic, onSignOut, onSignIn }) {
       <div className="hud">
         <div className="top-left">
           <Brand conn={conn} now={now} />
-          <ModeToggles night={night} setNight={setNight} tour={tour} setTour={setTour} />
-          <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} />
+          <ModeToggles mode={lightMode} setMode={setLightMode} tour={tour} setTour={setTour} />
+          <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} />
         </div>
         <div className="top-center">
           <Pills counts={counts} />
@@ -313,10 +361,23 @@ function Office({ topic, onSignOut, onSignIn }) {
         <Activity data={data} onPick={pickBot} />
         <Weekly usage={data.usage} data={data} />
         <div className="bottom-center">
-          {!topic && <ConnectBanner onSignIn={onSignIn} />}
+          {!topic && !replayT && <ConnectBanner onSignIn={onSignIn} />}
+          <Timeline history={live.history} value={replayT} onChange={setReplayT} />
           <Hints />
         </div>
+        <MobileFloors floors={floors} data={data} now={now} selectedKey={selKey} onFloor={goFloor} />
+        <Celebration c={celebration} />
       </div>
+      {tv && <TvExit onExit={() => setTv(false)} />}
     </div>
   )
+}
+
+/** 0 = full day, 1 = full night, with dawn (5:30–7:00) and dusk (17:30–19:30) in between. */
+function autoNightness(d) {
+  const h = d.getHours() + d.getMinutes() / 60
+  if (h >= 7 && h <= 17.5) return 0
+  if (h > 17.5 && h < 19.5) return (h - 17.5) / 2
+  if (h > 5.5 && h < 7) return 1 - (h - 5.5) / 1.5
+  return 1
 }

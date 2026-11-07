@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { validTopic } from '../lib/ntfy'
-import { Gear } from './Icons'
+import { Bell, Gear, Speaker, Tv } from './Icons'
+import { chime, enableNotifications, notificationsSupported, prefs } from '../lib/notify'
 
 export function Login({ onSubmit, onDemo }) {
   const [v, setV] = useState('')
@@ -44,8 +45,10 @@ export function Login({ onSubmit, onDemo }) {
   )
 }
 
-export function Settings({ live, onSignOut, onSignIn }) {
+export function Settings({ live, onSignOut, onSignIn, onTv }) {
   const [open, setOpen] = useState(false)
+  const [notify, setNotify] = useState(() => prefs.get('notify', false) && notificationsSupported() && Notification.permission === 'granted')
+  const [sound, setSound] = useState(() => prefs.get('sound', false))
   const ref = useRef(null)
   useEffect(() => {
     if (!open) return
@@ -60,6 +63,31 @@ export function Settings({ live, onSignOut, onSignIn }) {
       <button className="card gear" aria-label="Configurações" aria-expanded={open} onClick={() => setOpen((x) => !x)}><Gear size={15} /></button>
       {open && (
         <div className="card menu">
+          {notificationsSupported() && (
+            <button
+              className="toggle"
+              onClick={async () => {
+                if (notify) {
+                  prefs.set('notify', false)
+                  setNotify(false)
+                } else setNotify(await enableNotifications())
+              }}
+            >
+              <Bell size={14} /> Notificações <i className={notify ? 'on' : ''} />
+            </button>
+          )}
+          <button
+            className="toggle"
+            onClick={() => {
+              prefs.set('sound', !sound)
+              setSound(!sound)
+              if (!sound) chime()
+            }}
+          >
+            <Speaker size={14} /> Som de alerta <i className={sound ? 'on' : ''} />
+          </button>
+          <button onClick={() => { setOpen(false); onTv() }}><Tv size={14} /> Modo TV</button>
+          <hr />
           {live ? (
             <button onClick={onSignOut}>Sair</button>
           ) : (

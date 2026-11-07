@@ -117,6 +117,12 @@ export function startDemo() {
       const to = pick(pool.length ? pool : free.filter((n) => n !== from))
       const topic = pick(TALKS)
       send({ type: 'talk', from, to, step: topic, status: 'start' })
+      // sometimes it turns into a meeting: two more bots join the same conversation
+      if (Math.random() < 0.25) {
+        const extra = free.filter((n) => n !== from && n !== to && st.bots[n].team === st.bots[to].team).slice(0, 2)
+        extra.forEach((x, i) => later(() => send({ type: 'talk', from: x, to, step: 'Reunião: ' + topic, status: 'start' }), 1500 + i * 1200))
+        extra.forEach((x) => later(() => send({ type: 'talk', from: x, to, step: 'Fechado!', status: 'end' }), 30000))
+      }
       const dur = 22000 + Math.random() * 14000
       later(() => send({ type: 'talk', from, to, step: pick(TALKS) }), dur * 0.5)
       later(() => send({ type: 'talk', from, to, step: 'Valeu, entendi', status: 'end' }), dur)
@@ -124,6 +130,12 @@ export function startDemo() {
     later(talk, 7000 + Math.random() * 8000)
   }
 
+  // the weather changes now and then
+  const weatherTick = () => {
+    send({ weather: pick(['clear', 'clear', 'cloudy', 'rain', 'clear', 'storm', 'snow']) })
+    later(weatherTick, 60000 + Math.random() * 60000)
+  }
+  later(weatherTick, 20000)
   later(tick, 800)
   later(talk, 1500)
   return () => timers.forEach(clearTimeout)

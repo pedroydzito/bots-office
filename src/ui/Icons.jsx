@@ -19,3 +19,10 @@ export const Minus = (p) => <S {...p}><path d="M5 12h14" /></S>
 export const Up = (p) => <S {...p}><path d="M12 19V5M6 11l6-6 6 6" /></S>
 export const Down = (p) => <S {...p}><path d="M12 5v14M6 13l6 6 6-6" /></S>
 export const Gear = (p) => <S {...p}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></S>
+export const Bell = (p) => <S {...p}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0" /></S>
+export const Speaker = (p) => <S {...p}><path d="M11 5L6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" /></S>
+export const Tv = (p) => <S {...p}><rect x="2" y="5" width="20" height="13" rx="2" /><path d="M8 21h8" /></S>
+export const Auto = (p) => <S {...p}><circle cx="12" cy="12" r="9" /><path d="M12 3v18" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" /></S>
+export const Layers = (p) => <S {...p}><path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5" /></S>
+export const Clock = (p) => <S {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></S>
+export const Party = (p) => <S {...p}><path d="M4 20l5-14 9 9z" /><path d="M14 4l1 2M19 9l2-1M17 3l-1 3M20 13l-2 .5" /></S>

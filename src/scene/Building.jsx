@@ -138,7 +138,7 @@ function ElevatorShaft({ W, D, floors, night }) {
 }
 
 /** Floors below the selected one render as glass facade; the selected one is open. */
-export default function Building({ floors, selectedIdx, size, layouts, data, now, night, selectedBot, spotlight, onSelect }) {
+export default function Building({ floors, selectedIdx, size, layouts, data, now, night, selectedBot, spotlight, onSelect, celebrate }) {
   const { W, D } = size // largest footprint, for the plaza
   const sel = floors[selectedIdx]
   const drop = useRef()
@@ -182,6 +182,8 @@ export default function Building({ floors, selectedIdx, size, layouts, data, now
                 selectedBot={selectedBot}
                 spotlight={spotlight}
                 onSelect={onSelect}
+                floorCount={floors.length}
+                celebrate={celebrate && celebrate.key === sel.key ? celebrate.t : null}
               />
             ))}
         </group>

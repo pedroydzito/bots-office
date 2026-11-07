@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import Avatar from './Avatar'
-import { Arrow, Brain, Chat, Check, Close, Doc, Down, Minus, Moon, Pause, Play, Plus, Sun, Up } from './Icons'
+import { Arrow, Auto, Brain, Chat, Check, Close, Doc, Down, Minus, Moon, Pause, Play, Plus, Sun, Up } from './Icons'
 import { CORTEX_KEY, durationShort, effStatus, hhmm, resolveColor, STATUS, talkActive } from '../lib/constants'
 import { sceneSignals } from '../scene/registry'
+import { botMetrics, fmtDuration } from '../lib/metrics'
 
 const STATUS_WORD = { working: 'Trabalhando', waiting_user: 'Esperando você', error: 'Erro', done: 'Concluído', resting: 'Descansando' }
 
@@ -21,24 +22,34 @@ export function Brand({ conn, now }) {
   )
 }
 
-export function ModeToggles({ night, setNight, tour, setTour }) {
+export function ModeToggles({ mode, setMode, tour, setTour }) {
   return (
     <div className="card toggles">
-      <button className={!night ? 'on' : ''} onClick={() => setNight(false)}><Sun /> Dia</button>
-      <button className={night ? 'on' : ''} onClick={() => setNight(true)}><Moon /> Noite</button>
-      <button className={tour ? 'on' : ''} onClick={() => setTour(!tour)}>{tour ? <Pause size={12} /> : <Play size={12} />} Tour</button>
+      <button className={mode === 'day' ? 'on' : ''} onClick={() => setMode('day')} title="Dia"><Sun /> <span className="lbl">Dia</span></button>
+      <button className={mode === 'night' ? 'on' : ''} onClick={() => setMode('night')} title="Noite"><Moon /> <span className="lbl">Noite</span></button>
+      <button className={mode === 'auto' ? 'on' : ''} onClick={() => setMode('auto')} title="Automático (hora real)"><Auto /> <span className="lbl">Auto</span></button>
+      <button className={tour ? 'on' : ''} onClick={() => setTour(!tour)} title="Tour">{tour ? <Pause size={12} /> : <Play size={12} />} <span className="lbl">Tour</span></button>
     </div>
+  )
+}
+
+function Pill({ color, n, label }) {
+  // on phones only the number shows; tapping reveals the label
+  return (
+    <span tabIndex={0} title={label}>
+      <i style={{ background: color }} /> <b>{n}</b> <span className="lbl">{label}</span>
+    </span>
   )
 }
 
 export function Pills({ counts }) {
   return (
     <div className="card pills">
-      <span><i style={{ background: STATUS.working.color }} /> <b>{counts.working}</b> trabalhando</span>
-      <span><i style={{ background: STATUS.waiting_user.color }} /> <b>{counts.waiting_user}</b> esperando</span>
-      <span><i style={{ background: STATUS.error.color }} /> <b>{counts.error}</b> erros</span>
-      <span><i style={{ background: STATUS.resting.color }} /> <b>{counts.resting}</b> descansando</span>
-      {counts.talks > 0 && <span><i style={{ background: '#8F59F9' }} /> <b>{counts.talks}</b> conversando</span>}
+      <Pill color={STATUS.working.color} n={counts.working} label="trabalhando" />
+      <Pill color={STATUS.waiting_user.color} n={counts.waiting_user} label="esperando" />
+      <Pill color={STATUS.error.color} n={counts.error} label="erros" />
+      <Pill color={STATUS.resting.color} n={counts.resting} label="descansando" />
+      {counts.talks > 0 && <Pill color="#8F59F9" n={counts.talks} label="conversando" />}
     </div>
   )
 }
@@ -202,6 +213,7 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
             <p key={f} className="talkline"><Chat size={13} /> <b>{f}</b> está visitando: {t.step}</p>
           ))}
           {usage != null && <div className="row"><span className="muted">Uso semanal</span><b>{usage}%</b></div>}
+          <Metrics data={data} name={selectedBot} now={now} />
           {(data.routines[selectedBot] || []).length > 0 && (
             <div className="sub">
               <h4>Rotinas</h4>
@@ -354,6 +366,28 @@ export function ConnectBanner({ onSignIn }) {
       <span className="demo-tag">Demo</span>
       <span className="muted">Bots simulados. Tem um código de acesso?</span>
       <button className="dark sm" onClick={onSignIn}>Inserir código de acesso</button>
+    </div>
+  )
+}
+
+function Metrics({ data, name, now }) {
+  if (!data.history) return null
+  const m = botMetrics(data, name, now)
+  const max = Math.max(1, ...m.hours)
+  const hNow = new Date(now).getHours()
+  return (
+    <div className="metrics">
+      <h4>Hoje</h4>
+      <div className="mgrid">
+        <div><b>{m.done}</b><span>concluídas</span></div>
+        <div><b>{fmtDuration(m.workMs)}</b><span>trabalhando</span></div>
+        <div><b className={m.errors ? 'err' : ''}>{m.errors}</b><span>erros</span></div>
+      </div>
+      <div className="hours" title="Atividade por hora">
+        {m.hours.map((v, i) => (
+          <i key={i} className={i === hNow ? 'now' : ''} style={{ height: `${Math.max(6, (v / max) * 100)}%`, opacity: v ? 1 : 0.35 }} />
+        ))}
+      </div>
     </div>
   )
 }

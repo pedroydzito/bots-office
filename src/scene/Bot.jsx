@@ -478,7 +478,7 @@ function Bot({
     let isTalking = false
     if (p.talkView && s.arrived && g.kind === 'spot') {
       const q = botPositions.get(p.talkView.partner)
-      const near = !!q && Math.hypot(q.x - s.pos.x, q.z - s.pos.z) < 1.9 && Math.abs(q.y - (floorY + s.y + 0.6)) < 1
+      const near = !!q && Math.hypot(q.x - s.pos.x, q.z - s.pos.z) < (p.talkView.meeting ? 2.8 : 1.9) && Math.abs(q.y - (floorY + s.y + 0.6)) < 1
       if (near !== s.partnerNear) {
         s.partnerNear = near
         setPartnerNear(near)
@@ -735,7 +735,7 @@ function Bot({
 }
 
 const goalKey = (g) => (g ? `${g.kind}:${g.x.toFixed(2)},${g.z.toFixed(2)}:${g.hideOnArrive ? 1 : 0}${g.goneOnArrive ? 1 : 0}` : '')
-const talkKey = (t) => (t ? `${t.role}|${t.partner}|${t.step}` : '')
+const talkKey = (t) => (t ? `${t.role}|${t.partner}|${t.step}|${t.meeting ? 1 : 0}` : '')
 function same(a, b) {
   return (
     a.bot === b.bot && a.status === b.status && a.seat === b.seat && a.layout === b.layout &&

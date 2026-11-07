@@ -33,6 +33,9 @@ export function lastRide(name) {
   return null
 }
 
+/** The office cat: which floor it is on (-1 = whichever floor is opened first) and its live state. */
+export const pet = { floor: -1, state: null }
+
 /** Per-floor memory of each bot's simulation state (position, activity, personality). */
 export const botMemory = new Map()
 

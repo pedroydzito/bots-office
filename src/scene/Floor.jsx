@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as THREE from 'three'
 import Bot from './Bot'
+import Pet from './Pet'
+import Confetti from './Confetti'
 import {
   Bookshelf, Chair, Clock, CoffeeCorner, DeskRow, Elevator, Lounge, MATS, Plant, Railing,
   StickyWall, TVScreen, WallTitle, WaterCooler, Workstation,
@@ -46,7 +48,7 @@ function eventsSeries() {
   return buckets
 }
 
-export default function Floor({ floor, layout, data, now, floorY, night, selectedBot, spotlight, onSelect }) {
+export default function Floor({ floor, layout, data, now, floorY, night, selectedBot, spotlight, onSelect, floorCount = 1, celebrate = null }) {
   const { W, D } = layout
   const home = floor.bots
   const floorIdx = Math.round(floorY / FLOOR_H)
@@ -64,16 +66,36 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   Object.values(byTarget).forEach((l) => l.sort())
   const seedOf = (s) => [...s].reduce((a, c) => a + c.charCodeAt(0), 0)
 
+  // Meetings: when 3+ bots talk to the same bot, everyone gathers in a circle by the windows
+  const meetCenter = { x: layout.x0 + 1.3, z: layout.D / 2 - 2.0 }
+  const meetingOf = (host) => {
+    const people = [host, ...(byTarget[host] || [])]
+    return people.length >= 3 ? people : null
+  }
+  const meetSpot = (people, who) => {
+    const i = people.indexOf(who), k = people.length
+    const a = (i / k) * Math.PI * 2 + Math.PI / 2
+    const r = 0.55 + k * 0.12
+    const x = meetCenter.x + Math.cos(a) * r, z = meetCenter.z + Math.sin(a) * r
+    return { kind: 'spot', x, z, az: z, yaw: Math.atan2(meetCenter.x - x, meetCenter.z - z) }
+  }
+
   const plan = {}
   for (const n of home) {
     const out = data.talks[n]
     if (out && talkActive(out, now) && data.bots[out.to]) {
-      if (homeSet.has(out.to)) {
+      const mt = homeSet.has(out.to) && meetingOf(out.to)
+      if (mt) {
+        plan[n] = { goal: meetSpot(mt, n), talkView: { role: 'visitor', partner: out.to, step: out.step, seed: seedOf(n), meeting: true }, since: out.t }
+      } else if (homeSet.has(out.to)) {
         const k = byTarget[out.to].indexOf(n)
         plan[n] = { goal: talkSpots(seatOf[out.to], k).visitor, talkView: { role: 'visitor', partner: out.to, step: out.step, seed: seedOf(n) }, since: out.t }
       } else {
         plan[n] = { goal: { ...layout.elevator, hideOnArrive: true }, talkView: null, since: out.t }
       }
+    } else if (byTarget[n] && meetingOf(n)) {
+      const f = byTarget[n][0]
+      plan[n] = { goal: meetSpot(meetingOf(n), n), talkView: { role: 'host', partner: f, step: data.talks[f].step, seed: seedOf(f), meeting: true }, since: data.talks[f].t }
     } else if (byTarget[n]) {
       const f = byTarget[n][0]
       plan[n] = { goal: talkSpots(seatOf[n]).host, talkView: { role: 'host', partner: f, step: data.talks[f].step, seed: seedOf(f) }, since: data.talks[f].t }
@@ -124,6 +146,13 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       {layout.rows.map((r, i) => (
         <DeskRow key={i} row={r} />
       ))}
+      <Pet layout={layout} floorIdx={floorIdx} floorCount={floorCount} />
+      {celebrate &&
+        layout.seats.slice(0, home.length).map((st, i) => (
+          <group key={`${celebrate}-${i}`} position={[st.x, 1.2, st.z]}>
+            <Confetti y={0.4 + (i % 3) * 0.2} />
+          </group>
+        ))}
       {home.map((n, i) => {
         const seat = layout.seats[i]
         if (!seat) return null
@@ -169,8 +198,9 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         let goal, talkView = null
         if (!v.leaving && t && seatOf[t.to]) {
           const k = (byTarget[t.to] || []).indexOf(n)
-          goal = talkSpots(seatOf[t.to], Math.max(0, k)).visitor
-          talkView = { role: 'visitor', partner: t.to, step: t.step, seed: seedOf(n) }
+          const mt = meetingOf(t.to)
+          goal = mt ? meetSpot(mt, n) : talkSpots(seatOf[t.to], Math.max(0, k)).visitor
+          talkView = { role: 'visitor', partner: t.to, step: t.step, seed: seedOf(n), meeting: !!mt }
         } else goal = { ...layout.elevator, goneOnArrive: true }
         return (
           <Bot

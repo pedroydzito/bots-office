@@ -31,6 +31,8 @@ function blank() {
     activity: [], chat: {}, talks: {}, lastTime: 0, rev: 0,
     // latest roster list (names in order) and the time of its last part
     rosterOrder: [], rosterT: 0,
+    // status timeline (for replay + metrics) and outside weather
+    history: [], weather: null,
   }
 }
 
@@ -110,6 +112,7 @@ function applyPayload(d, p, t) {
       const step = clean(p.step, 80)
       d.bots[name] = { ...d.bots[name], status, step, ts: t }
       pushActivity(d, { t, kind: 'status', bot: name, status, step })
+      d.history.push({ t, bot: name, status, step })
     }
   }
 
@@ -190,6 +193,12 @@ function applyPayload(d, p, t) {
     }
   }
 
+  // {"weather":"rain"} — clear | cloudy | rain | storm | snow (sent by your own bots/scripts)
+  if (typeof p.weather === 'string' && /^(clear|sun|sunny|cloudy|clouds|rain|storm|snow)$/i.test(p.weather.trim())) {
+    const w = p.weather.trim().toLowerCase()
+    d.weather = { kind: w === 'sun' || w === 'sunny' ? 'clear' : w === 'clouds' ? 'cloudy' : w, t }
+  }
+
   if (p.cortex && typeof p.cortex === 'object') {
     const c = p.cortex
     d.cortex = {
@@ -228,6 +237,7 @@ function draft(s) {
     chat: { ...s.chat },
     talks: { ...s.talks },
     activity: [...s.activity],
+    history: [...(s.history || [])],
   }
 }
 
@@ -295,6 +305,8 @@ export function loadTopic(topic) {
           usage: s.usage || p.usage || null,
           cortex: s.cortex || p.cortex || null,
           activity: p.activity || [],
+          history: p.history || [],
+          weather: p.weather || null,
           chat: { ...(p.chat || {}), ...s.chat },
           talks: p.talks || {},
           lastTime: p.lastTime || 0,
@@ -330,10 +342,10 @@ function saveNow() {
   if (s.usage) writeJSON(partKey(currentTopic, 'usage'), s.usage)
   const main = {
     bots: s.bots, order: s.order, routines: s.routines, usage: s.usage, cortex: s.cortex,
-    activity: s.activity, chat: s.chat, talks: s.talks, lastTime: s.lastTime,
+    activity: s.activity, history: s.history, weather: s.weather, chat: s.chat, talks: s.talks, lastTime: s.lastTime,
     seen: [...seen].slice(-MAX_SEEN),
   }
-  if (!writeJSON(storageKey, main)) writeJSON(storageKey, { ...main, activity: s.activity.slice(0, 20), seen: [...seen].slice(-100) })
+  if (!writeJSON(storageKey, main)) writeJSON(storageKey, { ...main, activity: s.activity.slice(0, 20), history: s.history.slice(-300), seen: [...seen].slice(-100) })
 }
 
 function persist() {
@@ -372,6 +384,12 @@ export function ingest(msgs) {
   if (seen.size > MAX_SEEN * 2) seen = new Set([...seen].slice(-MAX_SEEN))
   d.activity.sort((a, b) => b.t - a.t)
   d.activity = d.activity.slice(0, MAX_ACTIVITY)
+  if (d.history.length !== (s0.history || []).length) {
+    // keep ~2 days of status changes, oldest first
+    d.history.sort((a, b) => a.t - b.t)
+    const cutoff = Date.now() - 48 * 3600e3
+    d.history = d.history.filter((h) => h.t >= cutoff).slice(-3000)
+  }
   d.rev = s0.rev + 1
   dataStore.set(() => d)
   persist()

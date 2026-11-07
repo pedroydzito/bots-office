@@ -245,3 +245,75 @@ button.link:hover { color: var(--ink2); }
 .settings .menu { position: absolute; top: calc(100% + 6px); left: 0; padding: 4px; min-width: 150px; display: flex; flex-direction: column; animation: fadein 0.15s; }
 .settings .menu button { text-align: left; padding: 7px 10px; border-radius: 9px; font-size: 12.5px; white-space: nowrap; }
 .settings .menu button:hover { background: rgba(127, 127, 127, 0.1); }
+
+/* ---------- settings toggles */
+.settings .menu .toggle { display: flex; align-items: center; gap: 8px; }
+.settings .menu button { display: flex; align-items: center; gap: 8px; }
+.settings .menu .toggle i { margin-left: auto; width: 26px; height: 15px; border-radius: 9px; background: rgba(127, 127, 127, 0.3); position: relative; transition: background 0.2s; }
+.settings .menu .toggle i::after { content: ''; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+.settings .menu .toggle i.on { background: #2fb36b; }
+.settings .menu .toggle i.on::after { transform: translateX(11px); }
+.settings .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; }
+
+/* ---------- pills: tap a number to see its label on phones */
+.pills > span { outline: none; }
+
+/* ---------- timeline */
+.timeline-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px; color: var(--ink2); }
+.timeline { display: flex; align-items: center; gap: 10px; padding: 6px 8px; width: min(560px, calc(100vw - 28px)); }
+.timeline.replaying { box-shadow: var(--shadow), 0 0 0 2px #8f59f9; }
+.timeline input[type='range'] { flex: 1; accent-color: #8f59f9; }
+.tl-play { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #8f59f9; color: #fff; flex: none; }
+.tl-time { font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 600; min-width: 52px; text-align: center; }
+.tl-x { color: var(--muted); display: grid; place-items: center; padding: 4px; }
+
+/* ---------- celebration banner */
+.celebration { position: absolute; top: 120px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 12px 18px; color: #8f59f9; animation: drop 0.5s cubic-bezier(0.2, 1.5, 0.4, 1); }
+.celebration div { display: flex; flex-direction: column; color: var(--ink); }
+.celebration span { color: var(--muted); font-size: 12px; }
+
+/* ---------- metrics */
+.metrics h4 { margin: 6px 0 6px; font-size: 11.5px; color: var(--muted); font-weight: 500; }
+.mgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.mgrid div { background: rgba(127, 127, 127, 0.07); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; }
+.mgrid b { font-size: 15px; }
+.mgrid b.err { color: #e5484d; }
+.mgrid span { color: var(--muted); font-size: 11px; }
+.hours { display: flex; align-items: flex-end; gap: 2px; height: 34px; margin-top: 8px; }
+.hours i { flex: 1; background: #8f59f9; border-radius: 2px; min-height: 2px; }
+.hours i.now { background: #2fb36b; }
+
+/* ---------- TV mode: no panels, just the office */
+.tv .hud { display: none; }
+.tv-exit { position: absolute; top: 14px; right: 14px; z-index: 120; width: 34px; height: 34px; border-radius: 50%; background: rgba(0, 0, 0, 0.35); color: #fff; display: grid; place-items: center; opacity: 0; transition: opacity 0.3s; }
+.tv:hover .tv-exit, .tv-exit:focus { opacity: 1; }
+
+/* ---------- phone floor picker (hidden on desktop) */
+.mfloors { display: none; }
+
+@media (max-width: 860px) {
+  .toggles .lbl, .pills .lbl { display: none; }
+  .toggles button { padding: 6px 9px; }
+  .pills { justify-content: space-around; gap: 4px; overflow: visible; }
+  .pills > span { position: relative; padding: 2px 4px; border-radius: 8px; }
+  .pills > span:focus .lbl, .pills > span:active .lbl { display: block; position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #16181d; color: #fff; padding: 3px 8px; border-radius: 7px; font-size: 11px; white-space: nowrap; z-index: 5; }
+  .top-left { right: 14px; flex-wrap: nowrap; }
+  .brand { flex: 1; min-width: 0; }
+  .brand b { overflow: hidden; text-overflow: ellipsis; }
+  .left { display: none; }
+  .mfloors { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; position: absolute; left: 14px; bottom: 14px; pointer-events: auto; }
+  .mf-btn { display: flex; align-items: center; gap: 8px; padding: 9px 14px 9px 12px; font-size: 13px; color: var(--ink); }
+  .mf-btn .num, .mf-list .num { --team: #959595; width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; font-size: 11px; font-weight: 800; background: var(--team); color: #fff; }
+  .mf-list { padding: 6px; width: min(260px, calc(100vw - 28px)); max-height: 55vh; overflow: auto; animation: fadein 0.15s; }
+  .mf-list .floor { display: flex; }
+  .mf-list .floor:not(.sel) .num { background: color-mix(in srgb, var(--team) 16%, transparent); color: var(--team); }
+  .bottom-center { display: flex; left: auto; right: 14px; transform: none; bottom: 14px; }
+  .bottom-center .hints, .bottom-center .connect { display: none; }
+  .timeline { width: calc(100vw - 28px); }
+  .timeline-btn { padding: 9px 12px; }
+  .celebration { top: 110px; width: calc(100vw - 28px); }
+}
+@media (max-width: 1500px) {
+  .toggles .lbl { display: none; }
+  .toggles button { padding: 6px 9px; }
+}
