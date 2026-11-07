@@ -4,7 +4,7 @@ import { Environment, Lightformer, OrbitControls, PerformanceMonitor } from '@re
 import * as THREE from 'three'
 import Building from './Building'
 import { FLOOR_H } from './layout'
-import { botPositions, sceneSignals } from './registry'
+import { botPositions, floorOffset, ridePositions, sceneSignals } from './registry'
 
 const DAY_BG = new THREE.Color('#eceef2')
 const NIGHT_BG = new THREE.Color('#0c1120')
@@ -166,8 +166,10 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove }) {
     }
     // follow selected bot
     if (selectedBot) {
+      const r = ridePositions.get(selectedBot)
       const p = botPositions.get(selectedBot)
-      if (p) desired.current.copy(p)
+      if (r) desired.current.copy(r)
+      else if (p) desired.current.set(p.x + floorOffset.x, p.y, p.z + floorOffset.z)
     }
     delta.copy(desired.current).sub(target).multiplyScalar(Math.min(1, dt * 4))
     if (delta.lengthSq() > 1e-8) {

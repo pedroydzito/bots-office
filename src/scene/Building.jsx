@@ -6,7 +6,11 @@ import Cortex from './Cortex'
 import { FLOOR_H } from './layout'
 import { getFacadeTexture } from './textures'
 import { CORTEX_KEY } from '../lib/constants'
-import { MATS } from './Props'
+import { MATS, Railing } from './Props'
+import { RoundedBox } from '@react-three/drei'
+import { floorOffset, rides, ridePositions } from './registry'
+import { getBotAsset } from './shapes'
+import { resolveColor } from '../lib/constants'
 
 function Facade({ W, D, y, night }) {
   const mats = useMemo(() => {
@@ -30,11 +34,17 @@ function Facade({ W, D, y, night }) {
   )
 }
 
-function Plaza({ W, D, night }) {
-  const trees = useMemo(
-    () => [[W / 2 + 2.5, D / 2 - 2], [W / 2 + 3.2, -D / 2 + 3], [-W / 2 + 1, D / 2 + 3], [W / 2 - 3, D / 2 + 3.4], [-W / 2 - 2.6, 1], [2, D / 2 + 3.8]],
-    [W, D],
+/** Rounded planter with a clipped hedge: tidy street furniture instead of lollipop trees. */
+function Planter({ position, length = 2.4, rot = 0 }) {
+  return (
+    <group position={position} rotation={[0, rot, 0]}>
+      <RoundedBox args={[length, 0.5, 0.8]} radius={0.08} smoothness={2} position={[0, 0.25, 0]} material={MATS.white} receiveShadow />
+      <RoundedBox args={[length - 0.16, 0.42, 0.64]} radius={0.2} smoothness={3} position={[0, 0.62, 0]} material={MATS.leaf2} castShadow />
+    </group>
   )
+}
+
+function Plaza({ W, D, night }) {
   return (
     <group position={[0, -0.36, 0]}>
       <mesh position={[0, -0.25, 0]} receiveShadow>
@@ -45,13 +55,81 @@ function Plaza({ W, D, night }) {
         <planeGeometry args={[3, D + 12]} />
         <meshStandardMaterial color={night ? '#262e40' : '#d6d9df'} />
       </mesh>
-      {trees.map(([x, z], i) => (
-        <group key={i} position={[x, 0, z]}>
-          <mesh position={[0, 0.5, 0]} material={MATS.dark}>
-            <cylinderGeometry args={[0.07, 0.1, 1, 8]} />
+      <Planter position={[W / 2 + 1.2, 0, -D / 2 + 2]} length={3} rot={Math.PI / 2} />
+      <Planter position={[W / 2 + 1.2, 0, D / 2 - 2]} length={3} rot={Math.PI / 2} />
+      <Planter position={[-W / 2 + 3, 0, D / 2 + 1.3]} length={3.2} />
+      <Planter position={[W / 2 - 3, 0, D / 2 + 1.3]} length={3.2} />
+    </group>
+  )
+}
+
+/** Glass elevator shaft on the outside of the left wall; cars carry riding bots between floors. */
+function ElevatorShaft({ W, D, floors, night }) {
+  const H = floors * FLOOR_H
+  const x = -W / 2 - 0.72, z = -D / 2 + 2.3
+  const cars = useRef([])
+  const riders = useRef([])
+  const glass = useMemo(() => new THREE.MeshStandardMaterial({ color: '#cfe3f5', transparent: true, opacity: 0.22, roughness: 0.1, depthWrite: false }), [])
+  const MAXC = 3
+  useFrame(() => {
+    const now = Date.now()
+    while (rides.length && rides[0].end < now - 60000) rides.shift()
+    const live = rides.filter((r) => now >= r.start && now < r.end).slice(0, MAXC)
+    ridePositions.clear()
+    for (let i = 0; i < MAXC; i++) {
+      const car = cars.current[i]
+      if (!car) continue
+      const r = live[i]
+      if (!r) {
+        // parked car on the ground floor
+        car.visible = i === 0
+        if (i === 0) car.position.set(x, 0, z)
+        if (riders.current[i]) riders.current[i].visible = false
+        continue
+      }
+      const k = (now - r.start) / (r.end - r.start)
+      const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
+      const y = (r.from + (r.to - r.from) * e) * FLOOR_H
+      car.visible = true
+      car.position.set(x, y, z)
+      const rider = riders.current[i]
+      if (rider) {
+        if (rider.userData.key !== r.name) {
+          rider.userData.key = r.name
+          const a = getBotAsset(r.shape)
+          rider.geometry = a.geometry
+          rider.material.color.set(resolveColor(r.color))
+        }
+        rider.visible = true
+        rider.position.y = 0.1 + Math.abs(Math.sin(now / 160)) * 0.02
+        ridePositions.set(r.name, new THREE.Vector3(x, y + 0.8, z))
+      }
+    }
+  })
+  return (
+    <group>
+      <mesh position={[x, H / 2 - 0.35, z]} material={glass}>
+        <boxGeometry args={[1.2, H + 0.2, 1.3]} />
+      </mesh>
+      {[-1, 1].map((sx) =>
+        [-1, 1].map((sz) => (
+          <mesh key={`${sx}${sz}`} position={[x + sx * 0.6, H / 2 - 0.35, z + sz * 0.65]} material={MATS.metal}>
+            <boxGeometry args={[0.05, H + 0.2, 0.05]} />
           </mesh>
-          <mesh position={[0, 1.4, 0]} material={i % 2 ? MATS.leaf : MATS.leaf2} castShadow>
-            <sphereGeometry args={[0.75, 20, 16]} />
+        )),
+      )}
+      {Array.from({ length: MAXC }, (_, i) => (
+        <group key={i} ref={(g) => (cars.current[i] = g)} visible={i === 0}>
+          <RoundedBox args={[1.05, 0.08, 1.15]} radius={0.03} smoothness={2} material={MATS.white} />
+          <mesh position={[0, 1.2, 0]} material={MATS.white}>
+            <boxGeometry args={[1.05, 0.06, 1.15]} />
+          </mesh>
+          <mesh position={[0, 1.27, 0]}>
+            <boxGeometry args={[0.3, 0.04, 0.3]} />
+            <meshStandardMaterial color="#fff6dc" emissive="#ffd28a" emissiveIntensity={night ? 2 : 0.6} />
+          </mesh>
+          <mesh ref={(m) => (riders.current[i] = m)} visible={false}>
+            <meshStandardMaterial roughness={0.38} />
           </mesh>
         </group>
       ))}
@@ -73,31 +151,54 @@ export default function Building({ floors, selectedIdx, size, layouts, data, now
     if (drop.current) drop.current.position.y = selectedIdx * FLOOR_H + dropY.current
   })
   const y = selectedIdx * FLOOR_H
+  const lay = sel ? layouts[sel.key] : null
+  // rooms hug the building's back-left corner; the rest of the storey is an open terrace
+  const ox = lay ? -(W - lay.W) / 2 : 0
+  const oz = lay ? -(D - lay.D) / 2 : 0
+  floorOffset.x = ox
+  floorOffset.z = oz
   return (
     <group>
       <Plaza W={W} D={D} night={night} />
       {floors.slice(0, selectedIdx).map((f, i) => (
-        <Facade key={f.key} W={layouts[f.key].W} D={layouts[f.key].D} y={i * FLOOR_H} night={night} />
+        <Facade key={f.key} W={W} D={D} y={i * FLOOR_H} night={night} />
       ))}
+      <ElevatorShaft W={W} D={D} floors={floors.length} night={night} />
       <group ref={drop} position={[0, y, 0]}>
-        {sel &&
-          (sel.key === CORTEX_KEY ? (
-            <Cortex key={sel.key} layout={layouts[sel.key]} cortex={data.cortex} floorNum={sel.num} floorY={y} night={night} />
-          ) : (
-            <Floor
-              key={sel.key}
-              floor={sel}
-              layout={layouts[sel.key]}
-              data={data}
-              now={now}
-              floorY={y}
-              night={night}
-              selectedBot={selectedBot}
-              spotlight={spotlight}
-              onSelect={onSelect}
-            />
-          ))}
+        <Terrace W={W} D={D} night={night} />
+        <group position={[ox, 0, oz]}>
+          {sel &&
+            (sel.key === CORTEX_KEY ? (
+              <Cortex key={sel.key} layout={lay} cortex={data.cortex} floorNum={sel.num} floorY={y} night={night} />
+            ) : (
+              <Floor
+                key={sel.key}
+                floor={sel}
+                layout={lay}
+                data={data}
+                now={now}
+                floorY={y}
+                night={night}
+                selectedBot={selectedBot}
+                spotlight={spotlight}
+                onSelect={onSelect}
+              />
+            ))}
+        </group>
       </group>
+    </group>
+  )
+}
+
+/** Full-size storey slab around a smaller room, with the building's railing on the open edges. */
+function Terrace({ W, D, night }) {
+  return (
+    <group>
+      <mesh position={[0, -0.18, 0]} receiveShadow>
+        <boxGeometry args={[W, 0.34, D]} />
+        <meshStandardMaterial color={night ? '#2a3142' : '#e4e6ea'} roughness={0.85} />
+      </mesh>
+      <Railing W={W} D={D} />
     </group>
   )
 }

@@ -147,10 +147,10 @@ const BUILDERS = {
     const g = puffy(roundedShape(pts, radii), 1.4)
     return g
   },
+  // round pebble: a perfect circle from the front, gently flattened front-to-back
   pebble: () => {
     const g = new THREE.SphereGeometry(0.5, 48, 32)
-    g.scale(1, 1.08, 0.8)
-    g.rotateZ(0.08)
+    g.scale(1, 1, 0.78)
     return g
   },
   heart: () => {

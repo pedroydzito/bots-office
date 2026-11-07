@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { getBotAsset } from './shapes'
 import { isDark, resolveColor, STATUS } from '../lib/constants'
 import { planPath, SEAT_Y } from './layout'
-import { botPositions, poiKey, poiTaken, seatYaw } from './registry'
+import { botPositions, poiKey, poiTaken, seatYaw, sitting } from './registry'
 import Confetti from './Confetti'
 
 const rand = (a, b) => a + Math.random() * (b - a)
@@ -30,6 +30,8 @@ const blushGeo = new THREE.CircleGeometry(0.045, 20)
 const blushMat = new THREE.MeshBasicMaterial({ color: '#ff8fb1', transparent: true, opacity: 0.55, depthWrite: false })
 const mugGeo = new THREE.CylinderGeometry(0.05, 0.045, 0.1, 14)
 const mugMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.4 })
+const bookGeo = new THREE.BoxGeometry(0.26, 0.2, 0.04)
+const bookMat = new THREE.MeshStandardMaterial({ color: '#1E86FC', roughness: 0.6 })
 const photoRimMat = new THREE.MeshBasicMaterial({ color: '#ffffff' })
 const photoCache = new Map()
 function photoTexture(url) {
@@ -159,7 +161,7 @@ function StatusIcon({ status, talking }) {
  */
 function Bot({
   bot, status, layout, seat, goal, talkView, floorY, selected, spotlight,
-  onSelect, onGone, spawnAtGoal, night,
+  onSelect, onGone, spawnAtGoal, night, appearAt = 0,
 }) {
   const asset = useMemo(() => getBotAsset(bot.shape), [bot.shape])
   const color = resolveColor(bot.color)
@@ -176,6 +178,7 @@ function Bot({
   const eyesRef = useRef([])
   const hands = useRef([])
   const mug = useRef()
+  const book = useRef()
   const ring = useRef()
   const phase = useMemo(() => Math.random() * 10, [])
 
@@ -188,7 +191,7 @@ function Bot({
   const [partnerNear, setPartnerNear] = useState(false)
 
   const P = useRef({})
-  P.current = { status, goal, seat, layout, onGone, talkView, hover }
+  P.current = { status, goal, seat, layout, onGone, talkView, hover, appearAt }
 
   const S = useRef(null)
   if (!S.current) {
@@ -209,7 +212,12 @@ function Bot({
       path: null,
       idx: 0,
       wander: null,
-      nextWander: rand(6, 40),
+      // personality: some bots barely leave their desk, others wander a lot
+      wanderRate: rand(0.5, 2.6),
+      likes: [...['coffee', 'cooler', 'sofa', 'view', 'books', 'plant']].sort(() => Math.random() - 0.5).slice(0, 4),
+      nextWander: rand(25, 160),
+      idleSince: 0,
+      activity: null,
       lookYaw: 0,
       nextLook: rand(2, 6),
       blinkAt: rand(1, 4),
@@ -260,7 +268,10 @@ function Bot({
     () => () => {
       botPositions.delete(bot.name)
       seatYaw.delete(bot.name)
-      if (S.current?.wander) poiTaken.delete(poiKey(S.current.wander))
+      if (S.current?.wander) {
+        poiTaken.delete(poiKey(S.current.wander))
+        sitting.delete(poiKey(S.current.wander))
+      }
     },
     [bot.name],
   )
@@ -271,6 +282,18 @@ function Bot({
     const s = S.current
     const p = P.current
     if (!root.current || s.gone) return
+    // waiting for the elevator car to arrive on this floor: stay inside, hidden
+    if (p.appearAt && Date.now() < p.appearAt) {
+      if (!s.hiddenFlag) {
+        s.hiddenFlag = true
+        setHidden(true)
+      }
+      s.pos.set(p.layout.elevator.x, 0, p.layout.elevator.z)
+      s.atKind = 'elevator'
+      s.key = ''
+      botPositions.delete(bot.name)
+      return
+    }
     if (s.pendingCelebrate) {
       s.pendingCelebrate = false
       s.celebrate = t
@@ -286,16 +309,23 @@ function Bot({
       const idleish = p.status === 'resting' || p.status === 'done'
       if (s.wander && (!idleish || (s.wander.until && t > s.wander.until))) {
         poiTaken.delete(poiKey(s.wander))
+        sitting.delete(poiKey(s.wander))
+        s.activity = null
         s.wander = null
       }
-      if (!s.wander && idleish && p.seat && t > s.nextWander) {
-        s.nextWander = t + rand(30, 80)
+      if (!idleish) s.idleSince = t
+      // only after being idle a while, at this bot's own pace, and never too many at once
+      const cap = Math.max(1, Math.round((p.layout.seats.length || 3) / 3))
+      if (!s.wander && idleish && p.seat && t > s.nextWander && t - s.idleSince > 6 && poiTaken.size < cap) {
+        s.nextWander = t + rand(35, 110) * s.wanderRate
         const free = p.layout.pois.filter((q) => !poiTaken.has(poiKey(q)))
-        if (free.length) {
-          s.wander = { ...pick(free), until: null }
+        const liked = free.filter((q) => s.likes.includes(q.kind))
+        const choice = liked.length ? pick(liked) : free.length ? pick(free) : null
+        if (choice) {
+          s.wander = { ...choice, until: null }
           poiTaken.add(poiKey(s.wander))
         }
-      }
+      } else if (!s.wander && t > s.nextWander) s.nextWander = t + rand(10, 30) * s.wanderRate
       g = s.wander || (p.seat ? { kind: 'seat', x: p.seat.x, z: p.seat.z, az: p.seat.az, ex: p.seat.ex, yaw: 0 } : p.layout.elevator)
     }
     const key = g.kind === 'seat' ? 'seat' : `${g.kind}:${g.x.toFixed(2)},${g.z.toFixed(2)}`
@@ -321,9 +351,13 @@ function Bot({
       s.atKind = g.kind
       setArrivedKind(g.kind)
       if (g.kind === 'seat') s.landT = t
-      if (g.kind === 'coffee') s.holding = true
+      if (g.kind === 'coffee' || g.kind === 'cooler') s.holding = true
       if (g.kind === 'seat') s.holding = false
-      if (s.wander && g === s.wander) s.wander.until = t + rand(6, 14)
+      if (s.wander && g === s.wander) {
+        s.wander.until = t + rand(9, 22)
+        s.activity = g.kind
+        if (g.sit) sitting.add(poiKey(g))
+      }
       if (g.hideOnArrive && !s.hiddenFlag) {
         s.hiddenFlag = true
         setHidden(true)
@@ -347,9 +381,28 @@ function Bot({
         s.idx++
         if (s.idx >= s.path.length) arrive()
       } else {
-        s.pos.x += (dx / d) * step
-        s.pos.z += (dz / d) * step
-        s.targetYaw = Math.atan2(dx, dz)
+        // steer around other bots instead of pushing them
+        let ux = dx / d, uz = dz / d
+        const px = -uz, pz = ux
+        let sx = 0, sz = 0
+        for (const [other, q] of botPositions) {
+          if (other === bot.name) continue
+          const rx = q.x - s.pos.x, rz = q.z - s.pos.z
+          const ahead = rx * ux + rz * uz
+          if (ahead <= 0 || ahead > 1.4) continue
+          const lat = rx * px + rz * pz
+          if (Math.abs(lat) > 0.9) continue
+          const w = ((0.9 - Math.abs(lat)) / 0.9) * ((1.4 - ahead) / 1.4)
+          const side = Math.abs(lat) < 0.05 ? (phase > 5 ? 1 : -1) : Math.sign(lat)
+          sx -= side * px * w
+          sz -= side * pz * w
+        }
+        ux += sx * 1.8
+        uz += sz * 1.8
+        const n = Math.hypot(ux, uz) || 1
+        s.pos.x += (ux / n) * step
+        s.pos.z += (uz / n) * step
+        s.targetYaw = Math.atan2(ux, uz)
         moving = true
       }
     }
@@ -375,18 +428,17 @@ function Bot({
     if (seated && s.y > 0.3) seatYaw.set(bot.name, s.yaw)
     else seatYaw.delete(bot.name)
 
-    // soft collisions: standing/walking bots never overlap each other
-    if (!seated && !s.hiddenFlag) {
+    // hard rule: a walking bot never overlaps anyone; it only ever moves itself (nobody gets shoved)
+    if (moving && !s.hiddenFlag) {
       for (const [other, q] of botPositions) {
         if (other === bot.name) continue
         const dx = s.pos.x - q.x, dz = s.pos.z - q.z
         const d = Math.hypot(dx, dz)
-        const minD = 0.82
+        const minD = 0.8
         if (d < minD) {
-          const k = ((minD - d) / minD) * Math.min(1, dt * 12) * 0.55
           const nx = d > 1e-4 ? dx / d : Math.cos(phase), nz = d > 1e-4 ? dz / d : Math.sin(phase)
-          s.pos.x += nx * k * minD
-          s.pos.z += nz * k * minD
+          s.pos.x = q.x + nx * minD
+          s.pos.z = q.z + nz * minD
         }
       }
       // stay inside the room
@@ -394,7 +446,7 @@ function Bot({
       s.pos.z = Math.max(-p.layout.D / 2 + 0.45, Math.min(p.layout.D / 2 - 0.45, s.pos.z))
     }
 
-    const wantY = s.arrived && g.kind === 'seat' ? SEAT_Y : 0
+    const wantY = s.arrived && g.kind === 'seat' ? SEAT_Y : s.arrived && g.sit ? 0.42 : 0
     s.y += (wantY - s.y) * (1 - Math.exp(-dt * 9))
     root.current.position.set(s.pos.x, s.y, s.pos.z)
     root.current.rotation.y = s.yaw
@@ -483,8 +535,47 @@ function Bot({
     }
     if (t < s.blinkUntil) eyeY = Math.min(eyeY, 0.1)
 
+    // ---- activities at points of interest
+    const act = !moving && s.arrived && s.wander && g === s.wander ? s.activity : null
+    if (act) {
+      const cyc = (t + phase) % 4
+      const sip = cyc < 1.1 ? Math.sin((cyc / 1.1) * Math.PI) : 0
+      switch (act) {
+        case 'coffee':
+        case 'cooler':
+          hr = 0.32 * sip + 0.06
+          hz = 0.14 * sip + 0.04
+          rx -= 0.08 * sip
+          eyeY = Math.min(eyeY, 1 - 0.8 * sip)
+          break
+        case 'books':
+          hl = hr = 0.16
+          hz = 0.16
+          rx = 0.12 + Math.sin(t * 0.7) * 0.03
+          ry = Math.sin(t * 0.4 + phase) * 0.15
+          break
+        case 'sofa':
+          rx = -0.18
+          sy *= 1 + Math.sin(t * 1.1 + phase) * 0.025
+          hl = hr = -0.04
+          eyeY = Math.min(eyeY, 0.45)
+          break
+        case 'view':
+          if (cyc < 1.6) {
+            const k = Math.sin((cyc / 1.6) * Math.PI)
+            hl = hr = 0.45 * k
+            sy *= 1 + 0.07 * k
+          } else rz = Math.sin(t * 1.3 + phase) * 0.05
+          break
+        case 'plant':
+          hr = 0.18
+          hz = 0.2
+          rx = 0.12
+          break
+      }
+    }
     // ---- quirks: short one-off gestures that keep the office alive
-    if (!moving && !isTalking && t > s.nextQuirk) {
+    if (!moving && !isTalking && !act && t > s.nextQuirk) {
       s.nextQuirk = t + rand(9, 22)
       s.quirkT = t
       s.quirk = st === 'working' ? pick(['think', 'stretch', 'nod']) : st === 'resting' ? pick(['yawn', 'stretch']) : st === 'error' ? 'facepalm' : st === 'done' ? 'cheer' : pick(['stretch', 'look'])
@@ -523,6 +614,10 @@ function Bot({
     const hw = asset.width / 2 + 0.03
     if (hands.current[0]) hands.current[0].position.set(-hw, 0.22 + hl, 0.08 + hz)
     if (hands.current[1]) hands.current[1].position.set(hw, 0.22 + hr, 0.08 + hz)
+    if (book.current) {
+      book.current.visible = act === 'books'
+      book.current.position.set(0, 0.3 + hl, 0.2 + hz)
+    }
     if (mug.current) {
       mug.current.visible = s.holding
       mug.current.position.set(hw + 0.02, 0.3 + hr, 0.12 + hz)
@@ -591,9 +686,10 @@ function Bot({
           </group>
         )}
         {[0, 1].map((i) => (
-          <mesh key={i} ref={(m) => (hands.current[i] = m)} geometry={handGeo} material={mat} castShadow />
+          <mesh key={i} ref={(m) => (hands.current[i] = m)} geometry={handGeo} material={mat} />
         ))}
-        <mesh ref={mug} geometry={mugGeo} material={mugMat} visible={false} castShadow />
+        <mesh ref={mug} geometry={mugGeo} material={mugMat} visible={false} />
+        <mesh ref={book} geometry={bookGeo} material={bookMat} visible={false} rotation={[-0.5, 0, 0]} />
         <Accessory kind={bot.accessory} asset={asset} color={color} />
       </group>
       {!hidden && (

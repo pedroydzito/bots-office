@@ -13,7 +13,7 @@ export function Brand({ conn, now }) {
       <span className="logo">
         <svg viewBox="0 0 24 24" width="14" height="14"><rect x="4" y="4" width="16" height="16" rx="5" fill="#fff" /></svg>
       </span>
-      <b>Escritório Grok</b>
+      <b>Escritório de Bots</b>
       <span className={`conn conn-${conn}`}>
         <i /> {label} · {hhmm(now)}
       </span>

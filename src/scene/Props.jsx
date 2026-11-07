@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
 import { createTVCanvas, drawTV, getCodeTextures, makeClockFace, makeTitleTexture, makeRugTexture } from './textures'
-import { botPositions, seatYaw, tickCodeScroll } from './registry'
+import { botPositions, poiKey, seatYaw, sitting, tickCodeScroll } from './registry'
 
 const M = {
   white: new THREE.MeshStandardMaterial({ color: '#f7f7f8', roughness: 0.6 }),
@@ -106,8 +106,8 @@ export function Workstation({ seat, status, idx, night }) {
           <planeGeometry args={[0.55, 0.32]} />
         </mesh>
       </group>
-      <RoundedBox args={[0.42, 0.02, 0.14]} radius={0.008} position={[-0.02, 0.01, 0.55]} material={M.white} castShadow />
-      <mesh position={[0.62, 0.06, 0.62]} castShadow>
+      <RoundedBox args={[0.42, 0.02, 0.14]} radius={0.008} position={[-0.02, 0.01, 0.55]} material={M.white} />
+      <mesh position={[0.62, 0.06, 0.62]}>
         <cylinderGeometry args={[0.045, 0.04, 0.11, 14]} />
         <meshStandardMaterial color={mug} roughness={0.4} />
       </mesh>
@@ -115,14 +115,31 @@ export function Workstation({ seat, status, idx, night }) {
   )
 }
 
+function nearestBot(x, z) {
+  let best = Infinity
+  for (const q of botPositions.values()) best = Math.min(best, Math.hypot(q.x - x, q.z - z))
+  return best
+}
+
+/** Plants rustle when someone walks by. */
 export function Plant({ position, scale = 1, kind = 0 }) {
+  const leaves = useRef()
+  const amp = useRef(0)
+  useFrame(({ clock }, dt) => {
+    if (!leaves.current) return
+    const near = nearestBot(position[0], position[2]) < 1.3 ? 1 : 0
+    amp.current += (near - amp.current) * Math.min(1, dt * 2)
+    const t = clock.elapsedTime
+    leaves.current.rotation.z = Math.sin(t * 7) * 0.07 * amp.current + Math.sin(t * 0.8 + position[0]) * 0.012
+    leaves.current.rotation.x = Math.cos(t * 6) * 0.05 * amp.current
+  })
   return (
     <group position={position} scale={scale}>
       <mesh position={[0, 0.22, 0]} material={M.pot} castShadow receiveShadow>
         <cylinderGeometry args={[0.24, 0.19, 0.44, 24]} />
       </mesh>
       {kind === 0 ? (
-        <group position={[0, 0.44, 0]}>
+        <group ref={leaves} position={[0, 0.44, 0]}>
           <mesh position={[0, 0.35, 0]} material={M.leaf} castShadow scale={[1, 1.15, 1]}>
             <sphereGeometry args={[0.38, 24, 18]} />
           </mesh>
@@ -134,7 +151,7 @@ export function Plant({ position, scale = 1, kind = 0 }) {
           </mesh>
         </group>
       ) : (
-        <group position={[0, 0.44, 0]}>
+        <group ref={leaves} position={[0, 0.44, 0]}>
           {[0, 1, 2, 3, 4].map((i) => (
             <mesh key={i} position={[Math.cos(i * 1.3) * 0.12, 0.35 + i * 0.12, Math.sin(i * 1.3) * 0.12]} rotation={[Math.cos(i) * 0.5, i, Math.sin(i) * 0.5]} material={i % 2 ? M.leaf : M.leaf2} castShadow scale={[1, 0.25, 0.5]}>
               <sphereGeometry args={[0.3, 16, 12]} />
@@ -189,9 +206,30 @@ export function Clock({ position, rotation }) {
   )
 }
 
+const steamGeo = new THREE.SphereGeometry(0.06, 10, 8)
+/** Coffee machine puffs steam while someone is getting a coffee. */
 export function CoffeeCorner({ position }) {
+  const puffs = useRef([])
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, depthWrite: false }), [])
+  const on = useRef(0)
+  useFrame(({ clock }, dt) => {
+    const near = nearestBot(position[0], position[2] + 0.73) < 1.0 ? 1 : 0
+    on.current += (near - on.current) * Math.min(1, dt * 2)
+    const t = clock.elapsedTime
+    mat.opacity = 0.55 * on.current
+    puffs.current.forEach((m, i) => {
+      if (!m) return
+      const k = (t * 0.6 + i / 3) % 1
+      m.position.set(0.5 + Math.sin(k * 6 + i) * 0.05, 1.7 + k * 0.6, 0.05)
+      m.scale.setScalar(0.6 + k * 1.4)
+      m.visible = on.current > 0.02
+    })
+  })
   return (
     <group position={position}>
+      {[0, 1, 2].map((i) => (
+        <mesh key={'s' + i} ref={(m) => (puffs.current[i] = m)} geometry={steamGeo} material={mat} visible={false} />
+      ))}
       <RoundedBox args={[2.2, 0.08, 0.5]} radius={0.02} position={[0, 1.05, 0]} material={M.white} castShadow receiveShadow />
       <RoundedBox args={[2.2, 0.9, 0.5]} radius={0.02} position={[0, 0.45, 0]} material={M.white} castShadow receiveShadow />
       <RoundedBox args={[0.45, 0.55, 0.38]} radius={0.04} position={[0.5, 1.37, 0]} material={M.black} castShadow />
@@ -200,7 +238,7 @@ export function CoffeeCorner({ position }) {
         <meshBasicMaterial color="#5cff9b" />
       </mesh>
       {['#FD690F', '#1E86FC', '#ffffff'].map((c, i) => (
-        <mesh key={i} position={[-0.6 + i * 0.18, 1.15, 0.05]} castShadow>
+        <mesh key={i} position={[-0.6 + i * 0.18, 1.15, 0.05]}>
           <cylinderGeometry args={[0.05, 0.045, 0.12, 14]} />
           <meshStandardMaterial color={c} />
         </mesh>
@@ -319,7 +357,22 @@ export function WaterCooler({ position, rotation }) {
   )
 }
 
-export function Lounge({ position, night }) {
+function Cushion({ x, k }) {
+  const ref = useRef()
+  useFrame((_, dt) => {
+    if (!ref.current) return
+    const want = sitting.has(k) ? 0.45 : 1
+    ref.current.scale.y += (want - ref.current.scale.y) * Math.min(1, dt * 8)
+    ref.current.position.y = 0.47 + 0.07 * ref.current.scale.y
+  })
+  return (
+    <RoundedBox ref={ref} args={[1.0, 0.14, 0.62]} radius={0.06} smoothness={2} position={[x, 0.54, 0.08]} castShadow receiveShadow>
+      <meshStandardMaterial color="#dfe1e5" roughness={0.95} />
+    </RoundedBox>
+  )
+}
+
+export function Lounge({ position, night, seats = [] }) {
   const rug = useMemo(() => makeRugTexture('#e8e3dc'), [])
   return (
     <group position={position}>
@@ -340,7 +393,10 @@ export function Lounge({ position, night }) {
             <meshStandardMaterial color="#cfd1d6" roughness={0.9} />
           </RoundedBox>
         ))}
-        <RoundedBox args={[0.42, 0.3, 0.14]} radius={0.06} position={[-0.6, 0.6, -0.15]} rotation={[0.2, 0.2, 0]} castShadow>
+        {seats.map((q) => (
+          <Cushion key={poiKey(q)} x={q.x - position[0] - 0.2} k={poiKey(q)} />
+        ))}
+        <RoundedBox args={[0.32, 0.28, 0.13]} radius={0.06} position={[-0.86, 0.66, -0.14]} rotation={[0.2, 0.3, 0]} castShadow>
           <meshStandardMaterial color="#F5B70A" roughness={0.9} />
         </RoundedBox>
       </group>

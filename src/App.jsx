@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Scene from './scene/Scene'
 import { cortexLayout, floorLayout } from './scene/layout'
-import { botPositions, sceneSignals } from './scene/registry'
+import { activeRide, botPositions, rides, sceneSignals } from './scene/registry'
 import { dataStore, deriveFloors, forgetTopic, loadTopic, ingest } from './lib/state'
 import { useNow, useStore } from './lib/createStore'
 import { chatLink, CORTEX_KEY, effStatus, resolveColor, talkActive } from './lib/constants'
@@ -119,14 +119,49 @@ function Office({ topic, onSignOut, onSignIn }) {
       const t = s.talks[selectedBot]
       const away = t && talkActive(t, Date.now()) && s.bots[t.to] && s.bots[t.to].team !== b.team
       const want = away ? s.bots[t.to].team : b.team
-      if (want !== selKeyRef.current && !botPositions.has(selectedBot)) {
+      if (want !== selKeyRef.current && !botPositions.has(selectedBot) && !activeRide(selectedBot)) {
         setFloorKey(want)
         sceneSignals.focusRequest = selectedBot
       }
     }, 400)
     return () => clearInterval(id)
   }, [selectedBot])
-  const focus = useMemo(() => (lay ? { ...lay.focus, dist: lay.dist } : { x: 0, z: 0, dist: 12 }), [lay])
+  const focus = useMemo(() => {
+    if (!lay) return { x: 0, z: 0, dist: 12 }
+    // the room hugs the building's back-left corner (see Building)
+    return { x: lay.focus.x - (size.W - lay.W) / 2, z: lay.focus.z - (size.D - lay.D) / 2, dist: lay.dist }
+  }, [lay, size])
+
+  // Elevator rides: when a cross-floor conversation starts the visitor rides up/down after walking
+  // to the elevator; when it ends, it rides back. Rides are drawn in the shaft and gate when the
+  // visitor appears on the other floor.
+  const prevCross = useRef(new Map())
+  const floorIndex = useMemo(() => Object.fromEntries(floors.map((f, i) => [f.key, i])), [floors])
+  useEffect(() => {
+    const WALK = 5500
+    const cur = new Map()
+    for (const [f, t] of Object.entries(data.talks)) {
+      const a = data.bots[f], b = data.bots[t.to]
+      if (!a || !b || a.team === b.team || !talkActive(t, now)) continue
+      cur.set(f, { from: floorIndex[a.team], to: floorIndex[b.team], bot: a })
+    }
+    const addRide = (name, from, to, start, bot) => {
+      if (from == null || to == null) return
+      const end = start + 1600 + 900 * Math.abs(to - from)
+      rides.push({ name, from, to, start, end, shape: bot.shape, color: bot.color })
+    }
+    const nowMs = Date.now()
+    for (const [f, c] of cur) {
+      if (!prevCross.current.has(f)) {
+        const talk = data.talks[f]
+        // conversations already in progress on load: the visitor is already there
+        const start = nowMs - talk.t > 15000 ? nowMs - 60000 : Math.max(nowMs, talk.t + WALK)
+        addRide(f, c.from, c.to, start, c.bot)
+      }
+    }
+    for (const [f, c] of prevCross.current) if (!cur.has(f)) addRide(f, c.to, c.from, nowMs + WALK, c.bot)
+    prevCross.current = cur
+  }, [data.talks, data.bots, now, floorIndex])
 
   const goFloor = useCallback((k) => {
     setFloorKey(k)

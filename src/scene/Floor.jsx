@@ -5,7 +5,8 @@ import {
   Bookshelf, Chair, Clock, CoffeeCorner, DeskRow, Elevator, Lounge, MATS, Plant, Railing,
   StickyWall, TVScreen, WallTitle, WaterCooler, Workstation,
 } from './Props'
-import { talkSpots } from './layout'
+import { FLOOR_H, talkSpots } from './layout'
+import { lastRide } from './registry'
 import { effStatus, talkActive } from '../lib/constants'
 import { dataStore } from '../lib/state'
 
@@ -29,7 +30,7 @@ export function Shell({ layout, title, subtitle }) {
       <mesh position={[-W / 2 + 0.125, 1.6, 0]} material={wallMat} receiveShadow castShadow>
         <boxGeometry args={[0.25, 3.2, D]} />
       </mesh>
-      <WallTitle title={title} subtitle={subtitle} position={[-W / 2 + 5.0, 2.62, -D / 2 + 0.26]} />
+      <WallTitle title={title} subtitle={subtitle} position={[-W / 2 + 5.0, 2.28, -D / 2 + 0.26]} />
     </group>
   )
 }
@@ -48,6 +49,7 @@ function eventsSeries() {
 export default function Floor({ floor, layout, data, now, floorY, night, selectedBot, spotlight, onSelect }) {
   const { W, D } = layout
   const home = floor.bots
+  const floorIdx = Math.round(floorY / FLOOR_H)
   const homeSet = useMemo(() => new Set(home), [home])
   const seatOf = useMemo(() => {
     const m = {}
@@ -116,8 +118,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       <WaterCooler position={[-W / 2 + 0.6, 0, layout.wall.coolerZ]} rotation={[0, Math.PI / 2, 0]} />
       {layout.wall.stickyZ != null && <StickyWall position={[-W / 2 + 0.27, 1.25, layout.wall.stickyZ - 0.55]} rotation={[0, Math.PI / 2, 0]} />}
       {layout.wall.shelfZ != null && <Bookshelf position={[-W / 2 + 0.47, 0, layout.wall.shelfZ]} rotation={[0, Math.PI / 2, 0]} seed={floor.num} />}
-      <Lounge position={[W / 2 - 2.4, 0, D / 2 - 2.3]} night={night} />
-      <Railing W={W} D={D} />
+      <Lounge position={[W / 2 - 2.4, 0, D / 2 - 2.3]} night={night} seats={layout.pois.filter((q) => q.kind === 'sofa')} />
       <Elevator layout={layout} floorY={floorY} night={night} />
 
       {layout.rows.map((r, i) => (
@@ -140,6 +141,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
 
       {home.map((n) => {
         const pl = plan[n]
+        const rd = lastRide(n)
         return (
           <Bot
             key={n}
@@ -150,6 +152,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
             goal={pl?.goal || null}
             talkView={pl?.talkView || null}
             spawnAtGoal={!!pl && now - pl.since > 12000}
+            appearAt={rd && rd.to === floorIdx ? rd.end : 0}
             floorY={floorY}
             night={night}
             selected={selectedBot === n}
@@ -162,6 +165,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         const b = data.bots[n]
         const t = data.talks[n]
         if (!b) return null
+        const rd = lastRide(n)
         let goal, talkView = null
         if (!v.leaving && t && seatOf[t.to]) {
           const k = (byTarget[t.to] || []).indexOf(n)
@@ -177,7 +181,8 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
             seat={null}
             goal={goal}
             talkView={talkView}
-            spawnAtGoal={!v.leaving && t && now - t.t > 12000}
+            spawnAtGoal={!v.leaving && t && now - t.t > 25000}
+            appearAt={rd && rd.to === floorIdx ? rd.end : 0}
             floorY={floorY}
             night={night}
             selected={selectedBot === n}

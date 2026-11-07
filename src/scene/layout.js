@@ -20,10 +20,12 @@ function viewDistance(w, d) {
 }
 
 function leftWall(W, D) {
-  const elevator = { kind: 'elevator', x: -W / 2 + 0.55, z: D / 2 - 2.3, az: D / 2 - 2.3, yaw: -Math.PI / 2 }
-  const coolerZ = -D / 2 + 2.7
+  // Elevator sits near the back-left corner, so it lines up with the building's
+  // shaft on every floor (rooms are anchored to the building's back-left corner).
+  const elevator = { kind: 'elevator', x: -W / 2 + 0.55, z: -D / 2 + 2.3, az: -D / 2 + 2.3, yaw: -Math.PI / 2 }
+  const coolerZ = -D / 2 + 4.0
   const midStart = coolerZ + 1.0
-  const midEnd = elevator.z - 1.2
+  const midEnd = D / 2 - 1.5
   const mid = midEnd - midStart
   return {
     elevator,
@@ -58,13 +60,17 @@ export function floorLayout(n) {
     { kind: 'cooler', x: -W / 2 + 1.45, z: lw.coolerZ, yaw: -Math.PI / 2 },
     { kind: 'view', x: x0 + 0.4, z: D / 2 - 1.1, yaw: 0 },
     { kind: 'view', x: x0 + 1.9, z: D / 2 - 1.1, yaw: 0.3 },
+    // sofa seats in the lounge (lounge centre: W/2-2.4, D/2-2.3)
+    { kind: 'sofa', x: W / 2 - 2.75, z: D / 2 - 3.05, az: D / 2 - 2.5, yaw: 0, sit: true },
+    { kind: 'sofa', x: W / 2 - 1.55, z: D / 2 - 3.05, az: D / 2 - 2.5, yaw: 0, sit: true },
+    { kind: 'plant', x: W / 2 - 1.85, z: -D / 2 + 1.5, yaw: Math.PI / 2 },
   ]
   if (lw.shelfZ != null) pois.push({ kind: 'books', x: -W / 2 + 1.45, z: lw.shelfZ, yaw: -Math.PI / 2 })
   const blockCx = x0 + ((cols - 1) * SX) / 2
   const blockCz = z0 + ((rows.length - 1) * SZ) / 2 + 0.4
   return {
     W, D, seats, rows, xL, cols, x0, z0,
-    pois: pois.map((p) => ({ ...p, az: p.z })),
+    pois: pois.map((p) => ({ ...p, az: p.az ?? p.z })),
     elevator: lw.elevator,
     wall: lw,
     focus: { x: blockCx * 0.6, z: blockCz * 0.5 - D * 0.07 },

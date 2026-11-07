@@ -21,7 +21,7 @@ export function Login({ onSubmit, onDemo }) {
         <span className="logo lg">
           <svg viewBox="0 0 24 24" width="22" height="22"><rect x="4" y="4" width="16" height="16" rx="5" fill="#fff" /></svg>
         </span>
-        <h1>Escritório Grok</h1>
+        <h1>Escritório de Bots</h1>
         <p className="muted">Digite seu código de acesso</p>
         <input
           ref={ref}

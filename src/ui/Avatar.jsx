@@ -21,7 +21,7 @@ function Body({ shape }) {
     case 'photo':
       return <circle cx="16" cy="16.5" r="11" />
     case 'pebble':
-      return <ellipse cx="16" cy="16.5" rx="10" ry="11" />
+      return <circle cx="16" cy="16.5" r="11" />
     case 'heart':
       return <path d="M16 27C5.5 19.6 4 13.6 6.8 10c2.8-3.5 7.2-2.7 9.2.9 2-3.6 6.4-4.4 9.2-.9 2.8 3.6 1.3 9.6-9.2 17z" />
     case 'star4':

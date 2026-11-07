@@ -11,11 +11,35 @@ export const sceneSignals = {
 
 export const tmpV = new THREE.Vector3()
 
+/** Where the open floor's room sits inside the building footprint (rooms hug the back-left corner). */
+export const floorOffset = { x: 0, z: 0 }
+
+/**
+ * Elevator rides between floors: { name, from, to, start, end } (ms timestamps, floor indexes).
+ * Filled by the app when cross-floor conversations start/end; drawn in the glass shaft.
+ */
+export const rides = []
+/** World position of bots currently riding the elevator (for the camera to follow). */
+export const ridePositions = new Map()
+export function activeRide(name, now = Date.now()) {
+  for (let i = rides.length - 1; i >= 0; i--) {
+    const r = rides[i]
+    if (r.name === name && now < r.end) return r
+  }
+  return null
+}
+export function lastRide(name) {
+  for (let i = rides.length - 1; i >= 0; i--) if (rides[i].name === name) return rides[i]
+  return null
+}
+
 /** Seated bots publish their swivel so their chair turns with them. */
 export const seatYaw = new Map()
 
 /** Points of interest currently claimed by a bot (one bot per spot). */
 export const poiTaken = new Set()
+/** Sofa seats currently sat on (cushions squash). */
+export const sitting = new Set()
 export const poiKey = (p) => `${p.kind}:${p.x.toFixed(2)},${p.z.toFixed(2)}`
 
 let codeScroll = 0
