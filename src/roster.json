@@ -1,0 +1,266 @@
+[
+ {
+  "name": "Lima_",
+  "id": "8842f4d6-df74-42a6-8015-2a67d47a9b1a",
+  "shape": "wedge",
+  "color": "black",
+  "accessory": "none",
+  "team": "Ops"
+ },
+ {
+  "name": "App | Fluxus",
+  "id": "89005d49-4d0b-44f3-a8c7-84685638e351",
+  "shape": "wedge",
+  "color": "violet",
+  "accessory": "none",
+  "team": "Ops"
+ },
+ {
+  "name": "App | Diário",
+  "id": "564dd54c-7462-4333-b626-77f2b32738b2",
+  "shape": "wedge",
+  "color": "orange",
+  "accessory": "none",
+  "team": "Ops"
+ },
+ {
+  "name": "E-mail",
+  "id": "a453ff6d-6590-424a-aab8-8c77b085b5b6",
+  "shape": "cloud",
+  "color": "orange",
+  "accessory": "none",
+  "team": "Ops"
+ },
+ {
+  "name": "Advogado",
+  "id": "d7b6e971-715d-468b-96cf-3952396804fc",
+  "shape": "pebble",
+  "color": "brown",
+  "accessory": "none",
+  "team": "Ops"
+ },
+ {
+  "name": "Rafa",
+  "id": "d9dcdd8e-bcb9-4dc2-a647-f8067dfad6c5",
+  "shape": "heart",
+  "color": "magenta",
+  "accessory": "none",
+  "team": "Ops"
+ },
+ {
+  "name": "Diretor Comercial",
+  "id": "df99241f-99b5-43c5-b3b2-b99b0c09f1b9",
+  "shape": "pebble",
+  "color": "orange",
+  "accessory": "none",
+  "team": "Sales"
+ },
+ {
+  "name": "SDR",
+  "id": "19b73585-60b6-4cf3-8700-ff8982cf7367",
+  "shape": "cloud",
+  "color": "blue",
+  "accessory": "none",
+  "team": "Sales"
+ },
+ {
+  "name": "Qualificador",
+  "id": "51f942d5-8b2f-4878-a70c-6c6a3802a291",
+  "shape": "cloud",
+  "color": "blue",
+  "accessory": "none",
+  "team": "Sales"
+ },
+ {
+  "name": "Captador",
+  "id": "dc89d7dd-1755-4932-910d-060eb86027f6",
+  "shape": "cloud",
+  "color": "blue",
+  "accessory": "none",
+  "team": "Sales"
+ },
+ {
+  "name": "Closer",
+  "id": "d21556ef-cd0b-4ef3-bba3-93ae8c449493",
+  "shape": "cloud",
+  "color": "orange",
+  "accessory": "none",
+  "team": "Sales"
+ },
+ {
+  "name": "Linguagem",
+  "id": "c019315b-7b70-47f8-8575-f01031362cc5",
+  "shape": "cloud",
+  "color": "orange",
+  "accessory": "none",
+  "team": "Sales"
+ },
+ {
+  "name": "Holmes",
+  "id": "5be606c9-93e6-4b1d-a6e0-4fdde9e3f08e",
+  "shape": "cloud",
+  "color": "brown",
+  "accessory": "none",
+  "team": "Sales"
+ },
+ {
+  "name": "Diretor Criativo",
+  "id": "95f03e60-2fed-4909-b25c-b0ac7788a1d2",
+  "shape": "pebble",
+  "color": "violet",
+  "accessory": "none",
+  "team": "Design"
+ },
+ {
+  "name": "Crítico de Design",
+  "id": "0e9b77c0-cd32-4a1b-a63e-091db256c7e1",
+  "shape": "cloud",
+  "color": "violet",
+  "accessory": "none",
+  "team": "Design"
+ },
+ {
+  "name": "Estrategista de Marca",
+  "id": "678aecfd-0613-4ebe-ba52-3a463a1050a6",
+  "shape": "cloud",
+  "color": "violet",
+  "accessory": "none",
+  "team": "Design"
+ },
+ {
+  "name": "Id. Avenza",
+  "id": "09b7eec4-3b8d-4aac-88d7-1f23f06910cc",
+  "shape": "cloud",
+  "color": "grey",
+  "accessory": "none",
+  "team": "Design"
+ },
+ {
+  "name": "Id. Martin",
+  "id": "16377cd5-6fdc-4c01-ac3a-5f6affaaabcc",
+  "shape": "cloud",
+  "color": "violet",
+  "accessory": "none",
+  "team": "Design"
+ },
+ {
+  "name": "Id. Conexión",
+  "id": "1f8c9e8d-7094-46de-8848-f48b580cfc74",
+  "shape": "cloud",
+  "color": "violet",
+  "accessory": "none",
+  "team": "Design"
+ },
+ {
+  "name": "Id. Taís",
+  "id": "3a6f4d8f-b391-4364-a739-04ddc09effc9",
+  "shape": "cloud",
+  "color": "violet",
+  "accessory": "none",
+  "team": "Design"
+ },
+ {
+  "name": "Id. Vex",
+  "id": "6d9c8924-8102-4a43-a039-5149de543bcf",
+  "shape": "cloud",
+  "color": "violet",
+  "accessory": "none",
+  "team": "Design"
+ },
+ {
+  "name": "Id. Priscila",
+  "id": "7340392c-a601-4965-be5d-b4dd449ac801",
+  "shape": "cloud",
+  "color": "violet",
+  "accessory": "none",
+  "team": "Design"
+ },
+ {
+  "name": "Id. Vitor",
+  "id": "762bb49c-ba2b-4fcf-8583-889971f961d3",
+  "shape": "cloud",
+  "color": "violet",
+  "accessory": "none",
+  "team": "Design"
+ },
+ {
+  "name": "Id. Róger",
+  "id": "ceabd169-c55c-4171-bd70-120ae70b2c96",
+  "shape": "cloud",
+  "color": "violet",
+  "accessory": "none",
+  "team": "Design"
+ },
+ {
+  "name": "Id. Luna",
+  "id": "edbaf4c5-580c-4742-b137-b59179078df9",
+  "shape": "cloud",
+  "color": "violet",
+  "accessory": "none",
+  "team": "Design"
+ },
+ {
+  "name": "Diretor de Marketing",
+  "id": "5c1890f3-f7c8-47d7-a94b-b0dba45aab95",
+  "shape": "pebble",
+  "color": "magenta",
+  "accessory": "none",
+  "team": "Marketing"
+ },
+ {
+  "name": "Prova Social",
+  "id": "87ba9678-248d-417e-9470-7b4f8c81f4b0",
+  "shape": "cloud",
+  "color": "magenta",
+  "accessory": "none",
+  "team": "Marketing"
+ },
+ {
+  "name": "Redator",
+  "id": "d666f8f3-bf2e-4245-9118-9f45f44432df",
+  "shape": "cloud",
+  "color": "magenta",
+  "accessory": "none",
+  "team": "Marketing"
+ },
+ {
+  "name": "YouTube",
+  "id": "7b7b45bb-1d75-490e-990e-db89649795e6",
+  "shape": "wedge",
+  "color": "red",
+  "accessory": "none",
+  "team": "YouTube"
+ },
+ {
+  "name": "Ensaio",
+  "id": "8c533af3-5cd8-4428-83d9-c4767ff3c702",
+  "shape": "cloud",
+  "color": "red",
+  "accessory": "none",
+  "team": "YouTube"
+ },
+ {
+  "name": "Temas",
+  "id": "921af412-f743-409b-a2dc-076b0ee50e16",
+  "shape": "cloud",
+  "color": "red",
+  "accessory": "none",
+  "team": "YouTube"
+ },
+ {
+  "name": "oPinando",
+  "id": "a8270736-1095-42e6-b758-5a50ac9b20af",
+  "shape": "cloud",
+  "color": "red",
+  "accessory": "none",
+  "team": "YouTube"
+ },
+ {
+  "name": "Rafletindo",
+  "id": "be5cecf5-464d-47c1-9050-28f783680753",
+  "shape": "cloud",
+  "color": "red",
+  "accessory": "none",
+  "team": "YouTube"
+ }
+]
