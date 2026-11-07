@@ -1,7 +1,9 @@
 // Merged bot-office state. Every ntfy message is a partial update; we merge
 // them all (in time order) and persist the result per topic in localStorage,
 // because ntfy only keeps ~12h of history.
-import roster from '../roster.json'
+// Live mode starts empty: roster, teams, looks and chat links all come from
+// the topic. The bundled example roster is only used by demo mode.
+import demoRoster from '../roster.json'
 import { createStore } from './createStore'
 import { SHAPES, ACCESSORIES } from './constants'
 
@@ -182,7 +184,7 @@ function applyPayload(d, p, t) {
 
 function withRoster(s) {
   const d = draft(s)
-  for (const b of roster) {
+  for (const b of demoRoster) {
     const name = ensureBot(d, b.name)
     setLook(d, name, b)
   }
@@ -201,16 +203,20 @@ function draft(s) {
   }
 }
 
-export const dataStore = createStore(withRoster(blank()))
+export const dataStore = createStore(blank())
 
 let storageKey = null
 let seen = new Set()
 let persistTimer = null
 
+const keyFor = (topic) => `bot-office:v1:${topic}`
+
+/** topic = live mode (empty office + cached state); null = demo mode (example roster). */
 export function loadTopic(topic) {
-  storageKey = topic ? `bot-office:v1:${topic}` : null
+  clearTimeout(persistTimer)
+  storageKey = topic ? keyFor(topic) : null
   seen = new Set()
-  let s = withRoster(blank())
+  let s = topic ? blank() : withRoster(blank())
   if (storageKey) {
     try {
       const raw = localStorage.getItem(storageKey)
@@ -235,6 +241,17 @@ export function loadTopic(topic) {
     }
   }
   dataStore.set(() => ({ ...s, rev: (dataStore.get().rev || 0) + 1 }))
+}
+
+/** Drop the cached office state for a topic (used on sign out). */
+export function forgetTopic(topic) {
+  clearTimeout(persistTimer)
+  if (storageKey === keyFor(topic)) storageKey = null
+  try {
+    localStorage.removeItem(keyFor(topic))
+  } catch {
+    /* ignore */
+  }
 }
 
 function persist() {
@@ -269,7 +286,7 @@ export function ingest(msgs) {
       applyPayload(d, m.payload, m.time)
       changed = true
     } catch (e) {
-      console.warn('bad message', e)
+      console.warn('bot-office: skipped a malformed message')
     }
     d.lastTime = Math.max(d.lastTime, m.time)
   }

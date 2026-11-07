@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Publish Bot Office messages to your ntfy topic.
 #
-#   export BOT_OFFICE_TOPIC=your-secret-topic      # same as https://<site>/#your-secret-topic
+#   export BOT_OFFICE_TOPIC=your-secret-topic      # your access code (the ntfy topic)
 #
 #   scripts/post.sh status "X Writer" working "Drafting tonight's post"
 #   scripts/post.sh status "X Writer" waiting_user "Needs your OK to publish"
@@ -10,7 +10,7 @@
 #   scripts/post.sh talk-end "SDR" "Closer"                          # SDR walks back
 #   scripts/post.sh usage 37 2026-11-10T00:00:00Z '{"SDR":4.1,"Closer":2.5}'
 #   scripts/post.sh cortex 123 '[{"title":"Pricing notes","updated":"2026-11-07T12:00:00Z"}]'
-#   scripts/post.sh roster                     # publishes src/roster.json (looks + teams)
+#   scripts/post.sh roster my-roster.json      # publishes a roster file (default: example src/roster.json)
 #   scripts/post.sh photo "Closer" face.jpg     # round photo avatar (needs ImageMagick)
 #   scripts/post.sh raw '{"groups":{"SDR":"Sales"}}'
 #
@@ -64,7 +64,7 @@ case "$cmd" in
   roster)
     command -v jq >/dev/null || { echo "roster needs jq" >&2; exit 1; }
     here="$(cd "$(dirname "$0")/.." && pwd)"
-    send "$(jq -c '{roster: [.[] | {name, id, shape, color, accessory, team}]}' "$here/src/roster.json")"
+    send "$(jq -c '{roster: [.[] | {name, id, shape, color, accessory, team}]}' "${1:-$here/src/roster.json}")"
     ;;
   photo)
     [[ $# -ge 2 ]] || { echo "usage: photo <bot> <image-file>" >&2; exit 1; }

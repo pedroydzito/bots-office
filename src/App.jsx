@@ -2,17 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Scene from './scene/Scene'
 import { cortexLayout, floorLayout } from './scene/layout'
 import { botPositions, sceneSignals } from './scene/registry'
-import { dataStore, deriveFloors, loadTopic, ingest } from './lib/state'
+import { dataStore, deriveFloors, forgetTopic, loadTopic, ingest } from './lib/state'
 import { useNow, useStore } from './lib/createStore'
 import { chatLink, CORTEX_KEY, effStatus, resolveColor, talkActive } from './lib/constants'
-import { connectNtfy, validTopic } from './lib/ntfy'
+import { connectNtfy } from './lib/ntfy'
+import { captureHash, clearCode, getCode, setCode } from './lib/auth'
 import { demoApprove, startDemo } from './lib/demo'
 import { Activity, Brand, ConnectBanner, Hints, LeftPanel, ModeToggles, Pills, RightPanel, Toast, Weekly } from './ui/Panels'
-
-function readTopic() {
-  const h = decodeURIComponent(window.location.hash.replace(/^#\/?/, '')).trim()
-  return validTopic(h) ? h : null
-}
+import { Login, Settings } from './ui/Login'
 
 function openLink(link) {
   if (!link) return
@@ -21,7 +18,40 @@ function openLink(link) {
 }
 
 export default function App() {
-  const [topic, setTopic] = useState(readTopic)
+  // The access code is the ntfy topic. It lives only in localStorage.
+  const [code, setCodeState] = useState(() => captureHash() || getCode())
+  const [demo, setDemo] = useState(false)
+
+  useEffect(() => {
+    const onHash = () => {
+      const c = captureHash()
+      if (c) {
+        setCodeState(c)
+        setDemo(false)
+      }
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
+  const signIn = useCallback((c) => {
+    setCode(c)
+    setCodeState(c)
+    setDemo(false)
+  }, [])
+  const signOut = useCallback(() => {
+    if (code) forgetTopic(code)
+    clearCode()
+    setCodeState(null)
+    setDemo(false)
+  }, [code])
+  const toLogin = useCallback(() => setDemo(false), [])
+
+  if (!code && !demo) return <Login onSubmit={signIn} onDemo={() => setDemo(true)} />
+  return <Office key={code || 'demo'} topic={code} onSignOut={signOut} onSignIn={toLogin} />
+}
+
+function Office({ topic, onSignOut, onSignIn }) {
   const [conn, setConn] = useState(topic ? 'syncing' : 'demo')
   const [night, setNight] = useState(() => {
     const h = new Date().getHours()
@@ -36,12 +66,7 @@ export default function App() {
   const data = useStore(dataStore)
   const now = useNow(2000)
 
-  // ---- data source: ntfy topic from the URL hash, or demo mode
-  useEffect(() => {
-    const onHash = () => setTopic(readTopic())
-    window.addEventListener('hashchange', onHash)
-    return () => window.removeEventListener('hashchange', onHash)
-  }, [])
+  // ---- data source: ntfy topic (signed in) or demo mode
   useEffect(() => {
     loadTopic(topic)
     if (topic) {
@@ -222,6 +247,7 @@ export default function App() {
         <div className="top-left">
           <Brand conn={conn} now={now} />
           <ModeToggles night={night} setNight={setNight} tour={tour} setTour={setTour} />
+          <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} />
         </div>
         <div className="top-center">
           <Pills counts={counts} />
@@ -251,7 +277,7 @@ export default function App() {
         <Activity data={data} onPick={pickBot} />
         <Weekly usage={data.usage} data={data} />
         <div className="bottom-center">
-          {!topic && <ConnectBanner />}
+          {!topic && <ConnectBanner onSignIn={onSignIn} />}
           <Hints />
         </div>
       </div>

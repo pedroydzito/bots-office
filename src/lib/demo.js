@@ -47,7 +47,7 @@ export function startDemo() {
   const usageBots = {}
   names.forEach((n) => (usageBots[n] = +(Math.random() * 5 + 0.3).toFixed(1)))
   seed.push({ type: 'usage', total_used_pct: 31, resets_at: new Date(now + (3 * 24 + 14) * 3600e3).toISOString(), bots: usageBots })
-  const routineBots = [names[3], names[7], names[13], names[25], names[28], names[0]].filter(Boolean)
+  const routineBots = [names[0], names[2], names[5], names[6], names[7], names[1]].filter(Boolean)
   const R = [
     [{ name: 'Caixa zerada', schedule: 'Todo dia 08:00', next_run: new Date(now + 5 * 3600e3).toISOString() }],
     [{ name: 'Varredura de leads', schedule: 'Dias úteis 09:30', next_run: new Date(now + 7 * 3600e3).toISOString() }],
