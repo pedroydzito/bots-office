@@ -59,6 +59,14 @@ The interface is in Brazilian Portuguese. Each room is sized to its number of bo
 
 ### Extras
 
+- **Same office on every screen**: what each bot does and where it walks is computed from the clock and the topic's messages only (no randomness per device), so a laptop and a phone logged into the same code show exactly the same scene at the same time.
+- **Whole building** (*Prédio* / `B`): every floor open and live, stacked in a cutaway.
+- **Search** (`Ctrl+K` or `/`): find a bot by name, team or task; the camera flies to it.
+- **Sound** (settings): ambient office sound, background music and interface sounds, all synthesized in the browser, soft and quiet.
+- **Wall boards**: "Esperando por mim" (pending requests) and "Destaques de hoje" (today's highlights); each room has a status lamp and each floor a status strip on the facade.
+- **Desk items and birthdays**: `{"looks":{"Closer":{"desk":["trophy","plant"],"birthday":"03-14"}}}` (items: plant, photo, trophy, lamp, cactus, books). On the birthday a cake appears on the desk.
+- Bots idle for over an hour nap on their desk; at night the room lights go off when everyone is resting.
+
 - **Meetings**: when 3 or more bots talk to the same bot, they all gather in a circle by the windows.
 - **Timeline** (*Linha do tempo*): scrub or play back the last 12 hours of status changes; the office replays them. Status history is kept for 48 hours in the browser.
 - **Notifications**: in the settings menu, turn on browser notifications and/or an alert sound for when a bot starts waiting on you.

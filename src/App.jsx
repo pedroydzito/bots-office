@@ -16,7 +16,7 @@ import { OVERVIEW_GAP } from './scene/Building'
 import { FLOOR_H } from './scene/layout'
 import { botsAt } from './lib/metrics'
 import { notifyWaiting, prefs } from './lib/notify'
-import { startAmbience, updateAmbience } from './lib/ambience'
+import { startAmbience, startMusic, uiSound, updateAmbience } from './lib/ambience'
 
 function openLink(link) {
   if (!link) return
@@ -274,9 +274,14 @@ function Office({ topic, onSignOut, onSignIn }) {
 
   // browser notification (+ optional sound) when a bot starts waiting on you
   const prevWaiting = useRef(null)
+  const prevDone = useRef(null)
   useEffect(() => {
     const w = new Set(live.order.filter((n) => effStatus(live.bots[n], Date.now()) === 'waiting_user'))
     if (prevWaiting.current) for (const n of w) if (!prevWaiting.current.has(n)) notifyWaiting(live.bots[n], () => pickBot(n))
+    // a soft chime when someone finishes (interface sounds on)
+    const d = new Set(live.order.filter((n) => effStatus(live.bots[n], Date.now()) === 'done'))
+    if (prevDone.current && prefs.get('uisound', false) && [...d].some((n) => !prevDone.current.has(n))) uiSound('done')
+    prevDone.current = d
     prevWaiting.current = w
   }, [live, pickBot])
 
@@ -285,10 +290,24 @@ function Office({ topic, onSignOut, onSignIn }) {
     updateAmbience({ workingCount: counts.working, weather: live.weather?.kind })
   })
   useEffect(() => {
-    if (!prefs.get('ambience', false)) return
-    const start = () => startAmbience()
+    // browsers only allow audio after a gesture: resume saved choices on the first click
+    const start = () => {
+      if (prefs.get('ambience', false)) startAmbience()
+      if (prefs.get('music', false)) startMusic()
+    }
     window.addEventListener('pointerdown', start, { once: true })
-    return () => window.removeEventListener('pointerdown', start)
+    // quiet interface blips on every click (when enabled)
+    const click = (e) => {
+      if (!prefs.get('uisound', false)) return
+      const el = e.target.closest?.('button, a[href], [role="button"]')
+      if (!el) return
+      uiSound(el.classList.contains('toggle') || el.getAttribute('aria-pressed') != null ? 'toggle' : el.getAttribute('aria-expanded') === 'false' ? 'open' : 'click')
+    }
+    window.addEventListener('click', click, true)
+    return () => {
+      window.removeEventListener('pointerdown', start)
+      window.removeEventListener('click', click, true)
+    }
   }, [])
 
   // celebrate when a whole floor has finished everything
@@ -349,7 +368,7 @@ function Office({ topic, onSignOut, onSignIn }) {
         <div className="top-left">
           <Brand conn={conn} now={now} />
           <ModeToggles mode={lightMode} setMode={setLightMode} tour={tour} setTour={setTour} overview={overview} setOverview={setOverview} onSearch={() => setSearchOpen(true)} />
-          <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} />
+          <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} mode={lightMode} setMode={setLightMode} />
         </div>
         <div className="top-center">
           <Pills counts={counts} />

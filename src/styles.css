@@ -317,3 +317,106 @@ button.link:hover { color: var(--ink2); }
   .toggles .lbl { display: none; }
   .toggles button { padding: 6px 9px; }
 }
+
+/* ======================================================================
+   Interaction floor (from the design system): every clickable thing
+   reacts to hover, press and selection. No colours change, only veils.
+   ====================================================================== */
+:root {
+  --tempo-rapido: 150ms;
+  --tempo-normal: 280ms;
+  --curva: cubic-bezier(0.22, 1, 0.36, 1);
+  --curva-saida: cubic-bezier(0.4, 0, 1, 1);
+  --curva-mola: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --veu-hover: rgba(0, 0, 0, 0.05);
+  --veu-ativo: rgba(0, 0, 0, 0.1);
+}
+.night {
+  --veu-hover: rgba(255, 255, 255, 0.07);
+  --veu-ativo: rgba(255, 255, 255, 0.13);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :is(button, [role='button'], a[href], summary, label[for], .li, .act, .floor, .mf-btn):not(:disabled, [aria-disabled='true']) {
+    transition-property: transform, opacity, background-color, background-image, color, border-color, box-shadow;
+    transition-duration: var(--tempo-rapido);
+    transition-timing-function: var(--curva);
+  }
+  :is(button, [role='button'], a[href], .act):not(:disabled, [aria-disabled='true']):active {
+    transform: scale(0.97);
+    transition-duration: 80ms;
+  }
+  /* small controls shrink a bit more; rows only dip */
+  :is(.toggles button, .zoom button, .gear, .tl-play, .tl-x, .x, .tv-exit):active { transform: scale(0.92) !important; }
+  :is(.li, .floor, .act):active { transform: scale(0.985) !important; }
+  .card.mf-btn:active, .timeline-btn:active, .toast button:active { transform: scale(0.96) !important; }
+  .ico { transition: transform var(--tempo-rapido) var(--curva-mola); }
+}
+@media (hover: hover) {
+  :is(button, [role='button'], a[href], .li, .act, .floor):not(:disabled, [aria-disabled='true'], .dark, .demo-tag):hover {
+    background-image: linear-gradient(var(--veu-hover), var(--veu-hover));
+  }
+  :is(button, a[href]):hover > .ico:only-child,
+  .toggles button:hover .ico,
+  .zoom button:hover .ico,
+  .gear:hover .ico { transform: scale(1.12); }
+  .gear:hover .ico { transform: rotate(40deg) scale(1.08); }
+  button[title^='Buscar']:hover .ico { transform: scale(1.1) rotate(-6deg); }
+  button[aria-label='Fechar']:hover .ico, .x:hover .ico { transform: rotate(12deg); }
+  button.dark:hover { filter: brightness(1.15); }
+  .night button.dark:hover { filter: brightness(0.92); }
+  .li.bot:hover .avatar, .li:hover .avatar { transform: scale(1.06); }
+  .floor:hover .num { transform: scale(1.08); }
+  .card.mf-btn:hover, .timeline-btn:hover { box-shadow: var(--shadow), 0 0 0 1px var(--line); }
+}
+:is(button, [role='button'], a[href], .li, .act, .floor):active:not(:disabled) {
+  background-image: linear-gradient(var(--veu-ativo), var(--veu-ativo));
+}
+.avatar { transition: transform var(--tempo-rapido) var(--curva-mola), box-shadow var(--tempo-rapido); }
+/* selected states */
+.toggles button.on { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), inset 0 0 0 1px var(--line); }
+.toggles button.on .ico { transform: scale(1.06); }
+.floor.sel { background: color-mix(in srgb, var(--team, #8f59f9) 9%, transparent); }
+.li.bot.sel { background: rgba(127, 127, 127, 0.1); }
+.search-list .li.hl { background-image: linear-gradient(var(--veu-hover), var(--veu-hover)); }
+:focus-visible { outline: 2px solid #8f59f9; outline-offset: 2px; border-radius: 10px; }
+.act { border-radius: 8px; padding-left: 4px; padding-right: 4px; margin: 0 -4px; }
+.act i.st { font-style: normal; }
+
+/* ---------- desktop fixes */
+/* shadows of the left cards were clipped by the scroll box: give the box room to breathe */
+.left { padding: 4px 12px 16px; margin-left: -12px; width: 272px; }
+.weekly .hd { padding: 0 0 6px; }
+
+/* ---------- search modal */
+.search-bg { position: fixed; inset: 0; z-index: 200; background: rgba(10, 12, 18, 0.18); display: grid; place-items: start center; padding-top: 12vh; pointer-events: auto; animation: fadein 0.15s; }
+.search { width: min(520px, calc(100vw - 28px)); overflow: hidden; animation: drop 0.28s var(--curva); }
+.search-in { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); color: var(--muted); }
+.search-in input { flex: 1; border: 0; outline: none; background: transparent; color: var(--ink); font: inherit; font-size: 15px; }
+.search-in kbd { font: inherit; font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+.search-list { padding: 6px; max-height: 50vh; overflow: auto; }
+
+/* settings menu: never leaves the screen */
+.settings .menu { max-width: calc(100vw - 28px); z-index: 130; }
+.settings .menu .mobile-only { display: none; }
+
+/* ---------- phones: compact header */
+@media (max-width: 860px) {
+  .top-left { left: 12px; right: 12px; top: 12px; gap: 6px; align-items: stretch; }
+  .brand { flex: 1 1 auto; min-width: 0; padding: 6px 10px 6px 6px; }
+  .brand .logo { flex: none; }
+  .brand b { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+  .toggles { flex: none; }
+  .toggles .light-btn { display: none; }
+  .toggles button { padding: 6px 8px; }
+  .settings { flex: none; }
+  .settings .menu { left: auto; right: 0; min-width: 200px; }
+  .settings .menu .mobile-only { display: flex; }
+  .top-center { top: 60px; left: 12px; right: auto; transform: none; align-items: flex-start; max-width: calc(100vw - 24px); }
+  .pills { display: inline-flex; width: auto; gap: 2px; padding: 5px 6px; justify-content: flex-start; }
+  .pills > span { padding: 3px 7px; }
+  .toast { max-width: calc(100vw - 24px); }
+  .right.botcard { bottom: 76px; }
+}
+.settings .menu .seg { gap: 2px; padding: 3px; background: rgba(127, 127, 127, 0.08); border-radius: 10px; margin-bottom: 4px; }
+.settings .menu .seg button { flex: 1; justify-content: center; padding: 6px; }
+.settings .menu .seg button.on { background: var(--card-solid); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }

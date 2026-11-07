@@ -25,11 +25,11 @@ export function Brand({ conn, now }) {
 export function ModeToggles({ mode, setMode, tour, setTour, overview, setOverview, onSearch }) {
   return (
     <div className="card toggles">
-      <button className={mode === 'day' ? 'on' : ''} onClick={() => setMode('day')} title="Dia"><Sun /> <span className="lbl">Dia</span></button>
-      <button className={mode === 'night' ? 'on' : ''} onClick={() => setMode('night')} title="Noite"><Moon /> <span className="lbl">Noite</span></button>
-      <button className={mode === 'auto' ? 'on' : ''} onClick={() => setMode('auto')} title="Automático (hora real)"><Auto /> <span className="lbl">Auto</span></button>
-      <button className={tour ? 'on' : ''} onClick={() => setTour(!tour)} title="Tour">{tour ? <Pause size={12} /> : <Play size={12} />} <span className="lbl">Tour</span></button>
-      <button className={overview ? 'on' : ''} onClick={() => setOverview(!overview)} title="Prédio inteiro (B)"><Building2 /> <span className="lbl">Prédio</span></button>
+      <button className={`light-btn ${mode === 'day' ? 'on' : ''}`} aria-pressed={mode === 'day'} onClick={() => setMode('day')} title="Dia"><Sun /> <span className="lbl">Dia</span></button>
+      <button className={`light-btn ${mode === 'night' ? 'on' : ''}`} aria-pressed={mode === 'night'} onClick={() => setMode('night')} title="Noite"><Moon /> <span className="lbl">Noite</span></button>
+      <button className={`light-btn ${mode === 'auto' ? 'on' : ''}`} aria-pressed={mode === 'auto'} onClick={() => setMode('auto')} title="Automático (hora real)"><Auto /> <span className="lbl">Auto</span></button>
+      <button className={tour ? 'on' : ''} aria-pressed={tour} onClick={() => setTour(!tour)} title="Tour">{tour ? <Pause size={12} /> : <Play size={12} />} <span className="lbl">Tour</span></button>
+      <button className={overview ? 'on' : ''} aria-pressed={overview} onClick={() => setOverview(!overview)} title="Prédio inteiro (B)"><Building2 /> <span className="lbl">Prédio</span></button>
       <button onClick={onSearch} title="Buscar bot (Ctrl+K)"><SearchIco /></button>
     </div>
   )
@@ -269,7 +269,7 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
           const talk = data.talks[n]
           const talking = talkActive(talk, now)
           return (
-            <button key={n} className="li bot" onClick={() => onPickBot(n)}>
+            <button key={n} className={`li bot ${selectedBot === n ? 'sel' : ''}`} onClick={() => onPickBot(n)}>
               <Avatar bot={b} size={30} ring={STATUS[st].color} />
               <div className="lt">
                 <b>{n}</b>

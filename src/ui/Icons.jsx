@@ -28,3 +28,4 @@ export const Clock = (p) => <S {...p}><circle cx="12" cy="12" r="9" /><path d="M
 export const Party = (p) => <S {...p}><path d="M4 20l5-14 9 9z" /><path d="M14 4l1 2M19 9l2-1M17 3l-1 3M20 13l-2 .5" /></S>
 export const Building2 = (p) => <S {...p}><rect x="5" y="3" width="14" height="18" rx="1.5" /><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2" /></S>
 export const Search = (p) => <S {...p}><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></S>
+export const Music = (p) => <S {...p}><path d="M9 18V5l11-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="17" cy="16" r="3" /></S>

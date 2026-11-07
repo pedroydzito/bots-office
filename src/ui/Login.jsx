@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { validTopic } from '../lib/ntfy'
 import { Bell, Gear, Speaker, Tv } from './Icons'
 import { chime, enableNotifications, notificationsSupported, prefs } from '../lib/notify'
-import { startAmbience, stopAmbience } from '../lib/ambience'
+import { startAmbience, startMusic, stopAmbience, stopMusic, uiSound } from '../lib/ambience'
+import { Music } from './Icons'
 
 export function Login({ onSubmit, onDemo }) {
   const [v, setV] = useState('')
@@ -46,11 +47,13 @@ export function Login({ onSubmit, onDemo }) {
   )
 }
 
-export function Settings({ live, onSignOut, onSignIn, onTv }) {
+export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode }) {
   const [open, setOpen] = useState(false)
   const [notify, setNotify] = useState(() => prefs.get('notify', false) && notificationsSupported() && Notification.permission === 'granted')
   const [sound, setSound] = useState(() => prefs.get('sound', false))
   const [amb, setAmb] = useState(() => prefs.get('ambience', false))
+  const [music, setMusic] = useState(() => prefs.get('music', false))
+  const [ui, setUi] = useState(() => prefs.get('uisound', false))
   const ref = useRef(null)
   useEffect(() => {
     if (!open) return
@@ -65,6 +68,13 @@ export function Settings({ live, onSignOut, onSignIn, onTv }) {
       <button className="card gear" aria-label="Configurações" aria-expanded={open} onClick={() => setOpen((x) => !x)}><Gear size={15} /></button>
       {open && (
         <div className="card menu">
+          {setMode && (
+            <div className="mobile-only seg">
+              {[['day', 'Dia'], ['night', 'Noite'], ['auto', 'Auto']].map(([k, l]) => (
+                <button key={k} className={mode === k ? 'on' : ''} aria-pressed={mode === k} onClick={() => setMode(k)}>{l}</button>
+              ))}
+            </div>
+          )}
           {notificationsSupported() && (
             <button
               className="toggle"
@@ -98,6 +108,28 @@ export function Settings({ live, onSignOut, onSignIn, onTv }) {
             }}
           >
             <Speaker size={14} /> Som ambiente <i className={amb ? 'on' : ''} />
+          </button>
+          <button
+            className="toggle"
+            onClick={() => {
+              const v = !music
+              prefs.set('music', v)
+              setMusic(v)
+              v ? startMusic() : stopMusic()
+            }}
+          >
+            <Music size={14} /> Música ambiente <i className={music ? 'on' : ''} />
+          </button>
+          <button
+            className="toggle"
+            onClick={() => {
+              const v = !ui
+              prefs.set('uisound', v)
+              setUi(v)
+              if (v) uiSound('toggle')
+            }}
+          >
+            <Speaker size={14} /> Sons da interface <i className={ui ? 'on' : ''} />
           </button>
           <button onClick={() => { setOpen(false); onTv() }}><Tv size={14} /> Modo TV</button>
           <hr />
