@@ -247,14 +247,14 @@ export function CoffeeCorner({ position }) {
   )
 }
 
-export function TVScreen({ position, rotation, label, getValue, getSeries, night }) {
+export function TVScreen({ position, rotation, label, getValue, getSeries, getGoal, night }) {
   const tv = useMemo(() => createTVCanvas(), [])
   const acc = useRef(10)
   useFrame((_, dt) => {
     acc.current += dt
     if (acc.current > 1) {
       acc.current = 0
-      drawTV(tv, { label, value: getValue(), series: getSeries() })
+      drawTV(tv, { label, value: getValue(), series: getSeries(), goal: getGoal ? getGoal() : null })
     }
   })
   return (
@@ -630,7 +630,7 @@ export function StatusLamp({ position, color }) {
 
 const DECOR_ITEMS = ['plant', 'photo', 'trophy', 'lamp', 'cactus', 'books']
 /** Personal desk items: from looks.desk, or a stable pick from the bot's name. */
-export function DeskDecor({ seat, items, name }) {
+export function DeskDecor({ seat, items, name, trophies = 0 }) {
   let list = items
   if (!list || !list.length) {
     let h = 0
@@ -639,6 +639,13 @@ export function DeskDecor({ seat, items, name }) {
   }
   return (
     <group position={[seat.x - 0.55, 0.75, seat.z + 0.95]}>
+      {/* achievement trophies earned by this bot */}
+      {Array.from({ length: Math.min(3, trophies) }, (_, i) => (
+        <group key={'tr' + i} position={[1.05 + i * 0.12, 0, -0.28]} scale={0.8}>
+          <mesh position={[0, 0.02, 0]} material={M.dark}><boxGeometry args={[0.08, 0.04, 0.08]} /></mesh>
+          <mesh position={[0, 0.11, 0]}><cylinderGeometry args={[0.06, 0.02, 0.12, 14]} /><meshStandardMaterial color={['#f5b70a', '#c0c6d0', '#d08a4f'][i]} metalness={0.6} roughness={0.3} /></mesh>
+        </group>
+      ))}
       {list.slice(0, 2).map((it, i) => (
         <group key={i} position={[i * -0.0, 0, i * -0.32]}>
           {it === 'plant' && (
@@ -857,6 +864,147 @@ export function FloorLamp({ x, z, night }) {
         <cylinderGeometry args={[0.16, 0.22, 0.26, 20, 1, true]} />
         <meshStandardMaterial color="#fff6e0" emissive="#ffd28a" emissiveIntensity={night ? 1.8 : 0.15} side={THREE.DoubleSide} />
       </mesh>
+    </group>
+  )
+}
+
+/** Aquarium on a low cabinet: fish swim around, bubbles rise. */
+export function Aquarium({ x, z }) {
+  const fish = useRef([])
+  const bub = useRef([])
+  const glass = useMemo(() => new THREE.MeshPhysicalMaterial({ color: '#bfe3ff', transparent: true, opacity: 0.35, roughness: 0.05, depthWrite: false }), [])
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime
+    fish.current.forEach((f, i) => {
+      if (!f) return
+      const a = t * (0.4 + i * 0.13) + i * 2
+      f.position.set(Math.sin(a) * 0.45, 0.95 + i * 0.09 + Math.sin(a * 2) * 0.03, Math.cos(a * 0.7) * 0.12)
+      f.rotation.y = Math.cos(a) > 0 ? 0 : Math.PI
+    })
+    bub.current.forEach((b, i) => {
+      if (!b) return
+      const k = (t * 0.35 + i / 4) % 1
+      b.position.set(0.35 - i * 0.06, 0.8 + k * 0.5, 0.05)
+      b.scale.setScalar(0.6 + k * 0.6)
+    })
+  })
+  const colors = ['#FD690F', '#F5B70A', '#1E86FC', '#F93498']
+  return (
+    <group position={[x, 0, z]} rotation={[0, -Math.PI / 2, 0]}>
+      <RoundedBox args={[1.3, 0.62, 0.5]} radius={0.03} smoothness={2} position={[0, 0.31, 0]} material={M.dark} castShadow receiveShadow />
+      <mesh position={[0, 0.98, 0]} material={glass}>
+        <boxGeometry args={[1.2, 0.68, 0.42]} />
+      </mesh>
+      <mesh position={[0, 0.96, 0]}>
+        <boxGeometry args={[1.16, 0.6, 0.38]} />
+        <meshStandardMaterial color="#5cc8ff" transparent opacity={0.25} depthWrite={false} />
+      </mesh>
+      <mesh position={[0, 0.66, 0]}>
+        <boxGeometry args={[1.16, 0.04, 0.38]} />
+        <meshStandardMaterial color="#e9d7b5" />
+      </mesh>
+      {[-0.4, -0.15, 0.3].map((px, i) => (
+        <mesh key={i} position={[px, 0.78 + i * 0.03, -0.08]} material={M.leaf2} scale={[0.04, 0.14 + i * 0.03, 0.04]}>
+          <sphereGeometry args={[1, 8, 8]} />
+        </mesh>
+      ))}
+      {colors.map((c, i) => (
+        <group key={i} ref={(g) => (fish.current[i] = g)}>
+          <mesh scale={[0.06, 0.035, 0.02]}>
+            <sphereGeometry args={[1, 10, 8]} />
+            <meshStandardMaterial color={c} />
+          </mesh>
+          <mesh position={[-0.065, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <coneGeometry args={[0.025, 0.04, 6]} />
+            <meshStandardMaterial color={c} />
+          </mesh>
+        </group>
+      ))}
+      {[0, 1, 2, 3].map((i) => (
+        <mesh key={i} ref={(m) => (bub.current[i] = m)}>
+          <sphereGeometry args={[0.012, 6, 6]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.7} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+const ART_COLORS = ['#8F59F9', '#1E86FC', '#FD690F', '#E5484D', '#F93498', '#2FB36B', '#F5B70A', '#14B8A6']
+const artCache = new Map()
+/** Framed abstract poster (generated, deterministic by seed). */
+export function Poster({ position, rotation, seed = 1, w = 0.9, h = 1.2 }) {
+  const tex = useMemo(() => {
+    const key = `${seed}|${w}|${h}`
+    if (artCache.has(key)) return artCache.get(key)
+    const c = document.createElement('canvas')
+    c.width = 256
+    c.height = Math.round((256 * h) / w)
+    const g = c.getContext('2d')
+    let r = seed * 7919 + 13
+    const rnd = () => ((r = (r * 9301 + 49297) % 233280) / 233280)
+    g.fillStyle = ['#f6f1ea', '#eef2f7', '#f3eefa', '#fdf3e7'][seed % 4]
+    g.fillRect(0, 0, c.width, c.height)
+    const style = seed % 3
+    for (let i = 0; i < 5; i++) {
+      g.fillStyle = ART_COLORS[Math.floor(rnd() * ART_COLORS.length)]
+      g.globalAlpha = 0.85
+      const x = rnd() * c.width, y = rnd() * c.height, s = 30 + rnd() * 90
+      if (style === 0) {
+        g.beginPath()
+        g.arc(x, y, s / 2, 0, Math.PI * 2)
+        g.fill()
+      } else if (style === 1) g.fillRect(x - s / 2, y - s / 4, s, s / 2)
+      else {
+        g.beginPath()
+        g.moveTo(x, y - s / 2)
+        g.lineTo(x + s / 2, y + s / 2)
+        g.lineTo(x - s / 2, y + s / 2)
+        g.fill()
+      }
+    }
+    g.globalAlpha = 1
+    const t = new THREE.CanvasTexture(c)
+    t.colorSpace = THREE.SRGBColorSpace
+    artCache.set(key, t)
+    return t
+  }, [seed, w, h])
+  return (
+    <group position={position} rotation={rotation}>
+      <mesh position={[0, 0, -0.015]} material={M.dark}>
+        <boxGeometry args={[w + 0.08, h + 0.08, 0.03]} />
+      </mesh>
+      <mesh>
+        <planeGeometry args={[w, h]} />
+        <meshStandardMaterial map={tex} roughness={0.8} />
+      </mesh>
+    </group>
+  )
+}
+
+/** Wall shelf with small plants and books. */
+export function WallShelf({ position, rotation, w = 1.4 }) {
+  return (
+    <group position={position} rotation={rotation}>
+      {[0, 0.45].map((y, k) => (
+        <group key={k} position={[0, y, 0]}>
+          <mesh position={[0, 0, 0.12]} material={M.white} castShadow>
+            <boxGeometry args={[w, 0.04, 0.24]} />
+          </mesh>
+          {[-0.45, 0, 0.42].map((px, i) => (i + k) % 2 ? (
+            <group key={i} position={[px * (w / 1.4), 0.1, 0.12]}>
+              <mesh material={M.pot}><cylinderGeometry args={[0.07, 0.055, 0.14, 12]} /></mesh>
+              <mesh position={[0, 0.13, 0]} material={i % 2 ? M.leaf : M.leaf2}><sphereGeometry args={[0.1, 12, 10]} /></mesh>
+            </group>
+          ) : (
+            <group key={i} position={[px * (w / 1.4), 0.1, 0.12]}>
+              {['#1E86FC', '#F5B70A', '#E5484D'].map((c, j) => (
+                <mesh key={j} position={[j * 0.06 - 0.06, 0.02, 0]}><boxGeometry args={[0.05, 0.18 - j * 0.02, 0.15]} /><meshStandardMaterial color={c} /></mesh>
+              ))}
+            </group>
+          ))}
+        </group>
+      ))}
     </group>
   )
 }

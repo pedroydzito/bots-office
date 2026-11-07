@@ -130,6 +130,17 @@ export function startDemo() {
     later(talk, 7000 + Math.random() * 8000)
   }
 
+  // mail between colleagues now and then, and a weekly goal per team
+  const teams = [...new Set(names.map((n) => dataStore.get().bots[n]?.team))].filter(Boolean)
+  send({ goals: Object.fromEntries(teams.map((t, i) => [t, { label: ['Tarefas da semana', 'Leads qualificados', 'Peças entregues', 'Posts publicados'][i % 4], target: 12 + i * 4 }])) })
+  const SUBJECTS = ['Relatório semanal', 'Contrato revisado', 'Lista de leads', 'Arte final', 'Roteiro aprovado', 'Notas da reunião']
+  const mailTick = () => {
+    const st = dataStore.get()
+    const a = pick(st.order), b = pick(st.order.filter((x) => x !== a))
+    if (a && b) send({ type: 'mail', from: a, to: b, step: pick(SUBJECTS) })
+    later(mailTick, 20000 + Math.random() * 25000)
+  }
+  later(mailTick, 6000)
   // the weather changes now and then
   const weatherTick = () => {
     send({ weather: pick(['clear', 'clear', 'cloudy', 'rain', 'clear', 'storm', 'snow']) })

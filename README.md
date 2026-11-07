@@ -59,6 +59,13 @@ The interface is in Brazilian Portuguese. Each room is sized to its number of bo
 
 ### Extras
 
+- **Mail**: `{"type":"mail","from":"A","to":"B","step":"Relatório"}` — an envelope lifts off A's desk and lands on B's (through the elevator if B is on another floor).
+- **Team goals on the TV**: `{"goals":{"Sales":{"label":"Leads qualificados","target":40}}}`. The TV shows this week's finished tasks against the goal.
+- **Pets**: each floor has one — `{"pets":{"Ops":"dog","Design":"cat","Sales":"fish"}}` (fish = aquarium). Without it each team gets one picked from its name.
+- **Achievements**: first task, 10/50/100 tasks, early bird, night owl, a week without errors. Trophies appear on the bot's desk and a banner announces it.
+- **Seasons**: festa junina bunting in June, pumpkins and ghosts at the end of October, a Christmas tree and lights in December (`?festa=junina|halloween|natal` previews them).
+- **TV mode** now works like a documentary camera, cutting from bot to bot and favouring whoever is busy.
+
 - **Reactions**: in a bot's card, send a like, heart, party, clap or laugh. It is published to the topic as `{"react":{"bot":"Closer","kind":"heart"}}`, so it floats over the bot on every screen.
 - **Timeline markers**: errors (red), approval requests (amber) and meetings (purple) are dots above the timeline; click one to jump there.
 

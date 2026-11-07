@@ -33,6 +33,8 @@ function blank() {
     rosterOrder: [], rosterT: 0,
     // status timeline (for replay + metrics) and outside weather
     history: [], weather: null, talkLog: [], reactions: [],
+    // mail between floors, team goals, office pets, all-time stats for achievements, weekly counts
+    mail: [], goals: {}, pets: {}, stats: {}, week: null, unlocks: [],
   }
 }
 
@@ -95,6 +97,53 @@ function logTalk(d, from, to, step, t, ending) {
   d.talkLog.push({ from, to, t0: t, lastT: t, step: step || 'papo rápido', end: null })
 }
 
+// ---------------------------------------------------------------- achievements
+export const ACHIEVEMENTS = {
+  first: { label: 'Primeira tarefa', test: (st) => st.done >= 1 },
+  ten: { label: '10 tarefas', test: (st) => st.done >= 10 },
+  fifty: { label: '50 tarefas', test: (st) => st.done >= 50 },
+  hundred: { label: '100 tarefas', test: (st) => st.done >= 100 },
+  early: { label: 'Madrugador', test: (st) => st.early },
+  owl: { label: 'Coruja', test: (st) => st.owl },
+  clean: { label: 'Semana sem erros', test: (st, t) => st.done >= 5 && t - (st.lastError || st.first) > 7 * 24 * 3600e3 },
+}
+
+function isoWeek(t) {
+  const d = new Date(t)
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7))
+  const w1 = new Date(d.getFullYear(), 0, 4)
+  return `${d.getFullYear()}-${1 + Math.round(((d - w1) / 864e5 - 3 + ((w1.getDay() + 6) % 7)) / 7)}`
+}
+
+/** All-time per-bot counters, weekly done counts per bot, and achievement unlocks. */
+function countStatus(d, name, status, t) {
+  const prev = d.stats[name] || { done: 0, errors: 0, first: t, lastError: 0, early: false, owl: false, got: [] }
+  const st = { ...prev }
+  if (status === 'done') {
+    st.done++
+    const h = new Date(t).getHours()
+    if (h < 7) st.early = true
+    if (h >= 22) st.owl = true
+    const wk = isoWeek(t)
+    const week = d.week && d.week.id === wk ? { ...d.week, bots: { ...d.week.bots } } : { id: wk, bots: {} }
+    week.bots[name] = (week.bots[name] || 0) + 1
+    d.week = week
+  }
+  if (status === 'error') {
+    st.errors++
+    st.lastError = t
+  }
+  for (const [k, a] of Object.entries(ACHIEVEMENTS)) {
+    if (!st.got.includes(k) && a.test(st, t)) {
+      st.got = [...st.got, k]
+      d.unlocks = [...d.unlocks, { bot: name, key: k, label: a.label, t }].slice(-50)
+      pushActivity(d, { t, kind: 'unlock', bot: name, step: a.label })
+    }
+  }
+  d.stats[name] = st
+}
+
 function applyPayload(d, p, t) {
   if (!p || typeof p !== 'object') return
   if (Array.isArray(p)) {
@@ -136,6 +185,7 @@ function applyPayload(d, p, t) {
       d.bots[name] = { ...d.bots[name], status, step, ts: t }
       pushActivity(d, { t, kind: 'status', bot: name, status, step })
       d.history.push({ t, bot: name, status, step })
+      countStatus(d, name, status, t)
     }
   }
 
@@ -216,6 +266,32 @@ function applyPayload(d, p, t) {
     }
   }
 
+  // {"type":"mail","from":"A","to":"B","step":"Relatório"} — an envelope travels to B's desk
+  if (p.type === 'mail' && typeof p.from === 'string' && typeof p.to === 'string') {
+    const from = ensureBot(d, p.from), to = ensureBot(d, p.to)
+    if (from && to && from !== to) {
+      d.mail = [...d.mail.filter((m) => t - m.t < 30 * 60e3), { from, to, t, subject: clean(p.step || p.subject, 60) || 'Mensagem' }].slice(-40)
+      pushActivity(d, { t, kind: 'mail', from, to, step: clean(p.step || p.subject, 60) || 'Mensagem' })
+    }
+  }
+
+  // {"goals":{"Sales":{"label":"Leads qualificados","target":40}}} — weekly goal per team (TV)
+  if (p.goals && typeof p.goals === 'object' && !Array.isArray(p.goals)) {
+    const g = { ...d.goals }
+    for (const [team, v] of Object.entries(p.goals).slice(0, 30)) {
+      const target = num(v?.target)
+      if (target && target > 0) g[clean(team, 32)] = { label: clean(v.label, 40) || 'Meta da semana', target: Math.min(100000, target) }
+    }
+    d.goals = g
+  }
+
+  // {"pets":{"Ops":"dog","Design":"cat","Sales":"fish"}}
+  if (p.pets && typeof p.pets === 'object' && !Array.isArray(p.pets)) {
+    const g = { ...d.pets }
+    for (const [team, v] of Object.entries(p.pets).slice(0, 30)) if (['cat', 'dog', 'fish', 'none'].includes(String(v))) g[clean(team, 32)] = String(v)
+    d.pets = g
+  }
+
   // {"react":{"bot":"Closer","kind":"heart"}} — reactions from people watching, shown over the bot
   if (p.react && typeof p.react === 'object' && typeof p.react.bot === 'string') {
     const kind = clean(p.react.kind, 12).toLowerCase()
@@ -271,6 +347,9 @@ function draft(s) {
     history: [...(s.history || [])],
     talkLog: [...(s.talkLog || [])],
     reactions: s.reactions || [],
+    mail: s.mail || [],
+    stats: { ...(s.stats || {}) },
+    unlocks: [...(s.unlocks || [])],
   }
 }
 
@@ -340,6 +419,12 @@ export function loadTopic(topic) {
           activity: p.activity || [],
           history: p.history || [],
           talkLog: p.talkLog || [],
+          mail: p.mail || [],
+          goals: p.goals || {},
+          pets: p.pets || {},
+          stats: p.stats || {},
+          week: p.week || null,
+          unlocks: p.unlocks || [],
           weather: p.weather || null,
           chat: { ...(p.chat || {}), ...s.chat },
           talks: p.talks || {},
@@ -376,7 +461,7 @@ function saveNow() {
   if (s.usage) writeJSON(partKey(currentTopic, 'usage'), s.usage)
   const main = {
     bots: s.bots, order: s.order, routines: s.routines, usage: s.usage, cortex: s.cortex,
-    activity: s.activity, history: s.history, talkLog: s.talkLog, weather: s.weather, chat: s.chat, talks: s.talks, lastTime: s.lastTime,
+    activity: s.activity, history: s.history, talkLog: s.talkLog, mail: s.mail, goals: s.goals, pets: s.pets, stats: s.stats, week: s.week, unlocks: s.unlocks, weather: s.weather, chat: s.chat, talks: s.talks, lastTime: s.lastTime,
     seen: [...seen].slice(-MAX_SEEN),
   }
   if (!writeJSON(storageKey, main)) writeJSON(storageKey, { ...main, activity: s.activity.slice(0, 20), history: s.history.slice(-300), seen: [...seen].slice(-100) })

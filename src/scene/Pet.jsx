@@ -10,9 +10,11 @@ const furDark = new THREE.MeshStandardMaterial({ color: '#d9843f', roughness: 0.
 const white = new THREE.MeshStandardMaterial({ color: '#fff4e8', roughness: 0.8 })
 const black = new THREE.MeshBasicMaterial({ color: '#1b1b1b' })
 const pink = new THREE.MeshBasicMaterial({ color: '#ff9fb5' })
+const dogFur = new THREE.MeshStandardMaterial({ color: '#c99a6b', roughness: 0.85 })
+const dogDark = new THREE.MeshStandardMaterial({ color: '#8a5a33', roughness: 0.85 })
 
 
-export default function Pet({ layout, floorIdx }) {
+export default function Pet({ layout, floorIdx, kind = 'cat' }) {
   const root = useRef(), body = useRef(), head = useRef(), tail = useRef(), legs = useRef([])
   const [here, setHere] = useState(false)
   const yaw = useRef(0)
@@ -20,7 +22,7 @@ export default function Pet({ layout, floorIdx }) {
     const dt = Math.min(rawDt, 0.05)
     const T = syncNow()
     const t = (T % 1e7) / 1000
-    const c = simPet(T, floorIdx, layout)
+    const c = simPet(T, floorIdx, layout, kind)
     if (!!c !== here) setHere(!!c)
     if (!c || !root.current) return
     const moving = c.mode === 'walk'
@@ -37,7 +39,7 @@ export default function Pet({ layout, floorIdx }) {
       head.current.rotation.set(c.mode === 'groom' ? 0.5 + Math.sin(t * 6) * 0.15 : nap ? 0.3 : Math.sin(t * 0.7) * 0.1, sit ? Math.sin(t * 0.5) * 0.5 : 0, nap ? 0.5 : 0)
     }
     if (tail.current) {
-      tail.current.rotation.set(nap ? 1.4 : 0.6 + Math.sin(t * 2) * 0.1, Math.sin(t * (moving ? 5 : 1.5)) * (nap ? 0.15 : 0.5), 0)
+      tail.current.rotation.set(nap ? 1.4 : kind === 'dog' ? 0.3 : 0.6 + Math.sin(t * 2) * 0.1, Math.sin(t * (kind === 'dog' ? 14 : moving ? 5 : 1.5)) * (nap ? 0.15 : 0.5), 0)
       tail.current.position.y = nap ? 0.1 : sit ? 0.06 : 0.22
     }
     legs.current.forEach((l, i) => {
@@ -48,10 +50,12 @@ export default function Pet({ layout, floorIdx }) {
   })
 
   if (!here) return null
+  const dog = kind === 'dog'
+  const F = dog ? dogFur : fur, FD = dog ? dogDark : furDark
   return (
-    <group ref={root}>
+    <group ref={root} scale={dog ? 1.25 : 1}>
       <group ref={body}>
-        <mesh material={fur} scale={[0.15, 0.13, 0.26]} castShadow>
+        <mesh material={F} scale={dog ? [0.16, 0.14, 0.27] : [0.15, 0.13, 0.26]} castShadow>
           <sphereGeometry args={[1, 16, 12]} />
         </mesh>
         <mesh material={white} position={[0, -0.04, 0.05]} scale={[0.1, 0.08, 0.16]}>
@@ -59,31 +63,42 @@ export default function Pet({ layout, floorIdx }) {
         </mesh>
       </group>
       <group ref={head}>
-        <mesh material={fur} scale={[0.13, 0.11, 0.11]} castShadow>
+        <mesh material={F} scale={dog ? [0.12, 0.11, 0.12] : [0.13, 0.11, 0.11]} castShadow>
           <sphereGeometry args={[1, 16, 12]} />
         </mesh>
+        {dog && (
+          <mesh material={white} position={[0, -0.03, 0.11]} scale={[0.07, 0.055, 0.07]}>
+            <sphereGeometry args={[1, 12, 8]} />
+          </mesh>
+        )}
         {[-1, 1].map((sx) => (
           <group key={sx}>
-            <mesh material={furDark} position={[sx * 0.07, 0.1, -0.01]} rotation={[0, 0, -sx * 0.3]}>
-              <coneGeometry args={[0.04, 0.08, 4]} />
-            </mesh>
-            <mesh material={black} position={[sx * 0.045, 0.02, 0.1]} scale={[1, 1.4, 0.5]}>
+            {dog ? (
+              <mesh material={FD} position={[sx * 0.11, 0.01, -0.01]} rotation={[0, 0, sx * 0.35]} scale={[0.035, 0.09, 0.06]}>
+                <sphereGeometry args={[1, 10, 8]} />
+              </mesh>
+            ) : (
+              <mesh material={FD} position={[sx * 0.07, 0.1, -0.01]} rotation={[0, 0, -sx * 0.3]}>
+                <coneGeometry args={[0.04, 0.08, 4]} />
+              </mesh>
+            )}
+            <mesh material={black} position={[sx * 0.045, 0.03, 0.1]} scale={[1, 1.4, 0.5]}>
               <sphereGeometry args={[0.014, 8, 6]} />
             </mesh>
           </group>
         ))}
-        <mesh material={pink} position={[0, -0.015, 0.11]}>
-          <sphereGeometry args={[0.012, 8, 6]} />
+        <mesh material={dog ? black : pink} position={[0, dog ? 0.0 : -0.015, dog ? 0.18 : 0.11]}>
+          <sphereGeometry args={[dog ? 0.02 : 0.012, 8, 6]} />
         </mesh>
       </group>
       <group ref={tail} position={[0, 0.22, -0.24]}>
-        <mesh material={furDark} position={[0, 0.14, 0]}>
-          <capsuleGeometry args={[0.025, 0.26, 4, 8]} />
+        <mesh material={FD} position={[0, dog ? 0.08 : 0.14, 0]}>
+          <capsuleGeometry args={[0.025, dog ? 0.14 : 0.26, 4, 8]} />
         </mesh>
       </group>
       {[[-0.07, 0.13], [0.07, 0.13], [-0.07, -0.13], [0.07, -0.13]].map(([x, z], i) => (
         <group key={i} ref={(g) => (legs.current[i] = g)} position={[x, 0.12, z]}>
-          <mesh material={i < 2 ? white : fur} position={[0, -0.06, 0]}>
+          <mesh material={i < 2 ? white : F} position={[0, -0.06, 0]}>
             <capsuleGeometry args={[0.025, 0.08, 4, 8]} />
           </mesh>
         </group>

@@ -1,10 +1,13 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import Bot from './Bot'
+import MailFlights from './Mail'
+import Seasonal from './Seasonal'
+import { hash } from './sim'
 import Pet from './Pet'
 import Confetti from './Confetti'
 import {
-  Arcade, Armchair, BeanBag, Bookshelf, FloorLamp, Printer, Vending, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, GlassElevator, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
+  Aquarium, Arcade, Armchair, BeanBag, Poster, WallShelf, Bookshelf, FloorLamp, Printer, Vending, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, GlassElevator, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
   StickyWall, TVScreen, WallTitle, WaterCooler, Workstation,
 } from './Props'
 import { effStatus, STATUS, talkActive } from '../lib/constants'
@@ -15,7 +18,7 @@ const wallMat = new THREE.MeshStandardMaterial({ color: '#f3f3f5', roughness: 0.
 const floorMat = new THREE.MeshStandardMaterial({ color: '#eceef1', roughness: 0.75 })
 const slabMat = new THREE.MeshStandardMaterial({ color: '#e2e4e8', roughness: 0.8 })
 
-export function Shell({ layout, title, subtitle }) {
+export function Shell({ layout, title, subtitle, accent }) {
   const { W, D } = layout
   return (
     <group>
@@ -31,6 +34,25 @@ export function Shell({ layout, title, subtitle }) {
       <mesh position={[-W / 2 + 0.125, 1.6, 0]} material={wallMat} receiveShadow castShadow>
         <boxGeometry args={[0.25, 3.2, D]} />
       </mesh>
+      {accent && (
+        <group>
+          {/* team-colour band around both walls + baseboards */}
+          <mesh position={[0, 1.05, -D / 2 + 0.255]}>
+            <boxGeometry args={[W, 0.07, 0.01]} />
+            <meshStandardMaterial color={accent} roughness={0.6} />
+          </mesh>
+          <mesh position={[-W / 2 + 0.255, 1.05, 0]}>
+            <boxGeometry args={[0.01, 0.07, D]} />
+            <meshStandardMaterial color={accent} roughness={0.6} />
+          </mesh>
+          <mesh position={[0, 0.06, -D / 2 + 0.265]} material={wallMat}>
+            <boxGeometry args={[W, 0.12, 0.03]} />
+          </mesh>
+          <mesh position={[-W / 2 + 0.265, 0.06, 0]} material={wallMat}>
+            <boxGeometry args={[0.03, 0.12, D]} />
+          </mesh>
+        </group>
+      )}
       <WallTitle title={title} subtitle={subtitle} position={[-W / 2 + 5.0, 2.28, -D / 2 + 0.26]} />
     </group>
   )
@@ -51,6 +73,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   const { W, D } = layout
   const home = floor.bots
   const floorIdx = floor.num - 1
+  const petKind = data.pets?.[floor.key] || ['cat', 'dog', 'fish'][hash(floor.key) % 3]
   const homeSet = useMemo(() => new Set(home), [home])
   const seatOf = useMemo(() => {
     const m = {}
@@ -103,7 +126,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
 
   return (
     <group>
-      <Shell layout={layout} title={floor.name} subtitle={`Andar ${floor.num}`} />
+      <Shell layout={layout} title={floor.name} subtitle={`Andar ${floor.num}`} accent={floor.color} />
       <Clock position={[-W / 2 + 1.55, 2.45, -D / 2 + 0.28]} />
       <CoffeeCorner position={[-W / 2 + 3.0, 0, -D / 2 + 0.52]} />
       <TVScreen
@@ -111,6 +134,11 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         label="EVENTOS / 24 MIN"
         getValue={() => eventsSeries().reduce((a, b) => a + b, 0)}
         getSeries={eventsSeries}
+        getGoal={() => {
+          const st = dataStore.get()
+          const n = home.reduce((a, b) => a + (st.week?.bots?.[b] || 0), 0)
+          return { n, ...(st.goals?.[floor.key] || { label: 'Concluídas na semana', target: 0 }) }
+        }}
         night={night}
       />
       <Plant position={[-W / 2 + 0.75, 0, -D / 2 + 0.75]} scale={1.15} />
@@ -148,7 +176,20 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       {layout.rows.map((r, i) => (
         <DeskRow key={i} row={r} />
       ))}
-      <Pet layout={layout} floorIdx={floorIdx} floorCount={floorCount} />
+      {petKind !== 'fish' && petKind !== 'none' && <Pet layout={layout} floorIdx={floorIdx} kind={petKind} />}
+      {petKind === 'fish' && <Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} />}
+      <MailFlights mail={data.mail} floorIdx={floorIdx} layout={layout} />
+      <Seasonal layout={layout} seed={floor.key} />
+      {/* wall art keeps both walls lively: posters high above the left-wall furniture, art + shelf on the back wall */}
+      <Poster position={[-W / 2 + 0.27, 2.4, layout.wall.coolerZ]} rotation={[0, Math.PI / 2, 0]} seed={hash(floor.key) % 97} w={0.8} h={0.6} />
+      <Poster position={[-W / 2 + 0.27, 2.4, D / 2 - 2.6]} rotation={[0, Math.PI / 2, 0]} seed={(hash(floor.key) % 97) + 3} w={0.9} h={0.6} />
+      <Poster position={[-W / 2 + 0.27, 1.9, D / 2 - 4.1]} rotation={[0, Math.PI / 2, 0]} seed={(hash(floor.key) % 97) + 5} w={0.7} h={0.95} />
+      {W / 2 - 3.8 - (-W / 2 + 7.0) > 1.6 && (
+        <group>
+          <Poster position={[(-W / 2 + 7.0 + W / 2 - 3.8) / 2 - 0.55, 1.95, -D / 2 + 0.27]} seed={(hash(floor.key) % 97) + 7} w={0.85} h={1.15} />
+          <WallShelf position={[(-W / 2 + 7.0 + W / 2 - 3.8) / 2 + 0.75, 1.3, -D / 2 + 0.25]} w={1.0} />
+        </group>
+      )}
       {celebrate &&
         layout.seats.slice(0, home.length).map((st, i) => (
           <group key={`${celebrate}-${i}`} position={[st.x, 1.2, st.z]}>
@@ -162,7 +203,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
           <group key={n}>
             <Chair x={seat.x} z={seat.z} owner={n} />
             <Workstation seat={seat} idx={i} status={effStatus(data.bots[n], now)} night={night} />
-            <DeskDecor seat={seat} items={data.bots[n]?.desk} name={n} />
+            <DeskDecor seat={seat} items={data.bots[n]?.desk} name={n} trophies={data.stats?.[n]?.got?.length || 0} />
             {data.bots[n]?.birthday === today && <Cake seat={seat} />}
           </group>
         )

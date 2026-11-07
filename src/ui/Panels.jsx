@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Avatar from './Avatar'
-import { Clap, Heart, Laugh, Party, ThumbUp } from './Icons'
+import { Clap, Heart, Laugh, Mail, Party, ThumbUp, Trophy } from './Icons'
 import { Arrow, Auto, Building2, Search as SearchIco, Brain, Chat, Check, Close, Doc, Down, Minus, Moon, Pause, Play, Plus, Sun, Up } from './Icons'
 import { CORTEX_KEY, durationShort, effStatus, hhmm, resolveColor, STATUS, talkActive } from '../lib/constants'
 import { sceneSignals } from '../scene/registry'
@@ -40,7 +40,7 @@ function Pill({ color, n, label }) {
   // on phones only the number shows; tapping reveals the label
   return (
     <span tabIndex={0} title={label}>
-      <i style={{ background: color }} /> <b>{n}</b> <span className="lbl">{label}</span>
+      <i style={{ background: color }} /> <b key={n} className="bump">{n}</b> <span className="lbl">{label}</span>
     </span>
   )
 }
@@ -309,9 +309,17 @@ export function Activity({ data, onPick }) {
       <div className="hd"><span>Atividade</span></div>
       {items.length === 0 && <p className="muted">Aguardando a primeira mensagem…</p>}
       {items.map((a, i) => (
-        <div key={`${a.t}|${a.kind}|${a.bot || a.from}|${a.to || ''}`} className="act" onClick={() => onPick(a.kind === 'talk' ? a.from : a.bot)}>
+        <div key={`${a.t}|${a.kind}|${a.bot || a.from}|${a.to || ''}`} className="act" onClick={() => onPick(a.kind === 'talk' || a.kind === 'mail' ? a.from : a.bot)}>
           <time>{hhmm(a.t)}</time>
-          {a.kind === 'talk' ? (
+          {a.kind === 'mail' ? (
+            <span>
+              <b>{a.from} <Mail size={11} /> {a.to}</b>: {a.step}
+            </span>
+          ) : a.kind === 'unlock' ? (
+            <span>
+              <b>{a.bot}</b> · <i className="st st-unlock"><Trophy size={11} /> {a.step}</i>
+            </span>
+          ) : a.kind === 'talk' ? (
             <span>
               <b>{a.from} <Arrow size={11} /> {a.to}</b>: {a.end && <Check size={11} />} {a.step}
             </span>

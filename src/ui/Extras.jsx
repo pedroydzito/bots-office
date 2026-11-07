@@ -93,8 +93,8 @@ export function Celebration({ c }) {
     <div className="card celebration" key={c.t}>
       <Party size={18} />
       <div>
-        <b>{c.name} concluiu tudo!</b>
-        <span>Todos os bots do andar terminaram</span>
+        <b>{c.title || `${c.name} concluiu tudo!`}</b>
+        <span>{c.sub || 'Todos os bots do andar terminaram'}</span>
       </div>
     </div>
   )

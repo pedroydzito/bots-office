@@ -301,24 +301,23 @@ export function simBot(ctx, T) {
 
 // ------------------------------------------------------------------ the cat
 /** The office cat: which floor it is on and where, as a function of time. */
-export function simPet(T, floorIdx, layout) {
+export function simPet(T, floorIdx, layout, kind = 'cat') {
+  // every floor has its own pet now; its walk is still a function of time (same on every screen)
   const PSLOT = 300000
-  const slot = Math.floor(T / PSLOT)
-  const onFloor = hash(`cat|${slot}`) % Math.max(1, world.floorsCount)
-  if (onFloor !== floorIdx) return null
+  const slot = Math.floor(T / PSLOT) * 31 + floorIdx
   const spots = [
     ...layout.pois.map((p) => ({ x: p.x + 0.5, z: p.az ?? p.z, az: p.az ?? p.z })),
     ...layout.seats.map((p) => ({ x: p.ex ?? p.x + 0.8, z: p.az, az: p.az })),
   ].filter((p) => Math.abs(p.x) < layout.W / 2 - 0.5 && Math.abs(p.z) < layout.D / 2 - 0.5)
   if (!spots.length) return null
-  const LEG = 25000
+  const LEG = kind === 'dog' ? 18000 : 25000
   const t = T - slot * PSLOT
   const leg = Math.floor(t / LEG)
   const spotAt = (k) => (k < 0 ? { x: layout.elevator.x + 0.9, z: layout.elevator.z, az: layout.elevator.z } : spots[hash(`cat|${slot}|${k}`) % spots.length])
   const a = spotAt(leg - 1), b = spotAt(leg)
   const pts = planPath(a, b, layout)
   const len = pathLen(pts)
-  const d = ((t - leg * LEG) / 1000) * 0.9
+  const d = ((t - leg * LEG) / 1000) * (kind === 'dog' ? 1.3 : 0.9)
   const p = pointAt(pts, Math.min(d, len))
   const resting = d >= len
   const mode = resting ? ['sit', 'groom', 'nap'][hash(`cat|${slot}|${leg}|m`) % 3] : 'walk'

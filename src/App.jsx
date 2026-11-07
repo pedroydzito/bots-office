@@ -246,7 +246,7 @@ function Office({ topic, onSignOut, onSignIn }) {
 
   // ---- tour: glide through floors, spotlighting a busy bot
   useEffect(() => {
-    if (!tour) {
+    if (!tour || tv) {
       setSpotlight(null)
       return
     }
@@ -270,7 +270,7 @@ function Office({ topic, onSignOut, onSignIn }) {
       clearInterval(b)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tour, floors])
+  }, [tour, floors, tv])
 
   // browser notification (+ optional sound) when a bot starts waiting on you
   const prevWaiting = useRef(null)
@@ -330,6 +330,54 @@ function Office({ topic, onSignOut, onSignIn }) {
       document.documentElement.requestFullscreen?.().catch(() => {})
     } else if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {})
   }, [tv])
+
+  // TV mode camera: cuts from bot to bot like a documentary, favouring whoever is doing something
+  useEffect(() => {
+    if (!tv) return
+    let i = 0
+    const cut = () => {
+      const s = dataStore.get()
+      const nowMs = Date.now()
+      const score = (n) => {
+        const st = effStatus(s.bots[n], nowMs)
+        return (talkActive(s.talks[n], nowMs) ? 4 : 0) + (st === 'waiting_user' ? 3 : st === 'working' ? 2 : st === 'done' ? 1.5 : 0.5)
+      }
+      const ranked = [...s.order].filter((n) => s.bots[n]).sort((a, b) => score(b) - score(a))
+      const pool = ranked.slice(0, Math.max(3, Math.ceil(ranked.length / 2)))
+      if (!pool.length) return
+      const n = pool[i++ % pool.length]
+      const t = s.talks[n]
+      setFloorKey(t && talkActive(t, nowMs) && s.bots[t.to] ? s.bots[t.to].team : s.bots[n].team)
+      setSelectedBot(n)
+      sceneSignals.focusRequest = n
+    }
+    cut()
+    const id = setInterval(cut, 9000)
+    return () => {
+      clearInterval(id)
+      setSelectedBot(null)
+    }
+  }, [tv])
+
+  // achievement unlocked -> a short banner
+  const prevUnlocks = useRef(null)
+  const [unlock, setUnlock] = useState(null)
+  useEffect(() => {
+    const n = live.unlocks?.length || 0
+    if (prevUnlocks.current != null && n > prevUnlocks.current) {
+      const u = live.unlocks[n - 1]
+      if (Date.now() - u.t < 60000) {
+        setUnlock(u)
+        if (prefs.get('uisound', false)) uiSound('done')
+      }
+    }
+    prevUnlocks.current = n
+  }, [live.unlocks])
+  useEffect(() => {
+    if (!unlock) return
+    const id = setTimeout(() => setUnlock(null), 5000)
+    return () => clearTimeout(id)
+  }, [unlock])
   useEffect(() => {
     const onFs = () => !document.fullscreenElement && setTv(false)
     document.addEventListener('fullscreenchange', onFs)
@@ -409,6 +457,7 @@ function Office({ topic, onSignOut, onSignIn }) {
         </div>
         <MobileFloors floors={floors} data={data} now={now} selectedKey={selKey} onFloor={goFloor} />
         <Celebration c={celebration} />
+        {unlock && !celebration && <Celebration c={{ t: unlock.t, title: `${unlock.bot} desbloqueou: ${unlock.label}`, sub: 'Novo troféu na mesa' }} />}
         {searchOpen && <Search data={data} now={now} onPick={(n) => { setOverview(false); pickBot(n) }} onClose={() => setSearchOpen(false)} />}
       </div>
       {tv && <TvExit onExit={() => setTv(false)} />}

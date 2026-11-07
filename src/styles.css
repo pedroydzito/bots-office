@@ -435,3 +435,29 @@ button.link:hover { color: var(--ink2); }
 .tl-marks { position: absolute; left: 7px; right: 7px; top: -9px; height: 8px; z-index: 2; pointer-events: none; }
 .tl-mark { position: absolute; top: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--c); transform: translateX(-50%); pointer-events: auto; padding: 0; box-shadow: 0 0 0 2px var(--card-solid); }
 @media (hover: hover) { .tl-mark:hover { transform: translateX(-50%) scale(1.6); } }
+.act i.st-unlock { color: #c98300; }
+
+/* ---------- interface polish: staggered entrances, breathing numbers, calmer surfaces */
+@keyframes entrar { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes respira { 0% { transform: scale(1); } 40% { transform: scale(1.22); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: no-preference) {
+  .left > .card, .right, .activity, .weekly-wrap, .top-left > *, .top-center > .pills { animation: entrar 420ms var(--curva) both; }
+  .left > .card:nth-child(2) { animation-delay: 48ms; } .left > .card:nth-child(3) { animation-delay: 96ms; } .left > .card:nth-child(4) { animation-delay: 144ms; } .left > .card:nth-child(5) { animation-delay: 192ms; }
+  .floors .floor, .list .li, .collapse .cb .li { animation: entrar 320ms var(--curva) both; }
+  .floors .floor:nth-child(2), .list .li:nth-child(1) { animation-delay: 30ms; }
+  .floors .floor:nth-child(3), .list .li:nth-child(2) { animation-delay: 60ms; }
+  .floors .floor:nth-child(4), .list .li:nth-child(3) { animation-delay: 90ms; }
+  .floors .floor:nth-child(5), .list .li:nth-child(4) { animation-delay: 120ms; }
+  .floors .floor:nth-child(6), .list .li:nth-child(5) { animation-delay: 150ms; }
+  .floors .floor:nth-child(7), .list .li:nth-child(6) { animation-delay: 180ms; }
+  .pills b.bump, .fh .big b, .weekly .pct b { display: inline-block; animation: respira 620ms var(--curva-mola); }
+}
+.card { border-radius: 16px; }
+.hd { font-weight: 600; letter-spacing: 0.01em; }
+.pills i { box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 0%, transparent); }
+.fh { background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.12), transparent 60%); }
+.botcard .bh { background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.16), transparent 60%); }
+.list { padding: 6px 6px 8px; }
+.li.bot { border-radius: 12px; }
+.weekly .bar { height: 6px; }
+.activity .act + .act { border-top: 1px solid transparent; }

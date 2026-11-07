@@ -116,35 +116,53 @@ export function createTVCanvas() {
   return { canvas: c, ctx: g, texture: t }
 }
 
-export function drawTV(tv, { label, value, series, accent = '#34d399' }) {
+/** Team TV: weekly goal progress on top, activity sparkline below. */
+export function drawTV(tv, { label, value, series, goal, accent = '#34d399' }) {
   const { ctx: g, canvas: c } = tv
   const W = c.width, H = c.height
   g.fillStyle = '#0b0f17'
   g.fillRect(0, 0, W, H)
+  // goal
+  const n = goal?.n ?? 0
+  const target = goal?.target || 0
   g.fillStyle = '#7b8494'
-  g.font = `600 22px ${FONT}`
-  g.fillText(label, 26, 42)
+  g.font = `600 20px ${FONT}`
+  g.fillText((goal?.label || 'Concluídas na semana').toUpperCase(), 24, 38)
   g.fillStyle = '#ffffff'
-  g.font = `700 64px ${FONT}`
-  g.fillText(String(value), 24, 108)
-  const max = Math.max(1, ...series)
-  const n = series.length
-  // bars on the right
-  for (let i = 0; i < Math.min(10, n); i++) {
-    const v = series[n - 1 - i] / max
-    g.fillStyle = '#3b82f6'
-    const bw = 12
-    const x = W - 30 - i * 18
-    g.fillRect(x, H - 26 - v * 120, bw, v * 120)
+  g.font = `700 52px ${FONT}`
+  const big = target ? `${n}` : `${n}`
+  g.fillText(big, 22, 92)
+  if (target) {
+    const w = g.measureText(big).width
+    g.fillStyle = '#7b8494'
+    g.font = `600 28px ${FONT}`
+    g.fillText(`/ ${target}`, 30 + w, 92)
+    const pct = Math.min(1, n / target)
+    g.fillStyle = '#1d2433'
+    roundRect(g, 24, 108, W - 48, 16, 8)
+    g.fill()
+    g.fillStyle = pct >= 1 ? '#f5b70a' : '#34d399'
+    roundRect(g, 24, 108, Math.max(16, (W - 48) * pct), 16, 8)
+    g.fill()
+    g.fillStyle = pct >= 1 ? '#f5b70a' : '#9aa3b2'
+    g.font = `700 20px ${FONT}`
+    g.textAlign = 'right'
+    g.fillText(pct >= 1 ? 'META BATIDA!' : `${Math.round(pct * 100)}%`, W - 24, 92)
+    g.textAlign = 'left'
   }
-  // line
+  // activity
+  g.fillStyle = '#7b8494'
+  g.font = `600 16px ${FONT}`
+  g.fillText(`${label}  ·  ${value}`, 24, 160)
+  const max = Math.max(1, ...series)
+  const k = series.length
   g.strokeStyle = accent
   g.lineWidth = 4
   g.lineJoin = 'round'
   g.beginPath()
   series.forEach((v, i) => {
-    const x = 24 + (i / Math.max(1, n - 1)) * (W - 240)
-    const y = H - 30 - (v / max) * 140
+    const x = 24 + (i / Math.max(1, k - 1)) * (W - 48)
+    const y = H - 22 - (v / max) * 95
     i ? g.lineTo(x, y) : g.moveTo(x, y)
   })
   g.stroke()
