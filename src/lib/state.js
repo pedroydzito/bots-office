@@ -497,7 +497,7 @@ function compactHistory(h) {
 function persist() {
   if (!storageKey) return
   clearTimeout(persistTimer)
-  persistTimer = setTimeout(saveNow, 600)
+  persistTimer = setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(saveNow, { timeout: 2000 }) : saveNow()), 1500)
 }
 
 // don't lose the last updates when the tab is closed or hidden

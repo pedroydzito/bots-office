@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import Floor from './Floor'
 import Cortex from './Cortex'
-import { FLOOR_H } from './layout'
+import { FLOOR_H, OVERVIEW_GAP } from './layout'
 import { getFacadeTexture } from './textures'
 import { CORTEX_KEY } from '../lib/constants'
 import { MATS, Railing } from './Props'
@@ -152,7 +152,6 @@ function floorColor(f, data, now) {
 }
 
 /** Floors below the selected one render as glass facade; the selected one is open. */
-export const OVERVIEW_GAP = 2.8
 
 /** Whole-building view: every floor open and live, stacked with gaps ("cutaway"). */
 function Overview({ floors, layouts, data, now, night, selectedBot, spotlight, onSelect, W, D }) {

@@ -4,7 +4,7 @@
 //   could point at build files that no longer exist after a deploy -> stuck on the splash.)
 // - Hashed build assets (/assets/*): cache-first (their name changes when they change).
 // - ntfy.sh (live data) is never intercepted.
-const VERSION = 'bot-office-v4'
+const VERSION = 'bot-office-v5'
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(['/manifest.webmanifest', '/favicon.svg', '/icon-192.png', '/icon-512.png'])).then(() => self.skipWaiting()))
@@ -29,7 +29,7 @@ self.addEventListener('fetch', (e) => {
       (async () => {
         const c = await caches.open(VERSION)
         try {
-          const res = await Promise.race([fetch(req), timeout(4000)])
+          const res = await Promise.race([fetch(req), timeout(2500)])
           if (res.ok) c.put('/', res.clone())
           return res
         } catch {

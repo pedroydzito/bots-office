@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import Avatar from './Avatar'
 import { Clap, Heart, Laugh, Mail, Party, ThumbUp, Trophy } from './Icons'
 import { Arrow, Auto, Building2, Search as SearchIco, Brain, Chat, Check, Close, Doc, Down, Minus, Moon, Pause, Play, Plus, Sun, Up } from './Icons'
@@ -47,7 +47,7 @@ function Pill({ color, n, label }) {
   )
 }
 
-export function Pills({ counts }) {
+export const Pills = memo(function Pills({ counts }) {
   return (
     <div className="card pills">
       <Pill color={STATUS.working.color} n={counts.working} label="trabalhando" />
@@ -57,7 +57,7 @@ export function Pills({ counts }) {
       {counts.talks > 0 && <Pill color="#8F59F9" n={counts.talks} label="conversando" />}
     </div>
   )
-}
+})
 
 export function Toast({ bot, onView, onApprove }) {
   if (!bot) return null
@@ -318,7 +318,7 @@ const FILTERS = [
   ['talks', 'Conversas'],
   ['floor', 'Este andar'],
 ]
-export function Activity({ data, onPick, floorBots = [] }) {
+export const Activity = memo(function Activity({ data, onPick, floorBots = [] }) {
   const [f, setF] = useState('all')
   const keep = (a) =>
     f === 'all' ||
@@ -366,7 +366,7 @@ export function Activity({ data, onPick, floorBots = [] }) {
       ))}
     </div>
   )
-}
+})
 
 /** Usage grouped by team, and a "you'll hit 100% on…" forecast from this week's samples. */
 function usageInsights(usage, data) {
@@ -391,7 +391,7 @@ function usageInsights(usage, data) {
 }
 const WEEKDAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
 
-export function Weekly({ usage, data }) {
+export const Weekly = memo(function Weekly({ usage, data }) {
   const [byTeam, setByTeam] = useState(false)
   const ins = usageInsights(usage, data)
   const top = usage ? (byTeam ? ins.teams.slice(0, 5) : Object.entries(usage.bots).sort((a, b) => b[1] - a[1]).slice(0, 4)) : []
@@ -437,7 +437,7 @@ export function Weekly({ usage, data }) {
       </div>
     </div>
   )
-}
+})
 
 export function Hints() {
   return (

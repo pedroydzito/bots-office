@@ -1,6 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 // the 3D bundle loads after the interface shell
-const Scene = lazy(() => import('./scene/Scene'))
+const loadScene = () => import('./scene/Scene')
+loadScene()
+const Scene = lazy(loadScene)
 import { cortexLayout, floorLayout, naturalSize } from './scene/layout'
 import { botPositions, ridePositions, sceneSignals } from './scene/registry'
 import { world } from './scene/sim'
@@ -15,8 +17,7 @@ import { Login, Settings } from './ui/Login'
 import { Celebration, MobileFloors, Search, Timeline, TvExit } from './ui/Extras'
 import { EmptyOffice, HealthModal, OfficeSettingsModal, OfficesModal, QueueModal, SendStatus, ShortcutsModal } from './ui/Ops'
 import { buzz, MiniMap, QuickMenu, SearchField, Welcome } from './ui/Interact'
-import { OVERVIEW_GAP } from './scene/Building'
-import { FLOOR_H } from './scene/layout'
+import { FLOOR_H, OVERVIEW_GAP } from './scene/layout'
 import { botsAt } from './lib/metrics'
 import { notifyWaiting, prefs } from './lib/notify'
 import { startAmbience, startMusic, uiSound, updateAmbience } from './lib/ambience'
@@ -265,7 +266,18 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     return () => clearTimeout(id)
   }, [sendStatus])
   const [quick, setQuick] = useState(null) // long-press menu on a bot
-  const [welcome, setWelcome] = useState(() => !prefs.get('welcomed', false))
+  const [welcome, setWelcome] = useState(false)
+  useEffect(() => {
+    let seen = prefs.get('welcomed', false)
+    try {
+      seen ||= Object.keys(localStorage).some((k) => k.startsWith('bot-office:') && !k.includes('welcomed'))
+    } catch {
+      /* private mode */
+    }
+    if (seen) return prefs.set('welcomed', true)
+    const id = setTimeout(() => setWelcome(true), 1200)
+    return () => clearTimeout(id)
+  }, [])
   const view = useCallback(
     (n) => {
       pickBot(n)

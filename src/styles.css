@@ -611,3 +611,21 @@ button.brand { font: inherit; color: inherit; border: 0; cursor: pointer; text-a
 .sendstatus { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60; padding: 8px 14px; font-size: 13px; display: flex; gap: 8px; align-items: center; animation: pop .2s ease-out; }
 .sendstatus.ok { color: #00A85A; }
 .sendstatus.fail { color: #E5484D; }
+
+/* perf: lighter glass on touch devices, contain layout of floating cards */
+@media (pointer: coarse) {
+  .card { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .card { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--card-solid, #fff); }
+}
+canvas { touch-action: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+/* notices above the status legend; portrait phones drop the legend card */
+.celebration { z-index: 40; }
+@media (max-width: 600px) and (orientation: portrait) {
+  .card.pills { display: none; }
+}

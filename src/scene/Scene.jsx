@@ -81,7 +81,7 @@ function SunWithTarget({ sunRef, low }) {
         ref={sunRef}
         castShadow={!low}
         intensity={2.1}
-        shadow-mapSize={[1536, 1536]}
+        shadow-mapSize={[1024, 1024]}
         shadow-camera-left={-11}
         shadow-camera-right={11}
         shadow-camera-top={11}
@@ -278,12 +278,19 @@ function IdleSaver() {
       if (idle) (idle = false, clearInterval(tick), setFrameloop('always'))
     }
     const chk = setInterval(() => {
-      if (!idle && Date.now() - last > 45000) (idle = true, setFrameloop('demand'), (tick = setInterval(() => invalidate(), 33)))
+      if (!idle && Date.now() - last > 30000) (idle = true, setFrameloop('demand'), (tick = setInterval(() => invalidate(), 33)))
     }, 2000)
+    const vis = () => {
+      if (document.hidden) (clearInterval(tick), setFrameloop('never'))
+      else (idle = false, wake())
+      if (!document.hidden) setFrameloop('always')
+    }
+    document.addEventListener('visibilitychange', vis)
     const evs = ['pointerdown', 'pointermove', 'wheel', 'keydown', 'touchstart']
     evs.forEach((e) => window.addEventListener(e, wake, { passive: true }))
     return () => {
       clearInterval(chk), clearInterval(tick)
+      document.removeEventListener('visibilitychange', vis)
       evs.forEach((e) => window.removeEventListener(e, wake))
     }
   }, [setFrameloop, invalidate])
@@ -350,7 +357,7 @@ export default function Scene(props) {
       />
       <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={low} />
       <Weather kind={weather} low={low} />
-      <Environment resolution={64} frames={1}>
+      <Environment resolution={32} frames={1}>
         <Lightformer form="rect" intensity={2.5} position={[0, 6, 0]} rotation-x={Math.PI / 2} scale={[12, 12, 1]} />
         <Lightformer form="rect" intensity={1.2} position={[8, 3, 4]} rotation-y={-Math.PI / 2} scale={[8, 4, 1]} />
         <Lightformer form="rect" intensity={0.8} position={[-6, 2, 6]} rotation-y={Math.PI / 3} scale={[6, 3, 1]} color="#ffeedd" />

@@ -191,3 +191,6 @@ export function talkSpots(seat, k = 0) {
     visitor: { kind: 'spot', x: seat.x + 0.42 + k * 0.72, z: seat.az, az: seat.az, yaw: -Math.PI / 2 },
   }
 }
+
+/** vertical gap between storeys in the overview (exploded) mode */
+export const OVERVIEW_GAP = 2.8

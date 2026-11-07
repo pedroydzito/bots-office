@@ -24,8 +24,10 @@ export function useStore(store, selector = (s) => s) {
 export function useNow(intervalMs = 1000) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), intervalMs)
-    return () => clearInterval(id)
+    const id = setInterval(() => !document.hidden && setNow(Date.now()), intervalMs)
+    const vis = () => !document.hidden && setNow(Date.now())
+    document.addEventListener('visibilitychange', vis)
+    return () => (clearInterval(id), document.removeEventListener('visibilitychange', vis))
   }, [intervalMs])
   return now
 }

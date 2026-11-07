@@ -1,4 +1,3 @@
-import * as THREE from 'three'
 
 /** Live world positions of mounted bots (head height), for camera focus + elevator doors. */
 export const botPositions = new Map()
@@ -9,7 +8,6 @@ export const sceneSignals = {
   focusRequest: null, // bot name the camera should glide to
 }
 
-export const tmpV = new THREE.Vector3()
 
 /** Where the open floor's room sits inside the building footprint (rooms hug the back-left corner). */
 export const floorOffset = { x: 0, z: 0 }
