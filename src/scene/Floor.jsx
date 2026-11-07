@@ -4,12 +4,13 @@ import Bot from './Bot'
 import Pet from './Pet'
 import Confetti from './Confetti'
 import {
-  Bookshelf, Chair, Clock, CoffeeCorner, DeskRow, Elevator, Lounge, MATS, Plant, Railing,
+  BeanBag, Bookshelf, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, GlassElevator, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
   StickyWall, TVScreen, WallTitle, WaterCooler, Workstation,
 } from './Props'
 import { FLOOR_H, talkSpots } from './layout'
 import { lastRide } from './registry'
-import { effStatus, talkActive } from '../lib/constants'
+import { effStatus, STATUS, talkActive } from '../lib/constants'
+import { botMetrics } from '../lib/metrics'
 import { dataStore } from '../lib/state'
 
 const wallMat = new THREE.MeshStandardMaterial({ color: '#f3f3f5', roughness: 0.9 })
@@ -51,7 +52,7 @@ function eventsSeries() {
 export default function Floor({ floor, layout, data, now, floorY, night, selectedBot, spotlight, onSelect, floorCount = 1, celebrate = null }) {
   const { W, D } = layout
   const home = floor.bots
-  const floorIdx = Math.round(floorY / FLOOR_H)
+  const floorIdx = floor.num - 1
   const homeSet = useMemo(() => new Set(home), [home])
   const seatOf = useMemo(() => {
     const m = {}
@@ -67,7 +68,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   const seedOf = (s) => [...s].reduce((a, c) => a + c.charCodeAt(0), 0)
 
   // Meetings: when 3+ bots talk to the same bot, everyone gathers in a circle by the windows
-  const meetCenter = { x: layout.x0 + 1.3, z: layout.D / 2 - 2.0 }
+  const meetCenter = layout.meet
   const meetingOf = (host) => {
     const people = [host, ...(byTarget[host] || [])]
     return people.length >= 3 ? people : null
@@ -121,6 +122,35 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
     return c
   }), [])
 
+  // ---- room status (door sign), wall boards, achievements, sleep-lights
+  const sts = home.map((n) => effStatus(data.bots[n], now))
+  const floorColor = sts.includes('error') ? STATUS.error.color : sts.includes('waiting_user') ? STATUS.waiting_user.color : sts.includes('working') ? STATUS.working.color : '#9aa0aa'
+  const waitingLines = Object.values(data.bots)
+    .filter((b) => effStatus(b, now) === 'waiting_user')
+    .slice(0, 6)
+    .map((b) => ({ a: b.name, b: b.step || 'Precisa do seu OK' }))
+  const histLen = data.history?.length || 0
+  const highlights = useMemo(() => {
+    if (!data.history) return []
+    const ms = home.map((n) => ({ n, m: botMetrics(data, n) }))
+    const out = []
+    const top = [...ms].sort((a, b) => b.m.done - a.m.done)[0]
+    if (top && top.m.done) out.push({ a: `Mais produtivo: ${top.n}`, b: `${top.m.done} tarefas concluídas`, color: '#2FB36B' })
+    const busy = [...ms].sort((a, b) => b.m.workMs - a.m.workMs)[0]
+    if (busy && busy.m.workMs > 60000) out.push({ a: `Mais focado: ${busy.n}`, b: `${Math.round(busy.m.workMs / 60000)} min trabalhando` })
+    const clean = ms.filter((x) => x.m.events && !x.m.errors).length
+    if (ms.some((x) => x.m.events)) out.push({ a: `${clean} sem nenhum erro hoje`, b: `de ${home.length} bots do andar` })
+    const err = [...ms].sort((a, b) => b.m.errors - a.m.errors)[0]
+    if (err && err.m.errors) out.push({ a: `Precisa de ajuda: ${err.n}`, b: `${err.m.errors} erro(s) hoje`, color: '#E5484D' })
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [histLen, home, Math.floor(now / 60000)])
+  const allResting = sts.length > 0 && sts.every((s) => s === 'resting')
+  const today = (() => {
+    const d = new Date(now)
+    return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })()
+
   return (
     <group>
       <Shell layout={layout} title={floor.name} subtitle={`Andar ${floor.num}`} />
@@ -138,10 +168,35 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       {D > 12 && <Plant position={[W / 2 - 0.9, 0, -D / 2 + 5.5]} scale={0.9} />}
       <Plant position={[-W / 2 + 0.7, 0, D / 2 - 0.7]} scale={0.9} kind={1} />
       <WaterCooler position={[-W / 2 + 0.6, 0, layout.wall.coolerZ]} rotation={[0, Math.PI / 2, 0]} />
-      {layout.wall.stickyZ != null && <StickyWall position={[-W / 2 + 0.27, 1.25, layout.wall.stickyZ - 0.55]} rotation={[0, Math.PI / 2, 0]} />}
       {layout.wall.shelfZ != null && <Bookshelf position={[-W / 2 + 0.47, 0, layout.wall.shelfZ]} rotation={[0, Math.PI / 2, 0]} seed={floor.num} />}
       <Lounge position={[W / 2 - 2.4, 0, D / 2 - 2.3]} night={night} seats={layout.pois.filter((q) => q.kind === 'sofa')} />
-      <Elevator layout={layout} floorY={floorY} night={night} />
+      <GlassElevator layout={layout} night={night} floorY={floorY} />
+      {layout.decor.map((d, i) =>
+        d.type === 'rug' ? <Rug key={i} {...d} /> :
+        d.type === 'meeting' ? <MeetingTable key={i} x={d.x} z={d.z} /> :
+        d.type === 'whiteboard' ? <Whiteboard key={i} x={d.x} z={meetCenter.z - 1.75} /> :
+        d.type === 'beanbag' ? <BeanBag key={i} x={d.x} z={d.z} c={d.c} /> :
+        d.type === 'plant' ? <Plant key={i} position={[d.x, 0, d.z]} kind={d.k} scale={1.1} /> : null,
+      )}
+      <StatusLamp position={[-W / 2 + 2.95, 2.3, -D / 2 + 0.3]} color={floorColor} />
+      <InfoBoard
+        position={[(-W / 2 + 6.9 + W / 2 - 3.7) / 2, 1.75, -D / 2 + 0.29]}
+        title="Esperando por mim"
+        cork
+        accent="#F5A524"
+        empty="Nada pendente"
+        lines={waitingLines}
+      />
+      {layout.wall.stickyZ != null && (
+        <InfoBoard
+          position={[-W / 2 + 0.29, 1.6, layout.wall.stickyZ - 0.4]}
+          rotation={[0, Math.PI / 2, 0]}
+          title="Destaques de hoje"
+          accent="#8F59F9"
+          empty="Sem atividade ainda"
+          lines={highlights}
+        />
+      )}
 
       {layout.rows.map((r, i) => (
         <DeskRow key={i} row={r} />
@@ -160,10 +215,12 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
           <group key={n}>
             <Chair x={seat.x} z={seat.z} owner={n} />
             <Workstation seat={seat} idx={i} status={effStatus(data.bots[n], now)} night={night} />
+            <DeskDecor seat={seat} items={data.bots[n]?.desk} name={n} />
+            {data.bots[n]?.birthday === today && <Cake seat={seat} />}
           </group>
         )
       })}
-      {night &&
+      {night && !allResting &&
         layout.rows.slice(0, 2).map((r, i) => (
           <pointLight key={i} position={[(r.x1 + r.x2) / 2, 2.6, r.z + 0.6]} intensity={5} distance={7} decay={1.5} color="#ffe2b8" />
         ))}
@@ -183,6 +240,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
             spawnAtGoal={!!pl && now - pl.since > 12000}
             appearAt={rd && rd.to === floorIdx ? rd.end : 0}
             floorY={floorY}
+            floorKey={floor.key}
             night={night}
             selected={selectedBot === n}
             spotlight={spotlight === n}
@@ -214,6 +272,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
             spawnAtGoal={!v.leaving && t && now - t.t > 25000}
             appearAt={rd && rd.to === floorIdx ? rd.end : 0}
             floorY={floorY}
+            floorKey={floor.key}
             night={night}
             selected={selectedBot === n}
             spotlight={spotlight === n}

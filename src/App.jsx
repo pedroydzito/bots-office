@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Scene from './scene/Scene'
-import { cortexLayout, floorLayout } from './scene/layout'
+import { cortexLayout, floorLayout, naturalSize } from './scene/layout'
 import { activeRide, botPositions, rides, sceneSignals } from './scene/registry'
 import { dataStore, deriveFloors, forgetTopic, loadTopic, ingest } from './lib/state'
 import { useNow, useStore } from './lib/createStore'
@@ -10,9 +10,12 @@ import { captureHash, clearCode, getCode, setCode } from './lib/auth'
 import { demoApprove, startDemo } from './lib/demo'
 import { Activity, Brand, ConnectBanner, Hints, LeftPanel, ModeToggles, Pills, RightPanel, Toast, Weekly } from './ui/Panels'
 import { Login, Settings } from './ui/Login'
-import { Celebration, MobileFloors, Timeline, TvExit } from './ui/Extras'
+import { Celebration, MobileFloors, Search, Timeline, TvExit } from './ui/Extras'
+import { OVERVIEW_GAP } from './scene/Building'
+import { FLOOR_H } from './scene/layout'
 import { botsAt } from './lib/metrics'
 import { notifyWaiting, prefs } from './lib/notify'
+import { startAmbience, updateAmbience } from './lib/ambience'
 
 function openLink(link) {
   if (!link) return
@@ -62,6 +65,8 @@ function Office({ topic, onSignOut, onSignIn }) {
   const [replayT, setReplayT] = useState(null) // timeline replay (ms) or null = live
   const [tv, setTv] = useState(false)
   const [celebration, setCelebration] = useState(null)
+  const [overview, setOverview] = useState(false) // whole building, every floor live
+  const [searchOpen, setSearchOpen] = useState(false)
   const [tour, setTour] = useState(false)
   const [floorKey, setFloorKey] = useState(null)
   const [selectedBot, setSelectedBot] = useState(null)
@@ -105,7 +110,16 @@ function Office({ topic, onSignOut, onSignIn }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig])
   const layouts = useMemo(
-    () => Object.fromEntries(floors.map((f) => [f.key, f.key === CORTEX_KEY ? cortexLayout() : floorLayout(f.bots.length)])),
+    () => {
+      // every storey has the size of the largest room
+      let W = 13, D = 12
+      for (const f of floors) if (f.key !== CORTEX_KEY) {
+        const n = naturalSize(f.bots.length)
+        W = Math.max(W, n.W)
+        D = Math.max(D, n.D)
+      }
+      return Object.fromEntries(floors.map((f) => [f.key, f.key === CORTEX_KEY ? cortexLayout(W, D) : floorLayout(f.bots.length, W, D)]))
+    },
     [floors],
   )
   const size = useMemo(() => {
@@ -138,10 +152,14 @@ function Office({ topic, onSignOut, onSignIn }) {
     return () => clearInterval(id)
   }, [selectedBot])
   const focus = useMemo(() => {
+    if (overview) {
+      const h = floors.length * (FLOOR_H + OVERVIEW_GAP)
+      return { x: 0, z: 0, y: h / 2 - 1, dist: Math.max(30, h * 1.35) }
+    }
     if (!lay) return { x: 0, z: 0, dist: 12 }
     // the room hugs the building's back-left corner (see Building)
     return { x: lay.focus.x - (size.W - lay.W) / 2, z: lay.focus.z - (size.D - lay.D) / 2, dist: lay.dist }
-  }, [lay, size])
+  }, [lay, size, overview, floors.length])
 
   // Elevator rides: when a cross-floor conversation starts the visitor rides up/down after walking
   // to the elevator; when it ends, it rides back. Rides are drawn in the shaft and gate when the
@@ -175,6 +193,7 @@ function Office({ topic, onSignOut, onSignIn }) {
   }, [data.talks, data.bots, now, floorIndex])
 
   const goFloor = useCallback((k) => {
+    setOverview(false)
     setFloorKey(k)
     setSelectedBot(null)
   }, [])
@@ -195,6 +214,7 @@ function Office({ topic, onSignOut, onSignIn }) {
       const t = s.talks[n]
       let team = s.bots[n].team
       if (t && talkActive(t, Date.now()) && s.bots[t.to]) team = s.bots[t.to].team
+      setOverview(false)
       setFloorKey(team)
       setSelectedBot(n)
       setTour(false)
@@ -233,6 +253,11 @@ function Office({ topic, onSignOut, onSignIn }) {
       else if (e.key === 't' || e.key === 'T') setTour((x) => !x)
       else if (e.key === 'n' || e.key === 'N') setLightMode((m) => (m === 'night' ? 'day' : 'night'))
       else if (e.key === 'f' || e.key === 'F') setTv((x) => !x)
+      else if (e.key === 'b' || e.key === 'B') setOverview((x) => !x)
+      else if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || e.key === '/') {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -273,6 +298,17 @@ function Office({ topic, onSignOut, onSignIn }) {
     if (prevWaiting.current) for (const n of w) if (!prevWaiting.current.has(n)) notifyWaiting(live.bots[n], () => pickBot(n))
     prevWaiting.current = w
   }, [live, pickBot])
+
+  // ambient sound follows the office (browsers only allow it after a click, so it resumes on first click)
+  useEffect(() => {
+    updateAmbience({ workingCount: counts.working, weather: live.weather?.kind })
+  })
+  useEffect(() => {
+    if (!prefs.get('ambience', false)) return
+    const start = () => startAmbience()
+    window.addEventListener('pointerdown', start, { once: true })
+    return () => window.removeEventListener('pointerdown', start)
+  }, [])
 
   // celebrate when a whole floor has finished everything
   const prevAllDone = useRef(null)
@@ -320,6 +356,7 @@ function Office({ topic, onSignOut, onSignIn }) {
         nightness={nightness}
         weather={live.weather?.kind || null}
         celebrate={celebration}
+        overview={overview}
         tour={tour}
         selectedBot={selectedBot}
         spotlight={spotlight}
@@ -330,7 +367,7 @@ function Office({ topic, onSignOut, onSignIn }) {
       <div className="hud">
         <div className="top-left">
           <Brand conn={conn} now={now} />
-          <ModeToggles mode={lightMode} setMode={setLightMode} tour={tour} setTour={setTour} />
+          <ModeToggles mode={lightMode} setMode={setLightMode} tour={tour} setTour={setTour} overview={overview} setOverview={setOverview} onSearch={() => setSearchOpen(true)} />
           <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} />
         </div>
         <div className="top-center">
@@ -367,6 +404,7 @@ function Office({ topic, onSignOut, onSignIn }) {
         </div>
         <MobileFloors floors={floors} data={data} now={now} selectedKey={selKey} onFloor={goFloor} />
         <Celebration c={celebration} />
+        {searchOpen && <Search data={data} now={now} onPick={(n) => { setOverview(false); pickBot(n) }} onClose={() => setSearchOpen(false)} />}
       </div>
       {tv && <TvExit onExit={() => setTv(false)} />}
     </div>

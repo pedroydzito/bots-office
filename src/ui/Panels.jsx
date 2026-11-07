@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Avatar from './Avatar'
-import { Arrow, Auto, Brain, Chat, Check, Close, Doc, Down, Minus, Moon, Pause, Play, Plus, Sun, Up } from './Icons'
+import { Arrow, Auto, Building2, Search as SearchIco, Brain, Chat, Check, Close, Doc, Down, Minus, Moon, Pause, Play, Plus, Sun, Up } from './Icons'
 import { CORTEX_KEY, durationShort, effStatus, hhmm, resolveColor, STATUS, talkActive } from '../lib/constants'
 import { sceneSignals } from '../scene/registry'
 import { botMetrics, fmtDuration } from '../lib/metrics'
@@ -22,13 +22,15 @@ export function Brand({ conn, now }) {
   )
 }
 
-export function ModeToggles({ mode, setMode, tour, setTour }) {
+export function ModeToggles({ mode, setMode, tour, setTour, overview, setOverview, onSearch }) {
   return (
     <div className="card toggles">
       <button className={mode === 'day' ? 'on' : ''} onClick={() => setMode('day')} title="Dia"><Sun /> <span className="lbl">Dia</span></button>
       <button className={mode === 'night' ? 'on' : ''} onClick={() => setMode('night')} title="Noite"><Moon /> <span className="lbl">Noite</span></button>
       <button className={mode === 'auto' ? 'on' : ''} onClick={() => setMode('auto')} title="Automático (hora real)"><Auto /> <span className="lbl">Auto</span></button>
       <button className={tour ? 'on' : ''} onClick={() => setTour(!tour)} title="Tour">{tour ? <Pause size={12} /> : <Play size={12} />} <span className="lbl">Tour</span></button>
+      <button className={overview ? 'on' : ''} onClick={() => setOverview(!overview)} title="Prédio inteiro (B)"><Building2 /> <span className="lbl">Prédio</span></button>
+      <button onClick={onSearch} title="Buscar bot (Ctrl+K)"><SearchIco /></button>
     </div>
   )
 }

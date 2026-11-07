@@ -26,3 +26,5 @@ export const Auto = (p) => <S {...p}><circle cx="12" cy="12" r="9" /><path d="M1
 export const Layers = (p) => <S {...p}><path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5" /></S>
 export const Clock = (p) => <S {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></S>
 export const Party = (p) => <S {...p}><path d="M4 20l5-14 9 9z" /><path d="M14 4l1 2M19 9l2-1M17 3l-1 3M20 13l-2 .5" /></S>
+export const Building2 = (p) => <S {...p}><rect x="5" y="3" width="14" height="18" rx="1.5" /><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2" /></S>
+export const Search = (p) => <S {...p}><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></S>

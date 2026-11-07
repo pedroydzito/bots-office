@@ -161,7 +161,7 @@ function StatusIcon({ status, talking }) {
  */
 function Bot({
   bot, status, layout, seat, goal, talkView, floorY, selected, spotlight,
-  onSelect, onGone, spawnAtGoal, night, appearAt = 0,
+  onSelect, onGone, spawnAtGoal, night, appearAt = 0, floorKey = '',
 }) {
   const asset = useMemo(() => getBotAsset(bot.shape), [bot.shape])
   const color = resolveColor(bot.color)
@@ -185,7 +185,7 @@ function Bot({
   const [hover, setHover] = useState(false)
   // Each bot keeps living while its floor is off screen: its state is remembered per floor, so
   // switching floors and coming back shows it exactly where/what it was doing.
-  const memKey = `${floorY}|${bot.name}|${seat ? 'home' : 'visit'}`
+  const memKey = `${floorKey || floorY}|${bot.name}|${seat ? 'home' : 'visit'}`
   const remembered = useMemo(() => {
     const m = botMemory.get(memKey)
     return m && !m.gone ? m : null
@@ -199,7 +199,7 @@ function Bot({
   const [partnerNear, setPartnerNear] = useState(false)
 
   const P = useRef({})
-  P.current = { status, goal, seat, layout, onGone, talkView, hover, appearAt }
+  P.current = { status, goal, seat, layout, onGone, talkView, hover, appearAt, ts: bot.ts }
 
   const S = useRef(remembered)
   if (!S.current) {
@@ -320,7 +320,9 @@ function Bot({
     // ---- goal selection
     let g = p.goal
     if (!g) {
-      const idleish = p.status === 'resting' || p.status === 'done'
+      // after an hour with nothing to do a bot naps at its desk instead of wandering
+      const sleepy = p.status === 'resting' && Date.now() - (p.ts || 0) > 3600e3
+      const idleish = (p.status === 'resting' || p.status === 'done') && !sleepy
       if (s.wander && (!idleish || (s.wander.until && t > s.wander.until))) {
         poiTaken.delete(fk(s.wander))
         sitting.delete(poiKey(s.wander))
@@ -547,7 +549,15 @@ function Bot({
       // resting
       sy = 1 + Math.sin(t * 1.2 + phase) * 0.03
       if (s.atKind === 'seat') {
-        rx = -0.05
+        if (Date.now() - (p.ts || 0) > 3600e3) {
+          // asleep on the desk: head down, slow deep breathing
+          rx = 0.42
+          by = -0.04
+          sy = 1 + Math.sin(t * 0.8 + phase) * 0.04
+          hl = hr = 0.12
+          hz = 0.22
+          rz = 0
+        } else rx = -0.05
         eyeY = 0.12
       }
       rz = Math.sin(t * 0.6 + phase) * 0.04
@@ -739,7 +749,7 @@ const talkKey = (t) => (t ? `${t.role}|${t.partner}|${t.step}|${t.meeting ? 1 : 
 function same(a, b) {
   return (
     a.bot === b.bot && a.status === b.status && a.seat === b.seat && a.layout === b.layout &&
-    a.floorY === b.floorY && a.selected === b.selected && a.spotlight === b.spotlight && a.night === b.night &&
+    a.floorY === b.floorY && a.floorKey === b.floorKey && a.selected === b.selected && a.spotlight === b.spotlight && a.night === b.night &&
     goalKey(a.goal) === goalKey(b.goal) && talkKey(a.talkView) === talkKey(b.talkView)
   )
 }

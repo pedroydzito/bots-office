@@ -195,3 +195,45 @@ export function makeRugTexture(color) {
   g.strokeRect(18, 18, 220, 220)
   return tex(c)
 }
+
+/** Wall board (cork or white) with a title and up to 6 lines. Redrawn when its content changes. */
+export function drawBoard(ctx, canvasEl, { title, lines, accent = '#8F59F9', cork = false, empty = '' }) {
+  const g = ctx, W = canvasEl.width, H = canvasEl.height
+  g.fillStyle = cork ? '#d8b27e' : '#ffffff'
+  g.fillRect(0, 0, W, H)
+  if (cork) {
+    g.fillStyle = 'rgba(120,80,30,0.08)'
+    for (let i = 0; i < 260; i++) g.fillRect(Math.random() * W, Math.random() * H, 3, 3)
+  }
+  g.fillStyle = accent
+  g.fillRect(0, 0, W, 10)
+  g.fillStyle = '#16181d'
+  g.font = `700 40px ${FONT}`
+  g.fillText(title, 28, 66)
+  if (!lines.length) {
+    g.fillStyle = cork ? '#7a5a2e' : '#9aa0aa'
+    g.font = `500 28px ${FONT}`
+    g.fillText(empty, 28, 120)
+  }
+  lines.slice(0, 6).forEach((l, i) => {
+    const y = 96 + i * 66
+    if (cork) {
+      g.save()
+      g.translate(28, y)
+      g.rotate((i % 2 ? 1 : -1) * 0.012)
+      g.fillStyle = ['#fff3a3', '#ffd6e7', '#d6ecff', '#e3ffd6'][i % 4]
+      g.fillRect(0, 0, W - 56, 56)
+      g.restore()
+    }
+    g.fillStyle = l.color || '#16181d'
+    g.font = `700 25px ${FONT}`
+    let a = l.a
+    while (g.measureText(a).width > W - 90 && a.length > 3) a = a.slice(0, -2)
+    g.fillText(a, 42, y + 25)
+    g.fillStyle = '#5d636e'
+    g.font = `500 21px ${FONT}`
+    let b = l.b || ''
+    while (g.measureText(b).width > W - 90 && b.length > 3) b = b.slice(0, -2)
+    g.fillText(b, 42, y + 48)
+  })
+}

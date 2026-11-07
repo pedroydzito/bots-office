@@ -16,13 +16,14 @@ export function colsFor(n) {
 }
 
 function viewDistance(w, d) {
-  return Math.min(22, Math.max(13, 5 + Math.max(w, d) * 1.3))
+  return Math.min(22, Math.max(12, 4 + Math.max(w, d) * 1.25))
 }
 
 function leftWall(W, D) {
   // Elevator sits near the back-left corner, so it lines up with the building's
   // shaft on every floor (rooms are anchored to the building's back-left corner).
-  const elevator = { kind: 'elevator', x: -W / 2 + 0.55, z: -D / 2 + 2.3, az: -D / 2 + 2.3, yaw: -Math.PI / 2 }
+  // glass elevator shaft inside the room's back-left corner; bots step inside to ride
+  const elevator = { kind: 'elevator', x: -W / 2 + 0.8, z: -D / 2 + 2.3, az: -D / 2 + 2.3, yaw: -Math.PI / 2 }
   const coolerZ = -D / 2 + 4.0
   const midStart = coolerZ + 1.0
   const midEnd = D / 2 - 1.5
@@ -35,12 +36,22 @@ function leftWall(W, D) {
   }
 }
 
-export function floorLayout(n) {
+/** The room size a team of n bots needs on its own (the building uses the largest one). */
+export function naturalSize(n) {
   const cols = colsFor(n)
   const rowsN = Math.ceil(Math.max(n, 1) / cols)
   const deskW = (cols - 1) * SX + 1.76
-  const W = Math.max(11.5, LEFT + deskW + RIGHT)
-  const D = Math.max(9.6, BACK + (rowsN - 1) * SZ + 1.3 + FRONT)
+  return { W: Math.max(11.5, LEFT + deskW + RIGHT), D: Math.max(9.6, BACK + (rowsN - 1) * SZ + 1.3 + FRONT) }
+}
+
+/**
+ * Every storey has the building's full size (W x D). Desks sit near the back-left; the free space
+ * is filled with decor (rugs, a meeting corner, bean bags...). The camera frames the desks.
+ */
+export function floorLayout(n, W, D) {
+  const cols = colsFor(n)
+  const rowsN = Math.ceil(Math.max(n, 1) / cols)
+  const deskW = (cols - 1) * SX + 1.76
   const x0 = -W / 2 + LEFT + 0.88
   const z0 = -D / 2 + BACK
   const seats = []
@@ -55,6 +66,31 @@ export function floorLayout(n) {
   }
   const xL = -W / 2 + 3.05
   const lw = leftWall(W, D)
+  const blockEnd = x0 + (cols - 1) * SX + 0.88
+  const deskFront = z0 + (rows.length - 1) * SZ + 1.3
+  const decor = []
+  // rug under the desks
+  decor.push({ type: 'rug', x: (x0 - 1.4 + blockEnd + 1.0) / 2, z: (z0 - 1.7 + deskFront + 0.5) / 2, w: blockEnd + 1.0 - (x0 - 1.4), d: deskFront + 0.5 - (z0 - 1.7), color: '#e9e4f5' })
+  // meeting corner on the right if there is room, otherwise a huddle spot by the windows
+  const rx1 = blockEnd + 1.4, rx2 = W / 2 - 0.7
+  let meet = { x: x0 + 1.3, z: D / 2 - 2.0 }
+  if (rx2 - rx1 >= 3.4) {
+    meet = { x: (rx1 + rx2) / 2, z: z0 + 0.6 }
+    decor.push({ type: 'meeting', x: meet.x, z: meet.z })
+    decor.push({ type: 'whiteboard', x: meet.x, z: -D / 2 + 0.32 })
+    decor.push({ type: 'plant', x: rx2 - 0.2, z: meet.z + 2.6, k: 0 })
+  }
+  // extra front space: a cosy corner with bean bags and plants
+  const frontFree = D / 2 - deskFront
+  if (frontFree > 6.2) {
+    const cz = deskFront + (frontFree - 3.5) / 2
+    decor.push({ type: 'rug', x: x0 + 1.2, z: cz, w: 3.4, d: 2.6, color: '#f1e7d8', round: true })
+    decor.push({ type: 'beanbag', x: x0 + 0.4, z: cz - 0.3, c: '#8F59F9' })
+    decor.push({ type: 'beanbag', x: x0 + 2.0, z: cz + 0.3, c: '#F5B70A' })
+    decor.push({ type: 'plant', x: x0 + 3.3, z: cz - 0.8, k: 1 })
+  }
+  if (rx2 - rx1 >= 1.6) decor.push({ type: 'plant', x: W / 2 - 0.9, z: (deskFront + D / 2 - 4.6) / 2, k: 0 })
+  decor.push({ type: 'board', x: -W / 2 + 0.27, z: lw.stickyZ ?? lw.coolerZ + 1.6 }) // "waiting on me" cork board
   const pois = [
     { kind: 'coffee', x: -W / 2 + 3.0, z: -D / 2 + 1.25, yaw: Math.PI },
     { kind: 'cooler', x: -W / 2 + 1.45, z: lw.coolerZ, yaw: -Math.PI / 2 },
@@ -67,25 +103,25 @@ export function floorLayout(n) {
   ]
   if (lw.shelfZ != null) pois.push({ kind: 'books', x: -W / 2 + 1.45, z: lw.shelfZ, yaw: -Math.PI / 2 })
   const blockCx = x0 + ((cols - 1) * SX) / 2
-  const blockCz = z0 + ((rows.length - 1) * SZ) / 2 + 0.4
+  const blockCz = z0 + ((rows.length - 1) * SZ) / 2
   return {
-    W, D, seats, rows, xL, cols, x0, z0,
+    W, D, seats, rows, xL, cols, x0, z0, decor, meet,
     pois: pois.map((p) => ({ ...p, az: p.az ?? p.z })),
     elevator: lw.elevator,
     wall: lw,
-    focus: { x: blockCx * 0.6, z: blockCz * 0.5 - D * 0.07 },
-    dist: viewDistance(deskW + 2, rows.length * SZ + 2),
+    // frame the bots (not the whole room), nudged back so the wall title shows
+    focus: { x: blockCx + 0.3, z: blockCz - 0.9 },
+    dist: viewDistance(deskW + 3, rows.length * SZ + 3),
   }
 }
 
-export function cortexLayout() {
-  const W = 13, D = 12
+export function cortexLayout(W = 13, D = 12) {
   const lw = leftWall(W, D)
   return {
-    W, D, seats: [], rows: [], xL: -W / 2 + 3.05, cols: 0,
+    W, D, seats: [], rows: [], xL: -W / 2 + 3.05, cols: 0, decor: [], meet: { x: 0, z: 0 },
     pois: [], elevator: lw.elevator, wall: lw,
     focus: { x: 0, z: -0.8 },
-    dist: 18,
+    dist: 16,
   }
 }
 

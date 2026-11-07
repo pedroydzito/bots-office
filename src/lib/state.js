@@ -60,6 +60,9 @@ function setLook(d, name, l) {
     b.photo = l.photo
     if (!l.shape) b.shape = 'photo'
   }
+  // personal desk items and birthday (MM-DD or YYYY-MM-DD)
+  if (Array.isArray(l.desk)) b.desk = l.desk.filter((x) => typeof x === 'string').map((x) => x.trim().toLowerCase()).filter((x) => /^(plant|photo|trophy|lamp|cactus|books)$/.test(x)).slice(0, 2)
+  if (typeof l.birthday === 'string' && /^(\d{4}-)?\d{2}-\d{2}$/.test(l.birthday.trim())) b.birthday = l.birthday.trim().slice(-5)
   const team = clean(l.team || l.group, 32)
   if (team) b.team = team
   const id = clean(l.id, 64)

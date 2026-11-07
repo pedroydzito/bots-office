@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { validTopic } from '../lib/ntfy'
 import { Bell, Gear, Speaker, Tv } from './Icons'
 import { chime, enableNotifications, notificationsSupported, prefs } from '../lib/notify'
+import { startAmbience, stopAmbience } from '../lib/ambience'
 
 export function Login({ onSubmit, onDemo }) {
   const [v, setV] = useState('')
@@ -49,6 +50,7 @@ export function Settings({ live, onSignOut, onSignIn, onTv }) {
   const [open, setOpen] = useState(false)
   const [notify, setNotify] = useState(() => prefs.get('notify', false) && notificationsSupported() && Notification.permission === 'granted')
   const [sound, setSound] = useState(() => prefs.get('sound', false))
+  const [amb, setAmb] = useState(() => prefs.get('ambience', false))
   const ref = useRef(null)
   useEffect(() => {
     if (!open) return
@@ -85,6 +87,17 @@ export function Settings({ live, onSignOut, onSignIn, onTv }) {
             }}
           >
             <Speaker size={14} /> Som de alerta <i className={sound ? 'on' : ''} />
+          </button>
+          <button
+            className="toggle"
+            onClick={() => {
+              const v = !amb
+              prefs.set('ambience', v)
+              setAmb(v)
+              v ? startAmbience() : stopAmbience()
+            }}
+          >
+            <Speaker size={14} /> Som ambiente <i className={amb ? 'on' : ''} />
           </button>
           <button onClick={() => { setOpen(false); onTv() }}><Tv size={14} /> Modo TV</button>
           <hr />

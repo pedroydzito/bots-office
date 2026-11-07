@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
 import { Shell } from './Floor'
-import { Bookshelf, Plant, Railing, Elevator, MATS } from './Props'
+import { Bookshelf, Plant, GlassElevator, MATS } from './Props'
 import { makeCardTexture } from './textures'
 import { durationShort } from '../lib/constants'
 
@@ -146,7 +146,7 @@ export default function Cortex({ layout, cortex, floorNum, floorY, night }) {
       ))}
       <Plant position={[W / 2 - 0.9, 0, -D / 2 + 0.9]} scale={1.2} kind={1} />
       <Plant position={[-W / 2 + 0.7, 0, D / 2 - 0.7]} scale={0.9} />
-      <Elevator layout={layout} floorY={floorY} night={night} />
+      <GlassElevator layout={layout} night={night} />
       {!cortex && <CardSprite title="Sem dados do Cortex" sub='envie {"cortex":…}' scale={0.32} position={[0, 4.1, 0]} />}
     </group>
   )

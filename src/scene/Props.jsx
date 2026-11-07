@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
-import { createTVCanvas, drawTV, getCodeTextures, makeClockFace, makeTitleTexture, makeRugTexture } from './textures'
+import { createTVCanvas, drawBoard, drawTV, getCodeTextures, makeClockFace, makeTitleTexture, makeRugTexture } from './textures'
 import { botPositions, poiKey, seatYaw, sitting, tickCodeScroll } from './registry'
 
 const M = {
@@ -507,6 +507,235 @@ export function Elevator({ layout, floorY, label, night }) {
       <mesh position={[0.1, 1.15, 0.92]}>
         <boxGeometry args={[0.02, 0.22, 0.1]} />
         <meshStandardMaterial color="#e5e7eb" emissive="#ffffff" emissiveIntensity={0.15} />
+      </mesh>
+    </group>
+  )
+}
+
+// ---------------------------------------------------------------- decor for bigger rooms
+
+export function Rug({ x, z, w, d, color = '#ece7f6', round = false }) {
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.006, z]} receiveShadow scale={round ? [w / 2, d / 2, 1] : [1, 1, 1]}>
+      {round ? <circleGeometry args={[1, 48]} /> : <planeGeometry args={[w, d]} />}
+      <meshStandardMaterial color={color} roughness={0.95} />
+    </mesh>
+  )
+}
+
+export function BeanBag({ x, z, c }) {
+  return (
+    <mesh position={[x, 0.24, z]} scale={[0.55, 0.3, 0.55]} castShadow receiveShadow>
+      <sphereGeometry args={[1, 24, 16]} />
+      <meshStandardMaterial color={c} roughness={0.85} />
+    </mesh>
+  )
+}
+
+export function MeetingTable({ x, z }) {
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, 0.72, 0]} material={M.desk} castShadow receiveShadow>
+        <cylinderGeometry args={[0.85, 0.85, 0.05, 40]} />
+      </mesh>
+      <mesh position={[0, 0.36, 0]} material={M.metal}>
+        <cylinderGeometry args={[0.06, 0.25, 0.72, 16]} />
+      </mesh>
+      {[0, 1, 2, 3, 4].map((i) => {
+        const a = (i / 5) * Math.PI * 2 + 0.3
+        return (
+          <mesh key={i} position={[Math.cos(a) * 1.25, 0.24, Math.sin(a) * 1.25]} material={M.black} castShadow>
+            <cylinderGeometry args={[0.2, 0.18, 0.46, 16]} />
+          </mesh>
+        )
+      })}
+      <mesh position={[0.2, 0.76, 0.1]} rotation={[0, 0.4, 0]}>
+        <boxGeometry args={[0.32, 0.02, 0.22]} />
+        <meshStandardMaterial color="#2b2d33" />
+      </mesh>
+    </group>
+  )
+}
+
+/** Free-standing whiteboard with doodles. */
+export function Whiteboard({ x, z }) {
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, 1.35, 0]} material={M.white} castShadow>
+        <boxGeometry args={[1.8, 1.05, 0.05]} />
+      </mesh>
+      {[[-0.5, 1.5, '#1E86FC', 0.5], [0.2, 1.62, '#E5484D', 0.6], [0.35, 1.2, '#2FB36B', 0.4], [-0.3, 1.15, '#8F59F9', 0.45]].map(([px, py, c, w], i) => (
+        <mesh key={i} position={[px, py, 0.03]}>
+          <planeGeometry args={[w, 0.04]} />
+          <meshBasicMaterial color={c} />
+        </mesh>
+      ))}
+      {[-0.8, 0.8].map((px) => (
+        <mesh key={px} position={[px, 0.42, 0]} material={M.metal}>
+          <cylinderGeometry args={[0.02, 0.02, 0.84, 8]} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+/** A canvas board on a wall (pending requests, achievements). `lines` drives redraws. */
+export function InfoBoard({ position, rotation, title, lines, accent, cork, empty, w = 1.7, h = 1.25 }) {
+  const tex = useMemo(() => {
+    const c = document.createElement('canvas')
+    c.width = 512
+    c.height = 470
+    const t = new THREE.CanvasTexture(c)
+    t.colorSpace = THREE.SRGBColorSpace
+    return { c, g: c.getContext('2d'), t }
+  }, [])
+  const sig = JSON.stringify(lines) + title
+  useEffect(() => {
+    drawBoard(tex.g, tex.c, { title, lines, accent, cork, empty })
+    tex.t.needsUpdate = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig, tex])
+  useEffect(() => () => tex.t.dispose(), [tex])
+  return (
+    <group position={position} rotation={rotation}>
+      <mesh position={[0, 0, -0.02]} material={cork ? M.dark : M.white} castShadow>
+        <boxGeometry args={[w + 0.08, h + 0.08, 0.04]} />
+      </mesh>
+      <mesh position={[0, 0, 0.002]}>
+        <planeGeometry args={[w, h]} />
+        <meshBasicMaterial map={tex.t} toneMapped={false} />
+      </mesh>
+    </group>
+  )
+}
+
+/** Small "door sign" light next to the room title: green / amber / red / grey. */
+export function StatusLamp({ position, color }) {
+  const ref = useRef()
+  useFrame(({ clock }) => {
+    if (ref.current) ref.current.emissiveIntensity = 1.2 + Math.sin(clock.elapsedTime * 3) * 0.4
+  })
+  return (
+    <group position={position}>
+      <mesh material={M.dark}>
+        <boxGeometry args={[0.34, 0.34, 0.06]} />
+      </mesh>
+      <mesh position={[0, 0, 0.04]}>
+        <circleGeometry args={[0.11, 24]} />
+        <meshStandardMaterial ref={ref} color={color} emissive={color} emissiveIntensity={1.4} toneMapped={false} />
+      </mesh>
+    </group>
+  )
+}
+
+const DECOR_ITEMS = ['plant', 'photo', 'trophy', 'lamp', 'cactus', 'books']
+/** Personal desk items: from looks.desk, or a stable pick from the bot's name. */
+export function DeskDecor({ seat, items, name }) {
+  let list = items
+  if (!list || !list.length) {
+    let h = 0
+    for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+    list = [DECOR_ITEMS[h % DECOR_ITEMS.length]]
+  }
+  return (
+    <group position={[seat.x - 0.55, 0.75, seat.z + 0.95]}>
+      {list.slice(0, 2).map((it, i) => (
+        <group key={i} position={[i * -0.0, 0, i * -0.32]}>
+          {it === 'plant' && (
+            <group>
+              <mesh position={[0, 0.05, 0]} material={M.pot}><cylinderGeometry args={[0.06, 0.05, 0.1, 12]} /></mesh>
+              <mesh position={[0, 0.16, 0]} material={M.leaf}><sphereGeometry args={[0.09, 12, 10]} /></mesh>
+            </group>
+          )}
+          {it === 'cactus' && (
+            <group>
+              <mesh position={[0, 0.04, 0]}><cylinderGeometry args={[0.055, 0.05, 0.08, 12]} /><meshStandardMaterial color="#e07a4f" /></mesh>
+              <mesh position={[0, 0.15, 0]} material={M.leaf2}><capsuleGeometry args={[0.035, 0.1, 4, 8]} /></mesh>
+            </group>
+          )}
+          {it === 'photo' && (
+            <group rotation={[0, Math.PI + 0.3, 0]}>
+              <mesh position={[0, 0.08, 0]} material={M.dark}><boxGeometry args={[0.14, 0.17, 0.02]} /></mesh>
+              <mesh position={[0, 0.08, -0.011]} rotation={[0, Math.PI, 0]}><planeGeometry args={[0.11, 0.13]} /><meshBasicMaterial color="#8ec5ff" /></mesh>
+            </group>
+          )}
+          {it === 'trophy' && (
+            <group>
+              <mesh position={[0, 0.02, 0]} material={M.dark}><boxGeometry args={[0.08, 0.04, 0.08]} /></mesh>
+              <mesh position={[0, 0.11, 0]}><cylinderGeometry args={[0.06, 0.02, 0.12, 14]} /><meshStandardMaterial color="#f5b70a" metalness={0.6} roughness={0.3} /></mesh>
+            </group>
+          )}
+          {it === 'lamp' && (
+            <group>
+              <mesh position={[0, 0.12, 0]} material={M.dark}><cylinderGeometry args={[0.01, 0.01, 0.24, 6]} /></mesh>
+              <mesh position={[0, 0.25, 0.03]} rotation={[0.6, 0, 0]}><coneGeometry args={[0.06, 0.08, 14, 1, true]} /><meshStandardMaterial color="#ffe9b0" emissive="#ffd28a" emissiveIntensity={0.6} side={THREE.DoubleSide} /></mesh>
+            </group>
+          )}
+          {it === 'books' && (
+            <group>
+              {['#E5484D', '#1E86FC', '#2FB36B'].map((c, j) => (
+                <mesh key={j} position={[0, 0.02 + j * 0.035, 0]} rotation={[0, j * 0.2, 0]}><boxGeometry args={[0.16, 0.03, 0.11]} /><meshStandardMaterial color={c} /></mesh>
+              ))}
+            </group>
+          )}
+        </group>
+      ))}
+    </group>
+  )
+}
+
+/** Birthday: cake with a candle on the desk. */
+export function Cake({ seat }) {
+  const flame = useRef()
+  useFrame(({ clock }) => {
+    if (flame.current) flame.current.scale.y = 1 + Math.sin(clock.elapsedTime * 20) * 0.2
+  })
+  return (
+    <group position={[seat.x + 0.35, 0.75, seat.z + 0.5]}>
+      <mesh position={[0, 0.06, 0]}><cylinderGeometry args={[0.12, 0.12, 0.12, 24]} /><meshStandardMaterial color="#ffd6e7" /></mesh>
+      <mesh position={[0, 0.125, 0]}><cylinderGeometry args={[0.122, 0.122, 0.02, 24]} /><meshStandardMaterial color="#ffffff" /></mesh>
+      <mesh position={[0, 0.17, 0]}><cylinderGeometry args={[0.008, 0.008, 0.07, 6]} /><meshStandardMaterial color="#1E86FC" /></mesh>
+      <mesh ref={flame} position={[0, 0.215, 0]}><sphereGeometry args={[0.014, 8, 6]} /><meshBasicMaterial color="#ffb020" /></mesh>
+    </group>
+  )
+}
+
+/** Glass elevator inside the room's back-left corner; doors slide when a bot is near. */
+export function GlassElevator({ layout, night, floorY = null }) {
+  const { W } = layout
+  const z = layout.elevator.z
+  const left = useRef(), right = useRef()
+  const open = useRef(0)
+  const glass = useMemo(() => new THREE.MeshStandardMaterial({ color: '#d6e8f7', transparent: true, opacity: 0.28, roughness: 0.05, depthWrite: false }), [])
+  useFrame((_, dt) => {
+    let near = false
+    for (const p of botPositions.values()) if ((floorY == null || Math.abs(p.y - floorY - 0.8) < 1.5) && Math.hypot(p.x - (layout.elevator.x + 0.6), p.z - z) < 1.3) near = true
+    open.current += ((near ? 1 : 0) - open.current) * Math.min(1, dt * 5)
+    const o = open.current * 0.42
+    if (left.current) left.current.position.z = -0.27 - o
+    if (right.current) right.current.position.z = 0.27 + o
+  })
+  const x = -W / 2 + 0.8
+  return (
+    <group position={[x, 0, z]}>
+      {/* corner posts */}
+      {[[-0.55, -0.7], [0.55, -0.7], [-0.55, 0.7], [0.55, 0.7]].map(([px, pz], i) => (
+        <mesh key={i} position={[px, 1.45, pz]} material={M.metal}>
+          <boxGeometry args={[0.06, 2.9, 0.06]} />
+        </mesh>
+      ))}
+      {/* glass walls (back, front, left) + roof band */}
+      <mesh position={[0, 1.45, -0.7]} material={glass}><boxGeometry args={[1.1, 2.9, 0.02]} /></mesh>
+      <mesh position={[0, 1.45, 0.7]} material={glass}><boxGeometry args={[1.1, 2.9, 0.02]} /></mesh>
+      <mesh position={[0, 2.85, 0]} material={M.metal}><boxGeometry args={[1.16, 0.1, 1.46]} /></mesh>
+      {/* sliding glass doors facing the room */}
+      <group position={[0.56, 1.1, 0]}>
+        <mesh ref={left} position={[0, 0, -0.27]} material={glass}><boxGeometry args={[0.02, 2.2, 0.54]} /></mesh>
+        <mesh ref={right} position={[0, 0, 0.27]} material={glass}><boxGeometry args={[0.02, 2.2, 0.54]} /></mesh>
+      </group>
+      <mesh position={[0.6, 2.42, 0]}>
+        <boxGeometry args={[0.02, 0.14, 0.4]} />
+        <meshStandardMaterial color="#111" emissive="#5cc8ff" emissiveIntensity={night ? 1.4 : 0.7} />
       </mesh>
     </group>
   )

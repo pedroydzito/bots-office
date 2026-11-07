@@ -95,7 +95,7 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove }) {
   const desired = useRef(new THREE.Vector3(0, 0.6, 0))
   const zoomGoal = useRef(null)
   const placed = useRef(false)
-  const fy = floorIdx * FLOOR_H + 1.2
+  const fy = focus.y ?? floorIdx * FLOOR_H + 1.2
   // narrow screens (phones) need to back off so the whole room fits
   const fit = Math.max(1, Math.pow(1.25 / Math.max(0.3, size.width / size.height), 0.7))
   const goalDist = focus.dist * fit

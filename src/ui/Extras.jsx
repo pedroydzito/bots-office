@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { Clock, Close, Layers, Party, Pause, Play } from './Icons'
+import { useEffect, useRef, useState } from 'react'
+import Avatar from './Avatar'
+import { Clock, Close, Layers, Party, Pause, Play, Search as SearchIco } from './Icons'
 import { CORTEX_KEY, effStatus, hhmm, STATUS } from '../lib/constants'
 
 /** "Go back in time": scrub through the last hours of status changes; the office replays them. */
@@ -109,3 +110,59 @@ export function TvExit({ onExit }) {
 }
 
 export { STATUS }
+
+/** Ctrl+K / "/" : find a bot by name, team or what it is doing; the camera flies to it. */
+export function Search({ data, now, onPick, onClose }) {
+  const [q, setQ] = useState('')
+  const [i, setI] = useState(0)
+  const ref = useRef(null)
+  useEffect(() => ref.current?.focus(), [])
+  const norm = (x) => (x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const nq = norm(q)
+  const list = data.order
+    .map((n) => data.bots[n])
+    .filter((b) => b && (!nq || norm(b.name).includes(nq) || norm(b.team).includes(nq) || norm(b.step).includes(nq)))
+    .slice(0, 8)
+  const go = (b) => {
+    if (!b) return
+    onPick(b.name)
+    onClose()
+  }
+  return (
+    <div className="search-bg" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="card search">
+        <div className="search-in">
+          <SearchIco size={16} />
+          <input
+            ref={ref}
+            value={q}
+            placeholder="Buscar bot, time ou tarefa…"
+            onChange={(e) => (setQ(e.target.value), setI(0))}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') onClose()
+              else if (e.key === 'ArrowDown') (e.preventDefault(), setI((x) => Math.min(list.length - 1, x + 1)))
+              else if (e.key === 'ArrowUp') (e.preventDefault(), setI((x) => Math.max(0, x - 1)))
+              else if (e.key === 'Enter') go(list[i])
+            }}
+          />
+          <kbd>Esc</kbd>
+        </div>
+        <div className="search-list">
+          {list.length === 0 && <p className="muted pad">Nenhum bot encontrado</p>}
+          {list.map((b, k) => {
+            const st = effStatus(b, now)
+            return (
+              <button key={b.name} className={`li ${k === i ? 'hl' : ''}`} onMouseEnter={() => setI(k)} onClick={() => go(b)}>
+                <Avatar bot={b} size={28} ring={STATUS[st].color} />
+                <div className="lt">
+                  <b>{b.name}</b>
+                  <span>{b.team} · {b.step || STATUS[st].label}</span>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
