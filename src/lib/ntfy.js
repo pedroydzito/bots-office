@@ -1,5 +1,17 @@
 // The only network access in the app: read-only subscription to one ntfy.sh topic.
+import { clock } from '../scene/sim'
+
 const BASE = 'https://ntfy.sh'
+
+// Every screen runs the office simulation on the wall clock. Devices are normally NTP-synced;
+// if this one is clearly off, live ntfy timestamps (whole seconds) correct it.
+const skew = []
+function sampleClock(serverSec) {
+  skew.push(serverSec * 1000 + 500 - Date.now())
+  if (skew.length > 15) skew.shift()
+  const m = [...skew].sort((a, b) => a - b)[Math.floor(skew.length / 2)]
+  clock.offset = skew.length >= 3 && Math.abs(m) > 2500 ? m : 0
+}
 
 export function validTopic(t) {
   return typeof t === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(t)
@@ -63,11 +75,23 @@ export function connectNtfy(topic, { onMessages, onStatus }) {
     }
     es.onmessage = (ev) => {
       try {
-        const m = toMsg(JSON.parse(ev.data))
+        const raw = JSON.parse(ev.data)
+        if (typeof raw.time === 'number' && (raw.event === 'message' || raw.event === 'open' || raw.event === 'keepalive')) sampleClock(raw.time)
+        const m = toMsg(raw)
         if (m) onMessages([m])
       } catch {
         /* ignore */
       }
+    }
+    for (const name of ['open', 'keepalive']) {
+      es.addEventListener(name, (ev) => {
+        try {
+          const raw = JSON.parse(ev.data)
+          if (typeof raw.time === 'number') sampleClock(raw.time)
+        } catch {
+          /* ignore */
+        }
+      })
     }
     es.onerror = () => {
       hadError = true

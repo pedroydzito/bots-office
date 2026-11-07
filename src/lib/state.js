@@ -32,7 +32,7 @@ function blank() {
     // latest roster list (names in order) and the time of its last part
     rosterOrder: [], rosterT: 0,
     // status timeline (for replay + metrics) and outside weather
-    history: [], weather: null,
+    history: [], weather: null, talkLog: [],
   }
 }
 
@@ -76,6 +76,25 @@ function pushActivity(d, e) {
   d.activity.push(e)
 }
 
+/** Timeline of conversations (start, last message, end) — the shared input of the office simulation. */
+function logTalk(d, from, to, step, t, ending) {
+  const open = [...d.talkLog].reverse().find((x) => x.from === from && x.end == null && t - x.lastT <= 90000)
+  if (ending) {
+    if (open && open.to === to) {
+      const i = d.talkLog.indexOf(open)
+      d.talkLog[i] = { ...open, end: t }
+    }
+    return
+  }
+  if (open && open.to === to) {
+    const i = d.talkLog.indexOf(open)
+    d.talkLog[i] = { ...open, lastT: Math.max(open.lastT, t), step: step || open.step }
+    return
+  }
+  if (open) d.talkLog[d.talkLog.indexOf(open)] = { ...open, end: t } // switched partner
+  d.talkLog.push({ from, to, t0: t, lastT: t, step: step || 'papo rápido', end: null })
+}
+
 function applyPayload(d, p, t) {
   if (!p || typeof p !== 'object') return
   if (Array.isArray(p)) {
@@ -91,6 +110,7 @@ function applyPayload(d, p, t) {
       const step = clean(p.step, 80)
       const st = clean(p.status, 12).toLowerCase()
       const cur = d.talks[from]
+      logTalk(d, from, to, step, t, st === 'end' || st === 'stop' || st === 'done')
       if (st === 'end' || st === 'stop' || st === 'done') {
         if (cur && cur.to === to && t >= cur.t) {
           delete d.talks[from]
@@ -241,6 +261,7 @@ function draft(s) {
     talks: { ...s.talks },
     activity: [...s.activity],
     history: [...(s.history || [])],
+    talkLog: [...(s.talkLog || [])],
   }
 }
 
@@ -309,6 +330,7 @@ export function loadTopic(topic) {
           cortex: s.cortex || p.cortex || null,
           activity: p.activity || [],
           history: p.history || [],
+          talkLog: p.talkLog || [],
           weather: p.weather || null,
           chat: { ...(p.chat || {}), ...s.chat },
           talks: p.talks || {},
@@ -345,7 +367,7 @@ function saveNow() {
   if (s.usage) writeJSON(partKey(currentTopic, 'usage'), s.usage)
   const main = {
     bots: s.bots, order: s.order, routines: s.routines, usage: s.usage, cortex: s.cortex,
-    activity: s.activity, history: s.history, weather: s.weather, chat: s.chat, talks: s.talks, lastTime: s.lastTime,
+    activity: s.activity, history: s.history, talkLog: s.talkLog, weather: s.weather, chat: s.chat, talks: s.talks, lastTime: s.lastTime,
     seen: [...seen].slice(-MAX_SEEN),
   }
   if (!writeJSON(storageKey, main)) writeJSON(storageKey, { ...main, activity: s.activity.slice(0, 20), history: s.history.slice(-300), seen: [...seen].slice(-100) })
@@ -393,6 +415,8 @@ export function ingest(msgs) {
     const cutoff = Date.now() - 48 * 3600e3
     d.history = d.history.filter((h) => h.t >= cutoff).slice(-3000)
   }
+  d.talkLog.sort((a, b) => a.t0 - b.t0)
+  d.talkLog = d.talkLog.filter((x) => (x.end ?? x.lastT + 90000) > Date.now() - 45 * 60e3).slice(-200)
   d.rev = s0.rev + 1
   dataStore.set(() => d)
   persist()

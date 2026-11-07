@@ -100,6 +100,7 @@ export function floorLayout(n, W, D) {
     { kind: 'sofa', x: W / 2 - 2.75, z: D / 2 - 3.05, az: D / 2 - 2.5, yaw: 0, sit: true },
     { kind: 'sofa', x: W / 2 - 1.55, z: D / 2 - 3.05, az: D / 2 - 2.5, yaw: 0, sit: true },
     { kind: 'plant', x: W / 2 - 1.85, z: -D / 2 + 1.5, yaw: Math.PI / 2 },
+    { kind: 'phone', x: x0 + 3.3, z: D / 2 - 1.6, yaw: 0.2 },
   ]
   if (lw.shelfZ != null) pois.push({ kind: 'books', x: -W / 2 + 1.45, z: lw.shelfZ, yaw: -Math.PI / 2 })
   const blockCx = x0 + ((cols - 1) * SX) / 2

@@ -8,7 +8,8 @@ import { getFacadeTexture } from './textures'
 import { CORTEX_KEY } from '../lib/constants'
 import { MATS, Railing } from './Props'
 import { RoundedBox } from '@react-three/drei'
-import { floorOffset, rides, ridePositions } from './registry'
+import { floorOffset, ridePositions } from './registry'
+import { rideFor, sessions, syncNow } from './sim'
 import { getBotAsset } from './shapes'
 import { effStatus, resolveColor, STATUS } from '../lib/constants'
 
@@ -74,16 +75,23 @@ function Plaza({ W, D, night }) {
 
 /** Glass elevator shaft on the outside of the left wall; cars carry riding bots between floors. */
 /** The elevator car inside the glass shaft of the open floor: it arrives from above/below during rides. */
-function ElevatorShaft({ W, D, floorIdx, night }) {
+function ElevatorShaft({ W, D, floorIdx, night, data }) {
   const x = -W / 2 + 0.8, z = -D / 2 + 2.3
   const fy = floorIdx * FLOOR_H
   const cars = useRef([])
   const riders = useRef([])
   const MAXC = 3
   useFrame(() => {
-    const now = Date.now()
-    while (rides.length && rides[0].end < now - 60000) rides.shift()
-    const live = rides.filter((r) => now >= r.start && now < r.end).slice(0, MAXC)
+    const now = syncNow()
+    // rides come straight from the shared conversation log, so every screen sees the same car
+    const live = []
+    for (const sess of sessions(data, now)) {
+      const r = rideFor(sess)
+      if (!r) continue
+      const b = data.bots?.[sess.from]
+      if (now >= r.goStart && now < r.goEnd) live.push({ name: sess.from, from: r.from, to: r.to, start: r.goStart, end: r.goEnd, shape: b?.shape, color: b?.color })
+      if (now >= r.backStart && now < r.backEnd) live.push({ name: sess.from, from: r.to, to: r.from, start: r.backStart, end: r.backEnd, shape: b?.shape, color: b?.color })
+    }
     ridePositions.clear()
     for (let i = 0; i < MAXC; i++) {
       const car = cars.current[i]
@@ -198,7 +206,7 @@ export default function Building({ floors, selectedIdx, size, layouts, data, now
       {floors.slice(0, selectedIdx).map((f, i) => (
         <Facade key={f.key} W={W} D={D} y={i * FLOOR_H} night={night} color={floorColor(f, data, now)} />
       ))}
-      <ElevatorShaft W={W} D={D} floorIdx={selectedIdx} night={night} />
+      <ElevatorShaft W={W} D={D} floorIdx={selectedIdx} night={night} data={data} />
       <group ref={drop} position={[0, y, 0]}>
         <Terrace W={W} D={D} night={night} />
         <group position={[ox, 0, oz]}>

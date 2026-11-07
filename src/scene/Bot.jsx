@@ -4,11 +4,10 @@ import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { getBotAsset } from './shapes'
 import { isDark, resolveColor, STATUS } from '../lib/constants'
-import { planPath, SEAT_Y } from './layout'
-import { botMemory, botPositions, poiKey, poiTaken, seatYaw, sitting } from './registry'
+import { botPositions, poiKey, seatYaw, sitting } from './registry'
+import { isSleepy, rnd, simBot, statusAt, syncNow } from './sim'
 import Confetti from './Confetti'
 
-const rand = (a, b) => a + Math.random() * (b - a)
 const pick = (a) => a[Math.floor(Math.random() * a.length)]
 const REPLIES = ['Fechado, já vejo', 'Faz sentido!', 'Manda pra mim', 'Hmm, deixa eu ver', 'Adorei', 'Me dá 5 min', 'Combinado', 'Bora!']
 
@@ -159,17 +158,11 @@ function StatusIcon({ status, talking }) {
  *  - otherwise resting/finished bots occasionally wander to a point of interest,
  *  - otherwise the bot sits at its seat.
  */
-function Bot({
-  bot, status, layout, seat, goal, talkView, floorY, selected, spotlight,
-  onSelect, onGone, spawnAtGoal, night, appearAt = 0, floorKey = '',
-}) {
+function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey = '', floorY, selected, spotlight, onSelect, night }) {
   const asset = useMemo(() => getBotAsset(bot.shape), [bot.shape])
   const color = resolveColor(bot.color)
   const dark = isDark(color)
-  const mat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color, roughness: 0.38, metalness: 0 }),
-    [color],
-  )
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color, roughness: 0.38, metalness: 0 }), [color])
   useEffect(() => () => mat.dispose(), [mat])
   const ringMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#fff', transparent: true, opacity: 0.5, depthWrite: false }), [])
 
@@ -180,323 +173,103 @@ function Bot({
   const mug = useRef()
   const book = useRef()
   const ring = useRef()
-  const phase = useMemo(() => Math.random() * 10, [])
+  const phase = useMemo(() => rnd(bot.name, 'phase') * 10, [bot.name])
 
   const [hover, setHover] = useState(false)
-  // Each bot keeps living while its floor is off screen: its state is remembered per floor, so
-  // switching floors and coming back shows it exactly where/what it was doing.
-  const memKey = `${floorKey || floorY}|${bot.name}|${seat ? 'home' : 'visit'}`
-  const remembered = useMemo(() => {
-    const m = botMemory.get(memKey)
-    return m && !m.gone ? m : null
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-  const [hidden, setHidden] = useState(() => (remembered ? remembered.hiddenFlag : !!(goal && spawnAtGoal && goal.hideOnArrive)))
-  const [arrivedKind, setArrivedKind] = useState(() => (remembered && remembered.arrived ? remembered.atKind : null))
+  const [hidden, setHidden] = useState(true)
+  const [gone, setGone] = useState(false)
+  const [talkUi, setTalkUi] = useState(null) // { role, step, seed, turn, meeting }
   const [speech, setSpeech] = useState(false)
   const [confetti, setConfetti] = useState(0)
-  const [turn, setTurn] = useState(0)
-  const [partnerNear, setPartnerNear] = useState(false)
 
   const P = useRef({})
-  P.current = { status, goal, seat, layout, onGone, talkView, hover, appearAt, ts: bot.ts }
+  P.current = { status, seat, layout, role, names, data, floorKey, hover, ts: bot.ts, name: bot.name }
+  const V = useRef({ yaw: 0, ui: '', hidden: true, gone: false })
 
-  const S = useRef(remembered)
-  if (!S.current) {
-    let start = seat ? { x: seat.x, z: seat.z } : layout.elevator
-    let atKind = seat ? 'seat' : 'elevator'
-    if (goal && spawnAtGoal) {
-      start = goal
-      atKind = goal.kind
-    }
-    S.current = {
-      pos: new THREE.Vector3(start.x, 0, start.z),
-      y: atKind === 'seat' ? SEAT_Y : 0,
-      yaw: goal && spawnAtGoal ? goal.yaw || 0 : 0,
-      targetYaw: 0,
-      key: goal && spawnAtGoal ? `${goal.kind}:${goal.x.toFixed(2)},${goal.z.toFixed(2)}` : atKind === 'seat' ? 'seat' : '',
-      atKind,
-      arrived: true,
-      path: null,
-      idx: 0,
-      wander: null,
-      // personality: some bots barely leave their desk, others wander a lot
-      wanderRate: rand(0.5, 2.6),
-      likes: [...['coffee', 'cooler', 'sofa', 'view', 'books', 'plant']].sort(() => Math.random() - 0.5).slice(0, 4),
-      nextWander: rand(25, 160),
-      idleSince: 0,
-      activity: null,
-      lookYaw: 0,
-      nextLook: rand(2, 6),
-      blinkAt: rand(1, 4),
-      blinkUntil: 0,
-      celebrate: -1,
-      shake: -1,
-      pendingCelebrate: false,
-      pendingShake: false,
-      hiddenFlag: !!(goal && spawnAtGoal && goal.hideOnArrive),
-      gone: false,
-      nextQuirk: rand(6, 16),
-      quirk: null,
-      quirkT: 0,
-      landT: -1,
-      holding: false,
-    }
-    botMemory.set(memKey, S.current)
-  }
-  const fk = (q) => `${floorY}|${poiKey(q)}` // POI claims are per floor
-
-  // Status transitions -> one-shot animations + speech bubble
-  const prev = useRef({ status, step: bot.step, mounted: false })
+  // speech bubble + confetti follow the status change time, so every screen shows them together
   useEffect(() => {
-    const p = prev.current
-    if (p.mounted && (p.status !== status || p.step !== bot.step)) {
-      if (status === 'done' && p.status !== 'done') {
-        S.current.pendingCelebrate = true
-        setConfetti((c) => c + 1)
-      }
-      if (status === 'error' && p.status !== 'error') S.current.pendingShake = true
-      if (bot.step) {
-        setSpeech(true)
-        const id = setTimeout(() => setSpeech(false), 6500)
-        prev.current = { status, step: bot.step, mounted: true }
-        return () => clearTimeout(id)
-      }
+    const age = syncNow() - (bot.ts || 0)
+    if (status === 'done' && age < 3000) setConfetti(bot.ts)
+    if (bot.step && age < 6500) {
+      setSpeech(true)
+      const id = setTimeout(() => setSpeech(false), 6500 - age)
+      return () => clearTimeout(id)
     }
-    prev.current = { status, step: bot.step, mounted: true }
-  }, [status, bot.step])
-
-  // Alternate speech turns while talking
-  const talking = !!talkView && arrivedKind === 'spot' && partnerNear && !hidden
-  useEffect(() => {
-    if (!talking) return
-    const id = setInterval(() => setTurn((t) => t + 1), 2800)
-    return () => clearInterval(id)
-  }, [talking])
+    setSpeech(false)
+  }, [status, bot.step, bot.ts])
 
   useEffect(
     () => () => {
       botPositions.delete(bot.name)
       seatYaw.delete(bot.name)
-      // the bot keeps its spot (and its claim on it) while the floor is off screen;
-      // only cushions are per visible floor
-      if (S.current?.wander) sitting.delete(poiKey(S.current.wander))
-      if (S.current?.gone) {
-        if (S.current.wander) poiTaken.delete(fk(S.current.wander))
-        botMemory.delete(memKey)
-      }
     },
     [bot.name],
   )
 
-  useFrame(({ clock, camera }, rawDt) => {
+  useFrame(({ camera }, rawDt) => {
     const dt = Math.min(rawDt, 0.05)
-    const t = clock.elapsedTime
-    const s = S.current
     const p = P.current
-    if (!root.current || s.gone) return
-    if (s.arrived && s.wander && s.wander.sit && s.goal === s.wander) sitting.add(poiKey(s.wander))
-    // waiting for the elevator car to arrive on this floor: stay inside, hidden
-    if (p.appearAt && Date.now() < p.appearAt) {
-      if (!s.hiddenFlag) {
-        s.hiddenFlag = true
-        setHidden(true)
-      }
-      s.pos.set(p.layout.elevator.x, 0, p.layout.elevator.z)
-      s.atKind = 'elevator'
-      s.key = ''
-      botPositions.delete(bot.name)
-      return
-    }
-    if (s.pendingCelebrate) {
-      s.pendingCelebrate = false
-      s.celebrate = t
-    }
-    if (s.pendingShake) {
-      s.pendingShake = false
-      s.shake = t
-    }
+    const v = V.current
+    if (!root.current) return
+    const T = syncNow()
+    const t = (T % 1e7) / 1000
+    const sim = simBot({ name: p.name, role: p.role, floorKey: p.floorKey, layout: p.layout, seat: p.seat, names: p.names, data: p.data }, T)
 
-    // ---- goal selection
-    let g = p.goal
-    if (!g) {
-      // after an hour with nothing to do a bot naps at its desk instead of wandering
-      const sleepy = p.status === 'resting' && Date.now() - (p.ts || 0) > 3600e3
-      const idleish = (p.status === 'resting' || p.status === 'done') && !sleepy
-      if (s.wander && (!idleish || (s.wander.until && t > s.wander.until))) {
-        poiTaken.delete(fk(s.wander))
-        sitting.delete(poiKey(s.wander))
-        s.activity = null
-        s.wander = null
-      }
-      if (!idleish) s.idleSince = t
-      // only after being idle a while, at this bot's own pace, and never too many at once
-      const cap = Math.max(1, Math.round((p.layout.seats.length || 3) / 3))
-      if (!s.wander && idleish && p.seat && t > s.nextWander && t - s.idleSince > 6 && [...poiTaken].filter((k) => k.startsWith(`${floorY}|`)).length < cap) {
-        s.nextWander = t + rand(35, 110) * s.wanderRate
-        const free = p.layout.pois.filter((q) => !poiTaken.has(fk(q)))
-        const liked = free.filter((q) => s.likes.includes(q.kind))
-        const choice = liked.length ? pick(liked) : free.length ? pick(free) : null
-        if (choice) {
-          s.wander = { ...choice, until: null }
-          poiTaken.add(fk(s.wander))
-        }
-      } else if (!s.wander && t > s.nextWander) s.nextWander = t + rand(10, 30) * s.wanderRate
-      g = s.wander || (p.seat ? { kind: 'seat', x: p.seat.x, z: p.seat.z, az: p.seat.az, ex: p.seat.ex, yaw: 0 } : p.layout.elevator)
+    if (sim.hidden !== v.hidden) {
+      v.hidden = sim.hidden
+      setHidden(sim.hidden)
     }
-    const key = g.kind === 'seat' ? 'seat' : `${g.kind}:${g.x.toFixed(2)},${g.z.toFixed(2)}`
-    if (key !== s.key) {
-      s.key = key
-      const from = s.atKind === 'seat' && p.seat ? p.seat : { x: s.pos.x, z: s.pos.z, az: s.pos.z }
-      s.path = planPath(from, g, p.layout)
-      s.idx = 1
-      s.arrived = s.path.length < 2
-      s.atKind = 'walk'
-      s.goal = g
-      if (s.hiddenFlag) {
-        s.hiddenFlag = false
-        setHidden(false)
-      }
-      setArrivedKind(null)
-      if (s.arrived) arrive()
+    if (sim.gone !== v.gone) {
+      v.gone = sim.gone
+      setGone(sim.gone)
     }
-    s.goal = g
-
-    function arrive() {
-      s.arrived = true
-      s.atKind = g.kind
-      setArrivedKind(g.kind)
-      if (g.kind === 'seat') s.landT = t
-      if (g.kind === 'coffee' || g.kind === 'cooler') s.holding = true
-      if (g.kind === 'seat') s.holding = false
-      if (s.wander && g === s.wander) {
-        s.wander.until = t + rand(9, 22)
-        s.activity = g.kind
-        if (g.sit) sitting.add(poiKey(g))
-      }
-      if (g.hideOnArrive && !s.hiddenFlag) {
-        s.hiddenFlag = true
-        setHidden(true)
-      }
-      if (g.goneOnArrive) {
-        s.gone = true
-        p.onGone && p.onGone()
-      }
+    // conversation bubbles take turns on a clock every screen shares
+    const turn = sim.talk ? Math.floor(Math.max(0, T - sim.talk.since - 1200) / 2800) : -1
+    const uiKey = sim.talk ? `${sim.talk.role}|${sim.talk.step}|${turn}|${sim.talk.meeting}` : ''
+    if (uiKey !== v.ui) {
+      v.ui = uiKey
+      setTalkUi(sim.talk ? { ...sim.talk, turn } : null)
     }
-
-    // ---- locomotion (stand up first, then walk)
-    let moving = false
-    if (!s.arrived && s.y < 0.08) {
-      const tgt = s.path[s.idx]
-      const dx = tgt[0] - s.pos.x, dz = tgt[1] - s.pos.z
-      const d = Math.hypot(dx, dz)
-      const step = 1.55 * dt
-      if (d <= step) {
-        s.pos.x = tgt[0]
-        s.pos.z = tgt[1]
-        s.idx++
-        if (s.idx >= s.path.length) arrive()
-      } else {
-        // steer around other bots instead of pushing them
-        let ux = dx / d, uz = dz / d
-        const px = -uz, pz = ux
-        let sx = 0, sz = 0
-        for (const [other, q] of botPositions) {
-          if (other === bot.name) continue
-          const rx = q.x - s.pos.x, rz = q.z - s.pos.z
-          const ahead = rx * ux + rz * uz
-          if (ahead <= 0 || ahead > 1.4) continue
-          const lat = rx * px + rz * pz
-          if (Math.abs(lat) > 0.9) continue
-          const w = ((0.9 - Math.abs(lat)) / 0.9) * ((1.4 - ahead) / 1.4)
-          const side = Math.abs(lat) < 0.05 ? (phase > 5 ? 1 : -1) : Math.sign(lat)
-          sx -= side * px * w
-          sz -= side * pz * w
-        }
-        ux += sx * 1.8
-        uz += sz * 1.8
-        const n = Math.hypot(ux, uz) || 1
-        s.pos.x += (ux / n) * step
-        s.pos.z += (uz / n) * step
-        s.targetYaw = Math.atan2(ux, uz)
-        moving = true
-      }
-    }
+    const st = p.status
+    const moving = sim.moving
+    const seated = sim.seated
+    const sleeping = seated && st === 'resting' && isSleepy(statusAt(p.data.history || [], p.name, T), T)
 
     // ---- facing
-    if (s.arrived) {
-      if (g.kind === 'seat') {
-        if (t > s.nextLook) {
-          s.nextLook = t + rand(3, 8)
-          s.lookYaw = p.status === 'working' ? (Math.random() < 0.3 ? rand(-0.8, 0.8) : 0) : rand(-0.7, 0.7)
-          if (p.status === 'working') setTimeout(() => (s.lookYaw = 0), 1600)
-        }
-        if (p.status === 'waiting_user') {
-          const ang = Math.atan2(camera.position.x - s.pos.x, camera.position.z - s.pos.z)
-          s.targetYaw = Math.max(-1.2, Math.min(1.2, ang))
-        } else s.targetYaw = s.lookYaw
-      } else if (g.yaw != null) s.targetYaw = g.yaw
-    }
-    // seated bots swivel less, and the chair turns with them
-    const seated = s.arrived && g.kind === 'seat'
-    if (seated) s.targetYaw = Math.max(-0.55, Math.min(0.55, s.targetYaw))
-    s.yaw = lerpAngle(s.yaw, s.targetYaw, 1 - Math.exp(-dt * 7))
-    if (seated && s.y > 0.3) seatYaw.set(bot.name, s.yaw)
-    else seatYaw.delete(bot.name)
+    let targetYaw = v.yaw
+    if (moving && sim.yaw != null) targetYaw = sim.yaw
+    else if (seated) {
+      const look = rnd(p.name, 'look', Math.floor(T / 6000))
+      targetYaw = st === 'working' ? (look < 0.25 ? (look - 0.125) * 5 : 0) : (look - 0.5) * 1.1
+      if (st === 'waiting_user') targetYaw = Math.max(-1.1, Math.min(1.1, Math.atan2(camera.position.x - sim.x, camera.position.z - sim.z)))
+      targetYaw = Math.max(-0.55, Math.min(0.55, targetYaw))
+    } else if (sim.at && sim.at.yaw != null) targetYaw = sim.at.yaw
+    v.yaw = lerpAngle(v.yaw, targetYaw, 1 - Math.exp(-dt * 8))
+    if (seated && sim.y > 0.3) seatYaw.set(p.name, v.yaw)
+    else seatYaw.delete(p.name)
 
-    // hard rule: a walking bot never overlaps anyone; it only ever moves itself (nobody gets shoved)
-    if (moving && !s.hiddenFlag) {
-      for (const [other, q] of botPositions) {
-        if (other === bot.name) continue
-        const dx = s.pos.x - q.x, dz = s.pos.z - q.z
-        const d = Math.hypot(dx, dz)
-        const minD = 0.8
-        if (d < minD) {
-          const nx = d > 1e-4 ? dx / d : Math.cos(phase), nz = d > 1e-4 ? dz / d : Math.sin(phase)
-          s.pos.x = q.x + nx * minD
-          s.pos.z = q.z + nz * minD
-        }
-      }
-      // stay inside the room
-      s.pos.x = Math.max(-p.layout.W / 2 + 0.45, Math.min(p.layout.W / 2 - 0.45, s.pos.x))
-      s.pos.z = Math.max(-p.layout.D / 2 + 0.45, Math.min(p.layout.D / 2 - 0.45, s.pos.z))
-    }
-
-    const wantY = s.arrived && g.kind === 'seat' ? SEAT_Y : s.arrived && g.sit ? 0.42 : 0
-    s.y += (wantY - s.y) * (1 - Math.exp(-dt * 9))
-    root.current.position.set(s.pos.x, s.y, s.pos.z)
-    root.current.rotation.y = s.yaw
-    if (s.hiddenFlag) botPositions.delete(bot.name)
+    root.current.position.set(sim.x, sim.y, sim.z)
+    root.current.rotation.y = v.yaw
+    if (sim.hidden) botPositions.delete(p.name)
     else {
-      const bp = botPositions.get(bot.name) || new THREE.Vector3()
-      bp.set(s.pos.x, floorY + s.y + 0.6, s.pos.z)
-      botPositions.set(bot.name, bp)
+      const bp = botPositions.get(p.name) || new THREE.Vector3()
+      bp.set(sim.x, floorY + sim.y + 0.6, sim.z)
+      botPositions.set(p.name, bp)
     }
+    if (sim.sitting && sim.at) sitting.add(poiKey(sim.at))
 
-    // ---- body animation
+    // ---- body animation (all driven by the shared clock)
     let by = 0, rx = 0, rz = 0, ry = 0, sy = 1, eyeY = 1, jx = 0
     let hl = 0, hr = 0, hz = 0
-    const st = p.status
-    let isTalking = false
-    if (p.talkView && s.arrived && g.kind === 'spot') {
-      const q = botPositions.get(p.talkView.partner)
-      const near = !!q && Math.hypot(q.x - s.pos.x, q.z - s.pos.z) < (p.talkView.meeting ? 2.8 : 1.9) && Math.abs(q.y - (floorY + s.y + 0.6)) < 1
-      if (near !== s.partnerNear) {
-        s.partnerNear = near
-        setPartnerNear(near)
-      }
-      isTalking = near
-    } else if (s.partnerNear) {
-      s.partnerNear = false
-      setPartnerNear(false)
-    }
+    const isTalking = !!sim.talk
+    const act = sim.at && sim.at.poi ? sim.at.kind : null
     if (moving) {
       by = Math.abs(Math.sin(t * 11 + phase)) * 0.07
       rz = Math.sin(t * 11 + phase) * 0.09
       hl = Math.sin(t * 11) * 0.06
       hr = -hl
     } else if (isTalking) {
-      const mine = (p.talkView.role === 'visitor') === (Math.floor(t / 2.8) % 2 === 0)
+      const mine = (sim.talk.role === 'visitor') === (turn % 2 === 0)
       if (mine) {
         by = Math.abs(Math.sin(t * 7 + phase)) * 0.05
         rz = Math.sin(t * 3.5) * 0.07
@@ -507,8 +280,8 @@ function Bot({
         rx = Math.sin(t * 2.4) * 0.07
         sy = 1 + Math.sin(t * 2) * 0.02
       }
-    } else if (st === 'working' && s.atKind === 'seat') {
-      // working = at the computer: bursts of typing, then reading the screen, then typing again
+    } else if (st === 'working' && seated) {
+      // at the computer: bursts of typing, then reading the screen
       const typing = Math.sin(t * 0.45 + phase) + Math.sin(t * 0.17 + phase * 2) * 0.6 > -0.35
       rx = 0.13
       hz = 0.1
@@ -517,7 +290,6 @@ function Bot({
         hl = Math.max(0, Math.sin(t * 17 + phase)) * 0.05
         hr = Math.max(0, Math.sin(t * 17 + phase + Math.PI)) * 0.05
       } else {
-        // reading: still hands, small head movements following the text
         rx = 0.16 + Math.sin(t * 1.3 + phase) * 0.02
         rz = Math.sin(t * 0.9 + phase) * 0.03
         hl = hr = 0.01
@@ -526,16 +298,17 @@ function Bot({
       const b = Math.abs(Math.sin(t * 4.5 + phase))
       by = b * 0.14
       sy = 1 + (b < 0.15 ? -0.08 : 0.03)
-      hl = b * 0.18
+      hl = 0.38 + Math.sin(t * 9) * 0.08
+      hr = 0.38 + Math.sin(t * 9 + Math.PI) * 0.08
     } else if (st === 'error') {
       sy = 1 + Math.sin(t * 2) * 0.015
-      if (t - s.shake < 1.6 || (t + phase) % 5 < 0.45) {
+      if (T - (p.ts || 0) < 1600 || (t + phase) % 5 < 0.45) {
         jx = Math.sin(t * 55) * 0.035
         rz = Math.sin(t * 48) * 0.07
       }
     } else if (st === 'done') {
-      const ct = t - s.celebrate
-      if (s.celebrate >= 0 && ct < 1.8) {
+      const ct = (T - (p.ts || 0)) / 1000
+      if (ct >= 0 && ct < 1.8) {
         by = Math.abs(Math.sin(ct * 7)) * 0.42
         ry = Math.min(1, ct / 1.4) * Math.PI * 2
         hl = hr = 0.25
@@ -546,30 +319,25 @@ function Bot({
         if ((t + phase) % 9 < 0.6) by = Math.abs(Math.sin((t + phase) * 10)) * 0.08
       }
     } else {
-      // resting
       sy = 1 + Math.sin(t * 1.2 + phase) * 0.03
-      if (s.atKind === 'seat') {
-        if (Date.now() - (p.ts || 0) > 3600e3) {
-          // asleep on the desk: head down, slow deep breathing
-          rx = 0.42
-          by = -0.04
-          sy = 1 + Math.sin(t * 0.8 + phase) * 0.04
-          hl = hr = 0.12
-          hz = 0.22
-          rz = 0
-        } else rx = -0.05
+      rz = Math.sin(t * 0.6 + phase) * 0.04
+      if (sleeping) {
+        rx = 0.42
+        by = -0.04
+        sy = 1 + Math.sin(t * 0.8 + phase) * 0.04
+        hl = hr = 0.12
+        hz = 0.22
+        rz = 0
+        eyeY = 0.1
+      } else if (seated) {
+        rx = -0.05
         eyeY = 0.12
       }
-      rz = Math.sin(t * 0.6 + phase) * 0.04
     }
-    if (t > s.blinkAt) {
-      s.blinkUntil = t + 0.12
-      s.blinkAt = t + rand(2.5, 6)
-    }
-    if (t < s.blinkUntil) eyeY = Math.min(eyeY, 0.1)
+    // blink on a shared clock
+    if ((t + phase) % 4.3 < 0.12) eyeY = Math.min(eyeY, 0.1)
 
     // ---- activities at points of interest
-    const act = !moving && s.arrived && s.wander && g === s.wander ? s.activity : null
     if (act) {
       const cyc = (t + phase) % 4
       const sip = cyc < 1.1 ? Math.sin((cyc / 1.1) * Math.PI) : 0
@@ -605,18 +373,30 @@ function Bot({
           hz = 0.2
           rx = 0.12
           break
+        case 'phone':
+          // on a call: hand at the ear, pacing and nodding
+          hr = 0.34
+          hz = -0.02
+          ry = Math.sin(t * 0.8 + phase) * 0.6
+          by = Math.abs(Math.sin(t * 3 + phase)) * 0.02
+          rx = Math.sin(t * 2.2) * 0.05
+          break
+        case 'chat':
+          // dropped by a colleague's desk for a quick chat
+          hl = 0.1 + Math.sin(t * 6) * 0.06
+          rz = Math.sin(t * 2.5 + phase) * 0.06
+          by = Math.abs(Math.sin(t * 5 + phase)) * 0.03
+          break
       }
     }
-    // ---- quirks: short one-off gestures that keep the office alive
-    if (!moving && !isTalking && !act && t > s.nextQuirk) {
-      s.nextQuirk = t + rand(9, 22)
-      s.quirkT = t
-      s.quirk = st === 'working' ? pick(['think', 'stretch', 'nod']) : st === 'resting' ? pick(['yawn', 'stretch']) : st === 'error' ? 'facepalm' : st === 'done' ? 'cheer' : pick(['stretch', 'look'])
-    }
-    const qt = t - s.quirkT
-    if (s.quirk && qt < 2.2) {
-      const k = Math.sin(Math.min(1, qt / 2.2) * Math.PI)
-      switch (s.quirk) {
+    // ---- quirks: short gestures, picked from a shared clock
+    const qslot = Math.floor(T / 13000)
+    const qStart = qslot * 13000 + rnd(p.name, qslot, 'qs') * 6000
+    const qt = (T - qStart) / 1000
+    if (!moving && !isTalking && !act && !sleeping && qt > 0 && qt < 2.2 && rnd(p.name, qslot, 'q') < 0.55) {
+      const k = Math.sin((qt / 2.2) * Math.PI)
+      const opts = st === 'working' ? ['think', 'stretch', 'nod'] : st === 'resting' ? ['yawn', 'stretch', 'look'] : st === 'error' ? ['facepalm'] : st === 'done' ? ['cheer', 'look'] : ['stretch', 'look']
+      switch (opts[Math.floor(rnd(p.name, qslot, 'qk') * opts.length)]) {
         case 'think': hr = 0.2 * k; hz = 0.12 * k; rz = 0.12 * k; hl *= 1 - k; break
         case 'stretch': hl = hr = 0.42 * k; sy *= 1 + 0.08 * k; rx -= 0.1 * k; break
         case 'yawn': sy *= 1 + 0.06 * k; hl = hr = 0.3 * k; eyeY = Math.min(eyeY, 0.15); break
@@ -625,19 +405,15 @@ function Bot({
         case 'cheer': hl = hr = 0.45 * k; by += Math.abs(Math.sin(qt * 8)) * 0.12 * k; break
         case 'look': ry += Math.sin(qt * 3) * 0.5 * k; break
       }
-    } else s.quirk = null
-    // waiting: wave both arms; hover: wave hello
-    if (st === 'waiting_user' && !moving && !isTalking) {
-      hl = 0.38 + Math.sin(t * 9) * 0.08
-      hr = 0.38 + Math.sin(t * 9 + Math.PI) * 0.08
     }
     if (p.hover && !moving) {
       hr = 0.4 + Math.sin(t * 12) * 0.07
       hz = 0.05
     }
     // landing squash when sitting down
-    const lt = t - s.landT
-    if (s.landT >= 0 && lt < 0.45) sy *= 1 - Math.sin((lt / 0.45) * Math.PI) * 0.12
+    const lt = (T - sim.arrivedT) / 1000
+    if (seated && lt >= 0 && lt < 0.45) sy *= 1 - Math.sin((lt / 0.45) * Math.PI) * 0.12
+
     const b = body.current
     b.position.set(jx, by, 0)
     b.rotation.set(rx, ry, rz)
@@ -652,19 +428,16 @@ function Bot({
       book.current.position.set(0, 0.3 + hl, 0.2 + hz)
     }
     if (mug.current) {
-      mug.current.visible = s.holding
+      mug.current.visible = act === 'coffee' || act === 'cooler'
       mug.current.position.set(hw + 0.02, 0.3 + hr, 0.12 + hz)
     }
-
     if (st === 'error') mat.emissive.setRGB(0.6 * (0.5 + 0.5 * Math.sin(t * 6)), 0, 0)
     else mat.emissive.setRGB(0, 0, 0)
-
     if (ring.current) {
-      ring.current.position.y = -s.y + 0.015
+      ring.current.position.y = -sim.y + 0.015
       const pulse = st === 'waiting_user' || st === 'error' ? 0.5 + 0.5 * Math.sin(t * 5) : 0.6
       ringMat.opacity = (st === 'resting' ? 0 : 0.55) * pulse
-      const sc = st === 'waiting_user' ? 1 + 0.15 * Math.sin(t * 5) : 1
-      ring.current.scale.setScalar(sc)
+      ring.current.scale.setScalar(st === 'waiting_user' ? 1 + 0.15 * Math.sin(t * 5) : 1)
     }
   })
 
@@ -674,14 +447,15 @@ function Bot({
   }, [statusColor, ringMat])
 
   const iconY = asset.top + 0.42
+  const talking = !!talkUi && !hidden
   let speechText = null
   if (talking) {
-    const visitorTurn = turn % 2 === 0
-    const mine = (talkView.role === 'visitor') === visitorTurn
-    if (mine) speechText = talkView.role === 'visitor' ? talkView.step : REPLIES[(talkView.seed + turn) % REPLIES.length]
+    const mine = (talkUi.role === 'visitor') === (talkUi.turn % 2 === 0)
+    if (mine) speechText = talkUi.role === 'visitor' ? talkUi.step : REPLIES[(talkUi.seed + talkUi.turn) % REPLIES.length]
   } else if (speech || hover || selected || spotlight) {
     speechText = bot.step || STATUS[status]?.label
   }
+  if (gone) return null
 
   return (
     <group ref={root}>
@@ -744,13 +518,11 @@ function Bot({
   )
 }
 
-const goalKey = (g) => (g ? `${g.kind}:${g.x.toFixed(2)},${g.z.toFixed(2)}:${g.hideOnArrive ? 1 : 0}${g.goneOnArrive ? 1 : 0}` : '')
-const talkKey = (t) => (t ? `${t.role}|${t.partner}|${t.step}|${t.meeting ? 1 : 0}` : '')
 function same(a, b) {
   return (
-    a.bot === b.bot && a.status === b.status && a.seat === b.seat && a.layout === b.layout &&
-    a.floorY === b.floorY && a.floorKey === b.floorKey && a.selected === b.selected && a.spotlight === b.spotlight && a.night === b.night &&
-    goalKey(a.goal) === goalKey(b.goal) && talkKey(a.talkView) === talkKey(b.talkView)
+    a.bot === b.bot && a.status === b.status && a.seat === b.seat && a.layout === b.layout && a.role === b.role &&
+    a.data === b.data && a.names === b.names && a.floorY === b.floorY && a.floorKey === b.floorKey &&
+    a.selected === b.selected && a.spotlight === b.spotlight && a.night === b.night
   )
 }
 export default memo(Bot, same)
