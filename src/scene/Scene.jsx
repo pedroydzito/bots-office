@@ -272,7 +272,7 @@ export default function Scene(props) {
   const { night, nightness, weather, tour, floorIdx, focus, selectedBot, onPointerMissed, onUserMove } = props
   // Adaptive quality: phones start light; any device drops resolution and shadows if FPS falls.
   const [low, setLow] = useState(MOBILE)
-  const [dpr, setDpr] = useState(MOBILE ? Math.min(1.6, window.devicePixelRatio || 1) : Math.min(1.75, window.devicePixelRatio || 1))
+  const [dpr, setDpr] = useState(MOBILE ? Math.min(2, window.devicePixelRatio || 1) : Math.min(1.75, window.devicePixelRatio || 1))
   return (
     <Canvas
       shadows={!MOBILE}
@@ -291,12 +291,13 @@ export default function Scene(props) {
         // aim at the screen's own refresh rate (120 Hz phone, 75 Hz monitor...)
         bounds={(refresh) => [refresh * 0.72, refresh * 0.92]}
         onDecline={() => {
-          setDpr((d) => Math.max(1, d - 0.25))
+          // phones keep at least 1.5x so edges stay smooth (MSAA alone isn't enough at 1x)
+          setDpr((d) => Math.max(MOBILE ? Math.min(1.5, window.devicePixelRatio || 1) : 1, d - 0.25))
           setLow(true)
         }}
         onIncline={() => {
           if (!MOBILE) setLow(false)
-          setDpr((d) => Math.min(MOBILE ? Math.min(1.75, window.devicePixelRatio || 1) : Math.min(2, window.devicePixelRatio || 1), d + 0.25))
+          setDpr((d) => Math.min(MOBILE ? Math.min(2, window.devicePixelRatio || 1) : Math.min(2, window.devicePixelRatio || 1), d + 0.25))
         }}
       />
       <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={low} />

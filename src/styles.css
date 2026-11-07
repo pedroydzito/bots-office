@@ -517,3 +517,20 @@ b.late { color: #e5484d; font-weight: 600; }
 .seg2 { display: flex; gap: 2px; padding: 2px; background: rgba(127, 127, 127, 0.08); border-radius: 8px; margin-bottom: 6px; width: fit-content; }
 .seg2 button { font-size: 11px; padding: 2px 9px; border-radius: 6px; color: var(--muted); }
 .seg2 button.on { background: var(--card-solid); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+
+/* ---------- installed app / notch phones: keep clear of the status bar and home indicator */
+.top-left { top: calc(14px + env(safe-area-inset-top)); left: calc(14px + env(safe-area-inset-left)); z-index: 3; }
+.top-center { top: calc(14px + env(safe-area-inset-top)); z-index: 2; }
+.left { top: calc(64px + env(safe-area-inset-top)); }
+.right { top: calc(14px + env(safe-area-inset-top)); right: calc(14px + env(safe-area-inset-right)); }
+.activity { bottom: calc(14px + env(safe-area-inset-bottom)); }
+.weekly-wrap { bottom: calc(14px + env(safe-area-inset-bottom)); right: calc(14px + env(safe-area-inset-right)); }
+.bottom-center { bottom: calc(14px + env(safe-area-inset-bottom)); }
+.settings { z-index: 4; }
+@media (max-width: 860px) {
+  .top-left { top: calc(12px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left)); right: calc(12px + env(safe-area-inset-right)); }
+  .top-center { top: calc(60px + env(safe-area-inset-top)); }
+  .mfloors { bottom: calc(14px + env(safe-area-inset-bottom)); left: calc(14px + env(safe-area-inset-left)); }
+  .bottom-center { bottom: calc(14px + env(safe-area-inset-bottom)); }
+}
+.tv-exit { top: calc(14px + env(safe-area-inset-top)); }

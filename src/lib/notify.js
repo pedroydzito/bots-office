@@ -56,7 +56,7 @@ export function chime() {
 
 export function notifyWaiting(bot, onClick) {
   if (!bot) return
-  if (prefs.get('sound', false)) chime()
+  if (prefs.get('sound', true)) chime()
   if (!prefs.get('notify', false) || !notificationsSupported() || Notification.permission !== 'granted') return
   if (document.visibilityState === 'visible' && document.hasFocus()) return // the toast already shows it
   try {

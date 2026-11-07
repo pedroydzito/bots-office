@@ -51,10 +51,10 @@ export function Login({ onSubmit, onDemo }) {
 export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOffices, onHealth, onKeys, readonly }) {
   const [open, setOpen] = useState(false)
   const [notify, setNotify] = useState(() => prefs.get('notify', false) && notificationsSupported() && Notification.permission === 'granted')
-  const [sound, setSound] = useState(() => prefs.get('sound', false))
-  const [amb, setAmb] = useState(() => prefs.get('ambience', false))
-  const [music, setMusic] = useState(() => prefs.get('music', false))
-  const [ui, setUi] = useState(() => prefs.get('uisound', false))
+  const [sound, setSound] = useState(() => prefs.get('sound', true))
+  const [amb, setAmb] = useState(() => prefs.get('ambience', true))
+  const [music, setMusic] = useState(() => prefs.get('music', true))
+  const [ui, setUi] = useState(() => prefs.get('uisound', true))
   const names = useStore(prefStore, (p) => p.names)
   const ref = useRef(null)
   useEffect(() => {

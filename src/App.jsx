@@ -308,7 +308,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     if (prevWaiting.current) for (const n of w) if (!prevWaiting.current.has(n)) notifyWaiting(live.bots[n], () => pickBot(n))
     // a soft chime when someone finishes (interface sounds on)
     const d = new Set(live.order.filter((n) => effStatus(live.bots[n], Date.now()) === 'done'))
-    if (prevDone.current && prefs.get('uisound', false) && [...d].some((n) => !prevDone.current.has(n))) uiSound('done')
+    if (prevDone.current && prefs.get('uisound', true) && [...d].some((n) => !prevDone.current.has(n))) uiSound('done')
     prevDone.current = d
     prevWaiting.current = w
   }, [live, pickBot])
@@ -320,13 +320,13 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   useEffect(() => {
     // browsers only allow audio after a gesture: resume saved choices on the first click
     const start = () => {
-      if (prefs.get('ambience', false)) startAmbience()
-      if (prefs.get('music', false)) startMusic()
+      if (prefs.get('ambience', true)) startAmbience()
+      if (prefs.get('music', true)) startMusic()
     }
     window.addEventListener('pointerdown', start, { once: true })
     // quiet interface blips on every click (when enabled)
     const click = (e) => {
-      if (!prefs.get('uisound', false)) return
+      if (!prefs.get('uisound', true)) return
       const el = e.target.closest?.('button, a[href], [role="button"]')
       if (!el) return
       uiSound(el.classList.contains('toggle') || el.getAttribute('aria-pressed') != null ? 'toggle' : el.getAttribute('aria-expanded') === 'false' ? 'open' : 'click')
@@ -396,7 +396,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
       const u = live.unlocks[n - 1]
       if (Date.now() - u.t < 60000) {
         setUnlock(u)
-        if (prefs.get('uisound', false)) uiSound('done')
+        if (prefs.get('uisound', true)) uiSound('done')
       }
     }
     prevUnlocks.current = n

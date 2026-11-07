@@ -2,7 +2,7 @@
 // - Hashed build assets (/assets/*) never change: cache-first, kept forever.
 // - The page itself: served from cache instantly, refreshed in the background.
 // - ntfy.sh (live data) is never cached or intercepted.
-const VERSION = 'bot-office-v2'
+const VERSION = 'bot-office-v3'
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/icon-192.png', '/icon-512.png']
 
 self.addEventListener('install', (e) => {
