@@ -278,6 +278,12 @@ function applyPayload(d, p, t) {
     if (d.bots[name]) pushActivity(d, { t, kind: 'decision', bot: name, action, step: clean(p.decision.note, 120) })
   }
 
+  // {"office":{"name":"Minha empresa"}} — shared office settings (same on every device)
+  if (p.office && typeof p.office === 'object') {
+    const name = clean(p.office.name, 40)
+    d.office = { ...(d.office || {}), ...(name ? { name } : {}) }
+  }
+
   // {"type":"mail","from":"A","to":"B","step":"Relatório"} — an envelope travels to B's desk
   if (p.type === 'mail' && typeof p.from === 'string' && typeof p.to === 'string') {
     const from = ensureBot(d, p.from), to = ensureBot(d, p.to)
@@ -433,6 +439,7 @@ export function loadTopic(topic) {
           history: p.history || [],
           talkLog: p.talkLog || [],
           mail: p.mail || [],
+          office: p.office || null,
           usageHist: p.usageHist || [],
           goals: p.goals || {},
           pets: p.pets || {},
@@ -475,10 +482,16 @@ function saveNow() {
   if (s.usage) writeJSON(partKey(currentTopic, 'usage'), s.usage)
   const main = {
     bots: s.bots, order: s.order, routines: s.routines, usage: s.usage, cortex: s.cortex,
-    activity: s.activity, history: s.history, talkLog: s.talkLog, mail: s.mail, usageHist: s.usageHist, goals: s.goals, pets: s.pets, stats: s.stats, week: s.week, unlocks: s.unlocks, weather: s.weather, chat: s.chat, talks: s.talks, lastTime: s.lastTime,
+    activity: s.activity, office: s.office, history: compactHistory(s.history), talkLog: s.talkLog, mail: s.mail, usageHist: s.usageHist, goals: s.goals, pets: s.pets, stats: s.stats, week: s.week, unlocks: s.unlocks, weather: s.weather, chat: s.chat, talks: s.talks, lastTime: s.lastTime,
     seen: [...seen].slice(-MAX_SEEN),
   }
   if (!writeJSON(storageKey, main)) writeJSON(storageKey, { ...main, activity: s.activity.slice(0, 20), history: s.history.slice(-300), seen: [...seen].slice(-100) })
+}
+
+// older entries keep only what the timeline needs (drop long step texts) to save space
+function compactHistory(h) {
+  const old = Date.now() - 12 * 3600e3
+  return h.map((x) => (x.t < old && x.step ? { t: x.t, bot: x.bot, status: x.status } : x))
 }
 
 function persist() {

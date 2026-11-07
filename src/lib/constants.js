@@ -94,6 +94,8 @@ export function durationShort(ms) {
   ms = Math.abs(ms)
   const m = Math.floor(ms / 60000)
   const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60
-  const s = d ? `${d}d ${h}h` : h ? `${h}h ${mm}m` : `${mm}m`
+  // one consistent style everywhere: "agora", "12 min", "2 h", "2 h 5 min", "3 d", "3 d 4 h"
+  if (m < 1) return 'agora'
+  const s = d ? (h ? `${d} d ${h} h` : `${d} d`) : h ? (mm ? `${h} h ${mm} min` : `${h} h`) : `${mm} min`
   return neg ? `há ${s}` : s
 }

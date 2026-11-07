@@ -21,8 +21,8 @@ export function validTopic(t) {
 /** Publish one JSON message to the topic (used for reactions, so every screen sees them). */
 export async function publish(topic, payload) {
   try {
-    await fetch(`${BASE}/${encodeURIComponent(topic)}`, { method: 'POST', body: JSON.stringify(payload) })
-    return true
+    const r = await fetch(`${BASE}/${encodeURIComponent(topic)}`, { method: 'POST', body: JSON.stringify(payload) })
+    return r.ok
   } catch {
     return false
   }
@@ -117,11 +117,23 @@ export function connectNtfy(topic, { onMessages, onStatus }) {
     }
   }
 
+  // back from background / sleep: fetch what was missed and tell the UI
+  let hiddenAt = 0
+  const onVis = () => {
+    if (document.hidden) hiddenAt = Date.now()
+    else if (hiddenAt && Date.now() - hiddenAt > 30000) {
+      hiddenAt = 0
+      poll(lastSec ? Math.floor(lastSec) : '12h').then(() => !closed && window.dispatchEvent(new Event('botoffice:resynced')))
+    }
+  }
+  document.addEventListener('visibilitychange', onVis)
+
   onStatus('syncing')
   poll('12h').then(openSSE)
 
   return () => {
     closed = true
+    document.removeEventListener('visibilitychange', onVis)
     clearTimeout(retryTimer)
     if (es) es.close()
   }

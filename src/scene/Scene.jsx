@@ -268,6 +268,28 @@ function FrameLimiter({ fps = 30 }) {
 
 const MOBILE = typeof window !== 'undefined' && (window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth < 820)
 
+// nobody touching the screen for a while: draw ~30 fps instead of the full refresh rate
+function IdleSaver() {
+  const { setFrameloop, invalidate } = useThree()
+  useEffect(() => {
+    let last = Date.now(), idle = false, tick = 0
+    const wake = () => {
+      last = Date.now()
+      if (idle) (idle = false, clearInterval(tick), setFrameloop('always'))
+    }
+    const chk = setInterval(() => {
+      if (!idle && Date.now() - last > 45000) (idle = true, setFrameloop('demand'), (tick = setInterval(() => invalidate(), 33)))
+    }, 2000)
+    const evs = ['pointerdown', 'pointermove', 'wheel', 'keydown', 'touchstart']
+    evs.forEach((e) => window.addEventListener(e, wake, { passive: true }))
+    return () => {
+      clearInterval(chk), clearInterval(tick)
+      evs.forEach((e) => window.removeEventListener(e, wake))
+    }
+  }, [setFrameloop, invalidate])
+  return null
+}
+
 export default function Scene(props) {
   const { night, nightness, weather, tour, floorIdx, focus, selectedBot, onPointerMissed, onUserMove } = props
   // Adaptive quality: phones start light; any device drops resolution and shadows if FPS falls.
@@ -306,6 +328,7 @@ export default function Scene(props) {
         gl.toneMappingExposure = 1.05
       }}
     >
+      <IdleSaver />
       <PerformanceMonitor
         flipflops={3}
         onFallback={() => {

@@ -148,9 +148,47 @@ export function Search({ data, now, onPick, onClose }) {
   useEffect(() => ref.current?.focus(), [])
   const norm = (x) => (x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
   const nq = norm(q)
+  // tolerant search: substring, then letters-in-order, then one typo away; those needing you first
+  const near = (a, b) => {
+    if (Math.abs(a.length - b.length) > 1) return false
+    let i = 0, j = 0, e = 0
+    while (i < a.length && j < b.length) {
+      if (a[i] === b[j]) (i++, j++)
+      else {
+        if (++e > 1) return false
+        if (a.length > b.length) i++
+        else if (b.length > a.length) j++
+        else (i++, j++)
+      }
+    }
+    return e + (a.length - i) + (b.length - j) <= 1
+  }
+  const subseq = (h, q) => {
+    let i = 0
+    for (const c of h) if (c === q[i]) i++
+    return i === q.length
+  }
+  const scoreOf = (b) => {
+    const name = norm(b.name), team = norm(b.team), step = norm(b.step)
+    let sc = 0
+    if (!nq) sc = 1
+    else if (name.startsWith(nq)) sc = 6
+    else if (name.includes(nq)) sc = 5
+    else if (team.includes(nq)) sc = 3
+    else if (step.includes(nq)) sc = 2
+    else if (nq.length >= 3 && name.split(/[\s|_.-]+/).some((w) => near(w, nq))) sc = 2.5
+    else if (nq.length >= 2 && subseq(name, nq)) sc = 1.5
+    if (!sc) return 0
+    const st = effStatus(b, now)
+    return sc + (st === 'waiting_user' ? 2 : st === 'error' ? 1.5 : st === 'working' ? 0.4 : 0)
+  }
   const list = data.order
     .map((n) => data.bots[n])
-    .filter((b) => b && (!nq || norm(b.name).includes(nq) || norm(b.team).includes(nq) || norm(b.step).includes(nq)))
+    .filter(Boolean)
+    .map((b) => [b, scoreOf(b)])
+    .filter(([, sc]) => sc > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([b]) => b)
     .slice(0, 8)
   const go = (b) => {
     if (!b) return

@@ -212,3 +212,96 @@ export function OfficesModal({ current, onSwitch, onAdd, onClose }) {
 }
 
 export { hhmm }
+
+/** Shared office settings: name, weekly goal and pet per team. Saved to the topic, so every device sees them. */
+export function OfficeSettingsModal({ data, floors, onSave, onClose }) {
+  const teams = floors.filter((f) => f.bots.length).map((f) => f.key)
+  const [name, setName] = useState(data.office?.name || '')
+  const [goals, setGoals] = useState(() => Object.fromEntries(teams.map((t) => [t, { label: data.goals?.[t]?.label || '', target: data.goals?.[t]?.target || '' }])))
+  const [pets, setPets] = useState(() => Object.fromEntries(teams.map((t) => [t, data.pets?.[t] || ''])))
+  const save = () => {
+    const g = {}
+    for (const [t, v] of Object.entries(goals)) if (+v.target > 0) g[t] = { label: v.label || 'Meta da semana', target: +v.target }
+    const p = {}
+    for (const [t, v] of Object.entries(pets)) if (v) p[t] = v
+    onSave({ office: { name }, goals: g, pets: p })
+    onClose()
+  }
+  return (
+    <Modal title="Configurar escritório" onClose={onClose} wide>
+      <p className="muted pad small">Fica salvo no seu tópico: todos os aparelhos com este código veem igual.</p>
+      <label className="fld">
+        <span>Nome do escritório</span>
+        <input value={name} onChange={(e) => setName(e.target.value.slice(0, 40))} placeholder="Escritório de Bots" />
+      </label>
+      <div className="teamcfg">
+        <div className="tc-h"><span>Time</span><span>Meta da semana</span><span>Quantidade</span><span>Pet</span></div>
+        {teams.map((t) => (
+          <div key={t} className="tc-r">
+            <b>{t}</b>
+            <input value={goals[t].label} placeholder="Tarefas da semana" onChange={(e) => setGoals((g) => ({ ...g, [t]: { ...g[t], label: e.target.value.slice(0, 40) } }))} aria-label={`Meta de ${t}`} />
+            <input type="number" min="0" value={goals[t].target} placeholder="0" onChange={(e) => setGoals((g) => ({ ...g, [t]: { ...g[t], target: e.target.value } }))} aria-label={`Quantidade da meta de ${t}`} />
+            <select value={pets[t]} onChange={(e) => setPets((p) => ({ ...p, [t]: e.target.value }))} aria-label={`Pet de ${t}`}>
+              <option value="">Automático</option>
+              <option value="cat">Gato</option>
+              <option value="dog">Cachorro</option>
+              <option value="fish">Aquário</option>
+              <option value="none">Nenhum</option>
+            </select>
+          </div>
+        ))}
+      </div>
+      <div className="wrow" style={{ marginTop: 10 }}>
+        <button className="ghost" onClick={onClose}>Cancelar</button>
+        <button className="dark" onClick={save}>Salvar para todos</button>
+      </div>
+    </Modal>
+  )
+}
+
+/** "Your office is empty": what to send, with a copyable example. */
+export function EmptyOffice() {
+  const [copied, setCopied] = useState(false)
+  const example = `curl -d '{"roster":[{"name":"Meu Bot","shape":"blob","color":"green","team":"Ops"}]}' https://ntfy.sh/SEU_CODIGO`
+  return (
+    <div className="card emptyoffice">
+      <b>Seu escritório ainda está vazio</b>
+      <p>Envie a lista de bots (roster) para o seu código no ntfy. Cada time vira um andar. Depois, cada bot só precisa mandar o status.</p>
+      <pre>{example}</pre>
+      <button
+        className="dark sm"
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(example)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1800)
+          } catch {
+            /* clipboard blocked */
+          }
+        }}
+      >
+        {copied ? 'Copiado!' : 'Copiar exemplo'}
+      </button>
+    </div>
+  )
+}
+
+/** Small "Enviando… / Enviado ✓ / Falhou · tentar de novo" pill for things published to the topic. */
+export function SendStatus({ s, onRetry }) {
+  if (!s) return null
+  return (
+    <div className={`card sendstatus ${s.state}`} role="status" aria-live="polite">
+      {s.state === 'sending' && 'Enviando…'}
+      {s.state === 'ok' && (
+        <>
+          <Check size={13} /> Enviado
+        </>
+      )}
+      {s.state === 'fail' && (
+        <>
+          Falhou ao enviar · <button className="link" onClick={onRetry}>tentar de novo</button>
+        </>
+      )}
+    </div>
+  )
+}

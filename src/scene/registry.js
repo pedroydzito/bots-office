@@ -55,3 +55,6 @@ export function tickCodeScroll(t, textures) {
   codeScroll = t
   for (const tex of textures) tex.offset.y = (-t * 0.05) % 1
 }
+
+/** Where each bot's label sits on screen (for decluttering names). */
+export const labelSpots = new Map()

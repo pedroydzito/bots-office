@@ -4,7 +4,7 @@ import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { getBotAsset } from './shapes'
 import { isDark, resolveColor, STATUS } from '../lib/constants'
-import { botPositions, poiKey, seatYaw, sitting } from './registry'
+import { botPositions, labelSpots, poiKey, seatYaw, sitting } from './registry'
 import { isSleepy, rnd, simBot, statusAt, syncNow } from './sim'
 import { Clap, Heart, Laugh, Party, ThumbUp } from '../ui/Icons'
 import { useStore } from '../lib/createStore'
@@ -23,6 +23,9 @@ function lerpAngle(a, b, t) {
 
 const eyeGeo = new THREE.SphereGeometry(0.05, 20, 14)
 const glintGeo = new THREE.SphereGeometry(0.014, 10, 8)
+const projV = new THREE.Vector3()
+const hitGeo = new THREE.SphereGeometry(1, 12, 8)
+const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false })
 const handGeo = new THREE.SphereGeometry(0.068, 20, 14)
 const ringGeo = new THREE.RingGeometry(0.42, 0.5, 48)
 const mouthGeo = new THREE.TorusGeometry(0.035, 0.009, 8, 20, Math.PI)
@@ -253,6 +256,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
   const phase = useMemo(() => rnd(bot.name, 'phase') * 10, [bot.name])
 
   const [hover, setHover] = useState(false)
+  const [view, setView] = useState({ off: false, crowded: false })
   const [hidden, setHidden] = useState(true)
   const [gone, setGone] = useState(false)
   const [talkUi, setTalkUi] = useState(null) // { role, step, seed, turn, meeting }
@@ -280,15 +284,40 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     () => () => {
       botPositions.delete(bot.name)
       seatYaw.delete(bot.name)
+      labelSpots.delete(bot.name)
     },
     [bot.name],
   )
 
-  useFrame(({ camera }, rawDt) => {
+  useFrame(({ camera, size, clock }, rawDt) => {
     const dt = Math.min(rawDt, 0.05)
     const p = P.current
     const v = V.current
     if (!root.current) return
+    // a few times per second: where is my label on screen? hide it when off screen, and hide
+    // my name when a closer bot's name would overlap it
+    if (clock.elapsedTime - (v.lastProj || 0) > 0.2) {
+      v.lastProj = clock.elapsedTime
+      projV.setFromMatrixPosition(root.current.matrixWorld)
+      projV.y += asset.top + 0.42
+      projV.project(camera)
+      const off = projV.z > 1 || Math.abs(projV.x) > 1.15 || Math.abs(projV.y) > 1.2
+      const sx = ((projV.x + 1) / 2) * size.width, sy = ((1 - projV.y) / 2) * size.height
+      labelSpots.set(p.name, { x: sx, y: sy, d: projV.z })
+      let crowded = false
+      for (const [n, q] of labelSpots) {
+        if (n === p.name) continue
+        if (q.d < projV.z && Math.abs(q.x - sx) < 78 && Math.abs(q.y - sy) < 30) {
+          crowded = true
+          break
+        }
+      }
+      if (off !== v.off || crowded !== v.crowded) {
+        v.off = off
+        v.crowded = crowded
+        setView({ off, crowded })
+      }
+    }
     const T = syncNow()
     const t = (T % 1e7) / 1000
     const sim = simBot({ name: p.name, role: p.role, floorKey: p.floorKey, layout: p.layout, seat: p.seat, names: p.names, data: p.data }, T)
@@ -643,13 +672,45 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
         {[0, 1].map((i) => (
           <mesh key={i} ref={(m) => (hands.current[i] = m)} geometry={handGeo} material={mat} />
         ))}
+        {/* generous invisible hit area so small bots are easy to tap */}
+        <mesh
+          geometry={hitGeo}
+          material={hitMat}
+          position={[0, asset.height * 0.5, 0]}
+          scale={[Math.max(0.55, asset.width * 0.75), Math.max(0.6, asset.height * 0.8), 0.6]}
+          onPointerOver={(e) => {
+            e.stopPropagation()
+            setHover(true)
+            document.body.style.cursor = 'pointer'
+          }}
+          onPointerOut={() => {
+            setHover(false)
+            document.body.style.cursor = ''
+          }}
+          onPointerDown={(e) => {
+            const { clientX, clientY } = e.nativeEvent
+            press.current.fired = false
+            clearTimeout(press.current.timer)
+            press.current.timer = setTimeout(() => {
+              press.current.fired = true
+              onLongPress && onLongPress(bot.name, clientX, clientY)
+            }, 480)
+          }}
+          onPointerUp={() => clearTimeout(press.current.timer)}
+          onPointerLeave={() => clearTimeout(press.current.timer)}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (press.current.fired) return
+            onSelect && onSelect(bot.name)
+          }}
+        />
         <mesh ref={mug} geometry={mugGeo} material={mugMat} visible={false} />
         <mesh ref={book} geometry={bookGeo} material={bookMat} visible={false} rotation={[-0.5, 0, 0]} />
         <Accessory kind={bot.accessory} asset={asset} color={color} />
         {focused && <Accessory kind="headphones" asset={asset} color={color} />}
         {snowy && bot.accessory !== 'scarf' && <Accessory kind="scarf" asset={asset} color={color} />}
       </group>
-      {!hidden && (
+      {!hidden && !view.off && (
         <Html position={[0, iconY, 0]} center distanceFactor={10} zIndexRange={[30, 0]} pointerEvents="none">
           <div className={`bot-tag${selected ? ' sel' : ''}${bot.hidden ? ' is-hidden' : ''}`}>
             {speechText && (
@@ -661,7 +722,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
             <ReactionFloat name={bot.name} />
             <StatusIcon status={status} talking={talking} />
             {bot.hidden && <div className="hidden-tag">oculto</div>}
-            {showNames && !speechText && !(hover || selected) && <div className="name-mini">{bot.name}</div>}
+            {showNames && !speechText && !(hover || selected) && !view.crowded && <div className="name-mini">{bot.name}</div>}
             {(hover || selected) && !speechText && <div className="name-chip">{bot.name}</div>}
           </div>
         </Html>

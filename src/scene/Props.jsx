@@ -135,25 +135,25 @@ export function Plant({ position, scale = 1, kind = 0 }) {
   })
   return (
     <group position={position} scale={scale}>
-      <mesh position={[0, 0.22, 0]} material={M.pot} castShadow receiveShadow>
+      <mesh position={[0, 0.22, 0]} material={M.pot} receiveShadow>
         <cylinderGeometry args={[0.24, 0.19, 0.44, 24]} />
       </mesh>
       {kind === 0 ? (
         <group ref={leaves} position={[0, 0.44, 0]}>
-          <mesh position={[0, 0.35, 0]} material={M.leaf} castShadow scale={[1, 1.15, 1]}>
+          <mesh position={[0, 0.35, 0]} material={M.leaf} scale={[1, 1.15, 1]}>
             <sphereGeometry args={[0.38, 24, 18]} />
           </mesh>
-          <mesh position={[0.05, 0.75, 0.02]} material={M.leaf} castShadow>
+          <mesh position={[0.05, 0.75, 0.02]} material={M.leaf}>
             <sphereGeometry args={[0.28, 24, 18]} />
           </mesh>
-          <mesh position={[-0.02, 1.02, 0]} material={M.leaf2} castShadow>
+          <mesh position={[-0.02, 1.02, 0]} material={M.leaf2}>
             <sphereGeometry args={[0.18, 20, 14]} />
           </mesh>
         </group>
       ) : (
         <group ref={leaves} position={[0, 0.44, 0]}>
           {[0, 1, 2, 3, 4].map((i) => (
-            <mesh key={i} position={[Math.cos(i * 1.3) * 0.12, 0.35 + i * 0.12, Math.sin(i * 1.3) * 0.12]} rotation={[Math.cos(i) * 0.5, i, Math.sin(i) * 0.5]} material={i % 2 ? M.leaf : M.leaf2} castShadow scale={[1, 0.25, 0.5]}>
+            <mesh key={i} position={[Math.cos(i * 1.3) * 0.12, 0.35 + i * 0.12, Math.sin(i * 1.3) * 0.12]} rotation={[Math.cos(i) * 0.5, i, Math.sin(i) * 0.5]} material={i % 2 ? M.leaf : M.leaf2} scale={[1, 0.25, 0.5]}>
               <sphereGeometry args={[0.3, 16, 12]} />
             </mesh>
           ))}
@@ -230,9 +230,9 @@ export function CoffeeCorner({ position }) {
       {[0, 1, 2].map((i) => (
         <mesh key={'s' + i} ref={(m) => (puffs.current[i] = m)} geometry={steamGeo} material={mat} visible={false} />
       ))}
-      <RoundedBox args={[2.2, 0.08, 0.5]} radius={0.02} position={[0, 1.05, 0]} material={M.white} castShadow receiveShadow />
-      <RoundedBox args={[2.2, 0.9, 0.5]} radius={0.02} position={[0, 0.45, 0]} material={M.white} castShadow receiveShadow />
-      <RoundedBox args={[0.45, 0.55, 0.38]} radius={0.04} position={[0.5, 1.37, 0]} material={M.black} castShadow />
+      <RoundedBox args={[2.2, 0.08, 0.5]} radius={0.02} position={[0, 1.05, 0]} material={M.white} receiveShadow />
+      <RoundedBox args={[2.2, 0.9, 0.5]} radius={0.02} position={[0, 0.45, 0]} material={M.white} receiveShadow />
+      <RoundedBox args={[0.45, 0.55, 0.38]} radius={0.04} position={[0.5, 1.37, 0]} material={M.black} />
       <mesh position={[0.5, 1.5, 0.2]}>
         <circleGeometry args={[0.03, 12]} />
         <meshBasicMaterial color="#5cff9b" />
@@ -259,7 +259,7 @@ export function TVScreen({ position, rotation, label, getValue, getSeries, getGo
   })
   return (
     <group position={position} rotation={rotation}>
-      <RoundedBox args={[2.3, 1.36, 0.08]} radius={0.03} material={M.black} castShadow />
+      <RoundedBox args={[2.3, 1.36, 0.08]} radius={0.03} material={M.black} />
       <mesh position={[0, 0, 0.045]}>
         <planeGeometry args={[2.18, 1.26]} />
         <meshBasicMaterial map={tv.texture} toneMapped={false} />
@@ -326,16 +326,16 @@ export function Bookshelf({ position, rotation, width = 1.6, shelves = 4, seed =
         <boxGeometry args={[width, H, 0.04]} />
       </mesh>
       {Array.from({ length: shelves + 1 }, (_, s) => (
-        <mesh key={s} position={[0, 0.04 + s * 0.48, 0]} material={M.white} castShadow receiveShadow>
+        <mesh key={s} position={[0, 0.04 + s * 0.48, 0]} material={M.white} receiveShadow>
           <boxGeometry args={[width, 0.04, 0.36]} />
         </mesh>
       ))}
       {[-1, 1].map((sd) => (
-        <mesh key={sd} position={[(sd * width) / 2, H / 2, 0]} material={M.white} castShadow>
+        <mesh key={sd} position={[(sd * width) / 2, H / 2, 0]} material={M.white}>
           <boxGeometry args={[0.04, H, 0.36]} />
         </mesh>
       ))}
-      <instancedMesh ref={ref} args={[undefined, undefined, books.length]} castShadow>
+      <instancedMesh ref={ref} args={[undefined, undefined, books.length]}>
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial roughness={0.7} />
       </instancedMesh>
@@ -346,8 +346,8 @@ export function Bookshelf({ position, rotation, width = 1.6, shelves = 4, seed =
 export function WaterCooler({ position, rotation }) {
   return (
     <group position={position} rotation={rotation}>
-      <RoundedBox args={[0.42, 1.0, 0.42]} radius={0.05} position={[0, 0.5, 0]} material={M.white} castShadow receiveShadow />
-      <mesh position={[0, 1.25, 0]} material={M.water} castShadow>
+      <RoundedBox args={[0.42, 1.0, 0.42]} radius={0.05} position={[0, 0.5, 0]} material={M.white} receiveShadow />
+      <mesh position={[0, 1.25, 0]} material={M.water}>
         <cylinderGeometry args={[0.17, 0.17, 0.5, 20]} />
       </mesh>
       <mesh position={[0.22, 0.72, 0]} material={M.dark}>
@@ -366,7 +366,7 @@ function Cushion({ x, k }) {
     ref.current.position.y = 0.47 + 0.07 * ref.current.scale.y
   })
   return (
-    <RoundedBox ref={ref} args={[1.0, 0.14, 0.62]} radius={0.06} smoothness={2} position={[x, 0.54, 0.08]} castShadow receiveShadow>
+    <RoundedBox ref={ref} args={[1.0, 0.14, 0.62]} radius={0.06} smoothness={2} position={[x, 0.54, 0.08]} receiveShadow>
       <meshStandardMaterial color="#dfe1e5" roughness={0.95} />
     </RoundedBox>
   )
@@ -382,35 +382,35 @@ export function Lounge({ position, night, seats = [] }) {
       </mesh>
       {/* sofa */}
       <group position={[0.2, 0, -0.9]}>
-        <RoundedBox args={[2.4, 0.38, 0.9]} radius={0.12} position={[0, 0.28, 0]} castShadow receiveShadow>
+        <RoundedBox args={[2.4, 0.38, 0.9]} radius={0.12} position={[0, 0.28, 0]} receiveShadow>
           <meshStandardMaterial color="#d6d8dd" roughness={0.9} />
         </RoundedBox>
-        <RoundedBox args={[2.4, 0.6, 0.25]} radius={0.1} position={[0, 0.6, -0.36]} castShadow>
+        <RoundedBox args={[2.4, 0.6, 0.25]} radius={0.1} position={[0, 0.6, -0.36]}>
           <meshStandardMaterial color="#d6d8dd" roughness={0.9} />
         </RoundedBox>
         {[-1.1, 1.1].map((x) => (
-          <RoundedBox key={x} args={[0.24, 0.5, 0.9]} radius={0.1} position={[x, 0.42, 0]} castShadow>
+          <RoundedBox key={x} args={[0.24, 0.5, 0.9]} radius={0.1} position={[x, 0.42, 0]}>
             <meshStandardMaterial color="#cfd1d6" roughness={0.9} />
           </RoundedBox>
         ))}
         {seats.map((q) => (
           <Cushion key={poiKey(q)} x={q.x - position[0] - 0.2} k={poiKey(q)} />
         ))}
-        <RoundedBox args={[0.32, 0.28, 0.13]} radius={0.06} position={[-0.86, 0.66, -0.14]} rotation={[0.2, 0.3, 0]} castShadow>
+        <RoundedBox args={[0.32, 0.28, 0.13]} radius={0.06} position={[-0.86, 0.66, -0.14]} rotation={[0.2, 0.3, 0]}>
           <meshStandardMaterial color="#F5B70A" roughness={0.9} />
         </RoundedBox>
       </group>
       {/* coffee table */}
-      <RoundedBox args={[1.1, 0.06, 0.6]} radius={0.02} position={[0.2, 0.36, 0.25]} material={M.white} castShadow receiveShadow />
+      <RoundedBox args={[1.1, 0.06, 0.6]} radius={0.02} position={[0.2, 0.36, 0.25]} material={M.white} receiveShadow />
       {[[-0.3, -0.18], [0.7, -0.18], [-0.3, 0.68], [0.7, 0.68]].map(([x, z], i) => (
         <mesh key={i} position={[x, 0.17, z - 0.02]} material={M.metal}>
           <cylinderGeometry args={[0.018, 0.018, 0.34, 8]} />
         </mesh>
       ))}
-      <RoundedBox args={[0.3, 0.04, 0.22]} radius={0.01} position={[0.35, 0.41, 0.25]} material={M.dark} castShadow />
+      <RoundedBox args={[0.3, 0.04, 0.22]} radius={0.01} position={[0.35, 0.41, 0.25]} material={M.dark} />
       {/* poufs */}
       {[[-0.9, 0.9], [-0.15, 1.15]].map(([x, z], i) => (
-        <RoundedBox key={i} args={[0.6, 0.38, 0.6]} radius={0.14} position={[x, 0.19, z]} material={M.black} castShadow receiveShadow />
+        <RoundedBox key={i} args={[0.6, 0.38, 0.6]} radius={0.14} position={[x, 0.19, z]} material={M.black} receiveShadow />
       ))}
       {/* floor lamp */}
       <group position={[1.55, 0, -1.1]}>
@@ -436,10 +436,10 @@ export function Railing({ W, D }) {
   for (let z = -D / 2 + 0.6; z <= D / 2; z += 1.6) posts.push([W / 2 - 0.08, z])
   return (
     <group>
-      <mesh position={[0, 1.0, D / 2 - 0.08]} material={M.white} castShadow>
+      <mesh position={[0, 1.0, D / 2 - 0.08]} material={M.white}>
         <boxGeometry args={[W, 0.05, 0.06]} />
       </mesh>
-      <mesh position={[W / 2 - 0.08, 1.0, 0]} material={M.white} castShadow>
+      <mesh position={[W / 2 - 0.08, 1.0, 0]} material={M.white}>
         <boxGeometry args={[0.06, 0.05, D]} />
       </mesh>
       <mesh position={[0, 0.52, D / 2 - 0.08]} material={M.glass}>
@@ -478,7 +478,7 @@ export function Elevator({ layout, floorY, label, night }) {
   return (
     <group position={[-W / 2 + 0.26, 0, z]}>
       {/* frame */}
-      <mesh position={[0.02, 1.15, 0]} material={M.metal} castShadow>
+      <mesh position={[0.02, 1.15, 0]} material={M.metal}>
         <boxGeometry args={[0.08, 2.4, 1.5]} />
       </mesh>
       <mesh position={[0.05, 1.08, 0]}>
@@ -525,7 +525,7 @@ export function Rug({ x, z, w, d, color = '#ece7f6', round = false }) {
 
 export function BeanBag({ x, z, c }) {
   return (
-    <mesh position={[x, 0.24, z]} scale={[0.55, 0.3, 0.55]} castShadow receiveShadow>
+    <mesh position={[x, 0.24, z]} scale={[0.55, 0.3, 0.55]} receiveShadow>
       <sphereGeometry args={[1, 24, 16]} />
       <meshStandardMaterial color={c} roughness={0.85} />
     </mesh>
@@ -561,7 +561,7 @@ export function MeetingTable({ x, z }) {
 export function Whiteboard({ x, z }) {
   return (
     <group position={[x, 0, z]}>
-      <mesh position={[0, 1.35, 0]} material={M.white} castShadow>
+      <mesh position={[0, 1.35, 0]} material={M.white}>
         <boxGeometry args={[1.8, 1.05, 0.05]} />
       </mesh>
       {[[-0.5, 1.5, '#1E86FC', 0.5], [0.2, 1.62, '#E5484D', 0.6], [0.35, 1.2, '#2FB36B', 0.4], [-0.3, 1.15, '#8F59F9', 0.45]].map(([px, py, c, w], i) => (
@@ -598,7 +598,7 @@ export function InfoBoard({ position, rotation, title, lines, accent, cork, empt
   useEffect(() => () => tex.t.dispose(), [tex])
   return (
     <group position={position} rotation={rotation}>
-      <mesh position={[0, 0, -0.02]} material={cork ? M.dark : M.white} castShadow>
+      <mesh position={[0, 0, -0.02]} material={cork ? M.dark : M.white}>
         <boxGeometry args={[w + 0.08, h + 0.08, 0.04]} />
       </mesh>
       <mesh position={[0, 0, 0.006]}>
@@ -728,9 +728,9 @@ export function GlassElevator({ layout, night, floorY = null }) {
   return (
     <group position={[x, 0, z]}>
       <RoundedBox args={[1.2, 0.08, 1.5]} radius={0.04} smoothness={3} position={[0, 0.04, 0]} material={frame} receiveShadow />
-      <RoundedBox args={[1.24, 0.16, 1.54]} radius={0.07} smoothness={3} position={[0, 2.82, 0]} material={frame} castShadow />
+      <RoundedBox args={[1.24, 0.16, 1.54]} radius={0.07} smoothness={3} position={[0, 2.82, 0]} material={frame} />
       {[[-0.55, -0.7], [0.55, -0.7], [-0.55, 0.7], [0.55, 0.7]].map(([px, pz], i) => (
-        <mesh key={i} position={[px, 1.43, pz]} material={frame} castShadow>
+        <mesh key={i} position={[px, 1.43, pz]} material={frame}>
           <cylinderGeometry args={[0.05, 0.05, 2.7, 16]} />
         </mesh>
       ))}
@@ -756,7 +756,7 @@ export function Vending({ x, z }) {
   const snacks = ['#E5484D', '#F5B70A', '#1E86FC', '#2FB36B', '#F93498', '#FD690F']
   return (
     <group position={[x, 0, z]} rotation={[0, Math.PI / 2, 0]}>
-      <RoundedBox args={[0.8, 1.75, 0.6]} radius={0.05} smoothness={2} position={[0, 0.875, 0]} castShadow receiveShadow>
+      <RoundedBox args={[0.8, 1.75, 0.6]} radius={0.05} smoothness={2} position={[0, 0.875, 0]} receiveShadow>
         <meshStandardMaterial color="#e5484d" roughness={0.45} />
       </RoundedBox>
       <mesh position={[-0.08, 1.05, 0.305]}>
@@ -792,8 +792,8 @@ export function Printer({ x, z }) {
   })
   return (
     <group position={[x, 0, z]}>
-      <RoundedBox args={[0.9, 0.62, 0.55]} radius={0.03} smoothness={2} position={[0, 0.31, 0]} material={M.white} castShadow receiveShadow />
-      <RoundedBox args={[0.72, 0.32, 0.5]} radius={0.05} smoothness={2} position={[0, 0.78, 0]} material={M.grey} castShadow />
+      <RoundedBox args={[0.9, 0.62, 0.55]} radius={0.03} smoothness={2} position={[0, 0.31, 0]} material={M.white} receiveShadow />
+      <RoundedBox args={[0.72, 0.32, 0.5]} radius={0.05} smoothness={2} position={[0, 0.78, 0]} material={M.grey} />
       <mesh position={[0, 0.95, -0.05]} material={M.dark}>
         <boxGeometry args={[0.6, 0.03, 0.32]} />
       </mesh>
@@ -817,7 +817,7 @@ export function Arcade({ x, z }) {
   })
   return (
     <group position={[x, 0, z]} rotation={[0, -Math.PI / 2, 0]}>
-      <RoundedBox args={[0.75, 1.7, 0.7]} radius={0.05} smoothness={2} position={[0, 0.85, 0]} castShadow receiveShadow>
+      <RoundedBox args={[0.75, 1.7, 0.7]} radius={0.05} smoothness={2} position={[0, 0.85, 0]} receiveShadow>
         <meshStandardMaterial color="#8F59F9" roughness={0.4} />
       </RoundedBox>
       <mesh position={[0, 1.25, 0.355]} rotation={[-0.15, 0, 0]}>
@@ -841,14 +841,14 @@ export function Arcade({ x, z }) {
 export function Armchair({ x, z, c = '#c9d4e3' }) {
   return (
     <group position={[x, 0, z]}>
-      <RoundedBox args={[0.95, 0.4, 0.85]} radius={0.14} smoothness={3} position={[0, 0.3, 0]} castShadow receiveShadow>
+      <RoundedBox args={[0.95, 0.4, 0.85]} radius={0.14} smoothness={3} position={[0, 0.3, 0]} receiveShadow>
         <meshStandardMaterial color={c} roughness={0.9} />
       </RoundedBox>
-      <RoundedBox args={[0.95, 0.6, 0.22]} radius={0.1} smoothness={3} position={[0, 0.62, -0.34]} castShadow>
+      <RoundedBox args={[0.95, 0.6, 0.22]} radius={0.1} smoothness={3} position={[0, 0.62, -0.34]}>
         <meshStandardMaterial color={c} roughness={0.9} />
       </RoundedBox>
       {[-0.42, 0.42].map((ax) => (
-        <RoundedBox key={ax} args={[0.16, 0.42, 0.8]} radius={0.07} smoothness={2} position={[ax, 0.5, 0]} castShadow>
+        <RoundedBox key={ax} args={[0.16, 0.42, 0.8]} radius={0.07} smoothness={2} position={[ax, 0.5, 0]}>
           <meshStandardMaterial color={c} roughness={0.9} />
         </RoundedBox>
       ))}
@@ -892,7 +892,7 @@ export function Aquarium({ x, z }) {
   const colors = ['#FD690F', '#F5B70A', '#1E86FC', '#F93498']
   return (
     <group position={[x, 0, z]} rotation={[0, -Math.PI / 2, 0]}>
-      <RoundedBox args={[1.3, 0.62, 0.5]} radius={0.03} smoothness={2} position={[0, 0.31, 0]} material={M.dark} castShadow receiveShadow />
+      <RoundedBox args={[1.3, 0.62, 0.5]} radius={0.03} smoothness={2} position={[0, 0.31, 0]} material={M.dark} receiveShadow />
       <mesh position={[0, 0.98, 0]} material={glass}>
         <boxGeometry args={[1.2, 0.68, 0.42]} />
       </mesh>
@@ -989,7 +989,7 @@ export function WallShelf({ position, rotation, w = 1.4 }) {
     <group position={position} rotation={rotation}>
       {[0, 0.45].map((y, k) => (
         <group key={k} position={[0, y, 0]}>
-          <mesh position={[0, 0, 0.12]} material={M.white} castShadow>
+          <mesh position={[0, 0, 0.12]} material={M.white}>
             <boxGeometry args={[w, 0.04, 0.24]} />
           </mesh>
           {[-0.45, 0, 0.42].map((px, i) => (i + k) % 2 ? (

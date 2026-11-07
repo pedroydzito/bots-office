@@ -10,18 +10,18 @@ import { useSwipeDown } from './Interact'
 
 const STATUS_WORD = { working: 'Trabalhando', waiting_user: 'Esperando você', error: 'Erro', done: 'Concluído', resting: 'Descansando' }
 
-export function Brand({ conn, now }) {
+export function Brand({ conn, now, name, onClick }) {
   const label = { live: 'Ao vivo', syncing: 'Sincronizando', reconnecting: 'Reconectando', demo: 'Demo' }[conn] || conn
   return (
-    <div className="card brand">
+    <button className="card brand" onClick={onClick} title="Trocar de escritório" aria-label="Trocar de escritório">
       <span className="logo">
         <svg viewBox="0 0 64 64" width="24" height="24" aria-hidden="true"><rect x="18.5" y="18.5" width="27" height="27" rx="7.5" fill="#fff" /><ellipse cx="31.4" cy="29.6" rx="1.9" ry="3.6" fill="#111" transform="rotate(24 31.4 29.6)" /><ellipse cx="37.3" cy="29.6" rx="1.9" ry="3.6" fill="#111" transform="rotate(24 37.3 29.6)" /></svg>
       </span>
-      <b>Escritório de Bots</b>
+      <b>{name || 'Escritório de Bots'}</b>
       <span className={`conn conn-${conn}`}>
         <i /> {label} · {hhmm(now)}
       </span>
-    </div>
+    </button>
   )
 }
 
@@ -216,11 +216,15 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
         <div className="bb">
           <div className="row"><span className="badge" style={{ '--c': STATUS[st].color }}>{STATUS_WORD[st]}</span><span className="muted">{b.ts ? `${durationShort(b.ts - now)}` : 'sem atualizações'}</span></div>
           <p className="step">{b.step || '—'}</p>
+          {isStuck(b, now) && <em className="stuck">parado no mesmo passo há {durationShort(now - b.ts)}</em>}
+          {st === 'waiting_user' && onDecide && <DecisionBox bot={selectedBot} onDecide={onDecide} />}
           {talk && talkActive(talk, now) && <p className="talkline"><Chat size={13} /> Conversando com <b>{talk.to}</b>: {talk.step}</p>}
           {incoming.map(([f, t]) => (
             <p key={f} className="talkline"><Chat size={13} /> <b>{f}</b> está visitando: {t.step}</p>
           ))}
-          {usage != null && <div className="row"><span className="muted">Uso semanal</span><b>{usage}%</b></div>}
+          <div className="actions">
+            {link && <a className="btn ghost" href={link} target={link.startsWith('https') ? '_blank' : undefined} rel="noopener noreferrer">Abrir chat</a>}
+          </div>
           {onReact && (
             <div className="reactbar" aria-label="Reagir">
               {[['like', ThumbUp, 'Curtir'], ['heart', Heart, 'Amei'], ['party', Party, 'Comemorar'], ['clap', Clap, 'Aplaudir'], ['laugh', Laugh, 'Rir']].map(([k, I, l]) => (
@@ -230,19 +234,19 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
               ))}
             </div>
           )}
-          <Metrics data={data} name={selectedBot} now={now} />
+          {/* details stay out of the way until asked for */}
+          <details className="more">
+            <summary>Métricas de hoje{usage != null ? ` · ${usage}% do uso semanal` : ''}</summary>
+            <Metrics data={data} name={selectedBot} now={now} />
+          </details>
           {(data.routines[selectedBot] || []).length > 0 && (
-            <div className="sub">
-              <h4>Rotinas</h4>
+            <details className="more">
+              <summary>Rotinas · {data.routines[selectedBot].length}</summary>
               {data.routines[selectedBot].map((r, i) => (
                 <div key={i} className="mini"><b>{r.name}</b><span>{r.schedule}{r.next_run ? <> · <RoutineWhen next={r.next_run} now={now} /></> : ''}</span></div>
               ))}
-            </div>
+            </details>
           )}
-          <div className="actions">
-            {link && <a className="btn ghost" href={link} target={link.startsWith('https') ? '_blank' : undefined} rel="noopener noreferrer">Abrir chat</a>}
-          </div>
-          {st === 'waiting_user' && onDecide && <DecisionBox bot={selectedBot} onDecide={onDecide} />}
         </div>
       </div>
     )

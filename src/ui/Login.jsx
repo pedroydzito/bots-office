@@ -48,7 +48,7 @@ export function Login({ onSubmit, onDemo }) {
   )
 }
 
-export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOffices, onHealth, onKeys, readonly }) {
+export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOffices, onHealth, onKeys, onOfficeSettings, readonly }) {
   const [open, setOpen] = useState(false)
   const [notify, setNotify] = useState(() => prefs.get('notify', false) && notificationsSupported() && Notification.permission === 'granted')
   const [sound, setSound] = useState(() => prefs.get('sound', true))
@@ -150,6 +150,7 @@ export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOff
           </button>
           <button onClick={() => { setOpen(false); onTv() }}><Tv size={14} /> Modo TV</button>
           <hr />
+          {onOfficeSettings && <button onClick={() => { setOpen(false); onOfficeSettings() }}><Tag size={14} /> Configurar escritório</button>}
           {onOffices && <button onClick={() => { setOpen(false); onOffices() }}><Layers size={14} /> Escritórios{readonly ? ' · só leitura' : ''}</button>}
           {onHealth && <button onClick={() => { setOpen(false); onHealth() }}><Pulse size={14} /> Saúde do sistema</button>}
           {onKeys && <button onClick={() => { setOpen(false); onKeys() }}><Keyboard size={14} /> Atalhos</button>}

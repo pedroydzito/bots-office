@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Scene from './scene/Scene'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+// the 3D bundle loads after the interface shell
+const Scene = lazy(() => import('./scene/Scene'))
 import { cortexLayout, floorLayout, naturalSize } from './scene/layout'
 import { botPositions, ridePositions, sceneSignals } from './scene/registry'
 import { world } from './scene/sim'
@@ -12,7 +13,7 @@ import { demoApprove, startDemo } from './lib/demo'
 import { Activity, Brand, ConnectBanner, Hints, LeftPanel, ModeToggles, Pills, RightPanel, Toast, Weekly } from './ui/Panels'
 import { Login, Settings } from './ui/Login'
 import { Celebration, MobileFloors, Search, Timeline, TvExit } from './ui/Extras'
-import { HealthModal, OfficesModal, QueueModal, ShortcutsModal } from './ui/Ops'
+import { EmptyOffice, HealthModal, OfficeSettingsModal, OfficesModal, QueueModal, SendStatus, ShortcutsModal } from './ui/Ops'
 import { buzz, MiniMap, QuickMenu, SearchField, Welcome } from './ui/Interact'
 import { OVERVIEW_GAP } from './scene/Building'
 import { FLOOR_H } from './scene/layout'
@@ -75,6 +76,14 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const [replayT, setReplayT] = useState(null) // timeline replay (ms) or null = live
   const [tv, setTv] = useState(() => new URLSearchParams(window.location.search).has('tv'))
   const [celebration, setCelebration] = useState(null)
+  // one notice at a time: a request waiting on you always wins; the rest wait their turn
+  const [notices, setNotices] = useState([])
+  const pushNotice = useCallback((n) => setNotices((l) => [...l.filter((x) => x.t !== n.t || x.title !== n.title), n].slice(-6)), [])
+  useEffect(() => {
+    const on = () => pushNotice({ t: Date.now(), title: 'Atualizado agora', sub: 'Recuperamos o que aconteceu enquanto você estava fora' })
+    window.addEventListener('botoffice:resynced', on)
+    return () => window.removeEventListener('botoffice:resynced', on)
+  }, [pushNotice])
   const [overview, setOverview] = useState(false) // whole building, every floor live
   const [searchOpen, setSearchOpen] = useState(false)
   const [tour, setTour] = useState(false)
@@ -195,6 +204,11 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   counts.talks = talks.length
   const waiting = data.order.map((n) => data.bots[n]).filter((b) => effStatus(b, now) === 'waiting_user').sort((a, b) => b.ts - a.ts)
   const toastBot = waiting.find((b) => dismissed[b.name] !== b.ts) || null
+  useEffect(() => {
+    if (toastBot || !notices.length) return
+    const id = setTimeout(() => setNotices((l) => l.slice(1)), 5000)
+    return () => clearTimeout(id)
+  }, [toastBot, notices])
 
   const pickBot = useCallback(
     (n) => {
@@ -214,10 +228,13 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   )
 
   // publish to the topic (live) or apply locally (demo)
+  const [sendStatus, setSendStatus] = useState(null)
   const send = useCallback(
     (payload) => {
-      if (topic) publish(topic, payload)
-      else ingest([{ id: `local-${Date.now()}-${Math.random()}`, time: Date.now(), payload }])
+      if (topic) {
+        setSendStatus({ state: 'sending', payload })
+        publish(topic, payload).then((ok) => setSendStatus({ state: ok ? 'ok' : 'fail', payload }))
+      } else ingest([{ id: `local-${Date.now()}-${Math.random()}`, time: Date.now(), payload }])
     },
     [topic],
   )
@@ -241,6 +258,12 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const [healthOpen, setHealthOpen] = useState(false)
   const [keysOpen, setKeysOpen] = useState(false)
   const [officesOpen, setOfficesOpen] = useState(false)
+  const [officeCfg, setOfficeCfg] = useState(false)
+  useEffect(() => {
+    if (sendStatus?.state !== 'ok') return
+    const id = setTimeout(() => setSendStatus(null), 1500)
+    return () => clearTimeout(id)
+  }, [sendStatus])
   const [quick, setQuick] = useState(null) // long-press menu on a bot
   const [welcome, setWelcome] = useState(() => !prefs.get('welcomed', false))
   const view = useCallback(
@@ -349,7 +372,10 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const prevAllDone = useRef(null)
   useEffect(() => {
     const done = new Set(floors.filter((f) => f.bots.length > 1 && f.bots.every((n) => effStatus(live.bots[n], Date.now()) === 'done')).map((f) => f.key))
-    if (prevAllDone.current) for (const k of done) if (!prevAllDone.current.has(k)) setCelebration({ key: k, name: k, t: Date.now() })
+    if (prevAllDone.current) for (const k of done) if (!prevAllDone.current.has(k)) {
+      setCelebration({ key: k, name: k, t: Date.now() })
+      pushNotice({ t: Date.now(), title: `${k} concluiu tudo!`, sub: 'Todos os bots do andar terminaram' })
+    }
     prevAllDone.current = done
   }, [live, floors])
   useEffect(() => {
@@ -402,7 +428,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     if (prevUnlocks.current != null && n > prevUnlocks.current) {
       const u = live.unlocks[n - 1]
       if (Date.now() - u.t < 60000) {
-        setUnlock(u)
+        pushNotice({ t: u.t, title: `${u.bot} desbloqueou: ${u.label}`, sub: 'Novo troféu na mesa' })
         if (prefs.get('uisound', true)) uiSound('done')
       }
     }
@@ -426,6 +452,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
 
   return (
     <div className={`app ${night ? 'night' : ''} ${tv ? 'tv' : ''}`}>
+      <Suspense fallback={null}>
       <Scene
         floors={floors}
         selectedIdx={floorIdx}
@@ -451,12 +478,13 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         onPointerMissed={() => setSelectedBot(null)}
         onUserMove={onUserMove}
       />
+      </Suspense>
       <div className="hud">
         <div className="top-left">
-          <Brand conn={conn} now={now} />
+          <Brand conn={conn} now={now} name={live.office?.name} onClick={() => setOfficesOpen(true)} />
           <SearchField onOpen={() => setSearchOpen(true)} />
           <ModeToggles mode={lightMode} setMode={setLightMode} tour={tour} setTour={setTour} overview={overview} setOverview={setOverview} onSearch={() => setSearchOpen(true)} />
-          <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} mode={lightMode} setMode={setLightMode} onOffices={() => setOfficesOpen(true)} onHealth={() => setHealthOpen(true)} onKeys={() => setKeysOpen(true)} readonly={readonly} />
+          <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} mode={lightMode} setMode={setLightMode} onOffices={() => setOfficesOpen(true)} onHealth={() => setHealthOpen(true)} onKeys={() => setKeysOpen(true)} onOfficeSettings={topic && !readonly ? () => setOfficeCfg(true) : null} readonly={readonly} />
         </div>
         <div className="top-center">
           <Pills counts={counts} />
@@ -494,7 +522,6 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
           <Hints />
         </div>
         <MobileFloors floors={floors} data={data} now={now} selectedKey={selKey} onFloor={goFloor} />
-        <Celebration c={celebration} />
         {queueOpen && <QueueModal waiting={waiting} now={now} onDecide={decide} onPick={pickBot} onClose={() => setQueueOpen(false)} readonly={readonly} />}
         {healthOpen && <HealthModal conn={conn} data={live} now={now} topic={topic} onClose={() => setHealthOpen(false)} />}
         {keysOpen && <ShortcutsModal onClose={() => setKeysOpen(false)} />}
@@ -513,7 +540,10 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         <MiniMap layout={lay} floor={floor} data={data} now={now} onPick={pickBot} selected={selectedBot} />
         {welcome && <Welcome onDone={() => (prefs.set('welcomed', true), setWelcome(false))} />}
         {officesOpen && <OfficesModal current={topic} onSwitch={onSwitch} onAdd={onSignIn} onClose={() => setOfficesOpen(false)} />}
-        {unlock && !celebration && <Celebration c={{ t: unlock.t, title: `${unlock.bot} desbloqueou: ${unlock.label}`, sub: 'Novo troféu na mesa' }} />}
+        {officeCfg && <OfficeSettingsModal data={live} floors={floors} onSave={(p) => (send(p), setOfficeCfg(false))} onClose={() => setOfficeCfg(false)} />}
+        {topic && !welcome && live.order.length === 0 && <EmptyOffice />}
+        <SendStatus s={sendStatus} onRetry={() => sendStatus && send(sendStatus.payload)} />
+        {!toastBot && notices[0] && <Celebration c={notices[0]} />}
         {searchOpen && <Search data={data} now={now} onPick={(n) => { setOverview(false); pickBot(n) }} onClose={() => setSearchOpen(false)} />}
       </div>
       {tv && <TvExit onExit={() => setTv(false)} />}

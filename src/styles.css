@@ -18,7 +18,7 @@
   --card-solid: #171b27;
   --ink: #eef0f5;
   --ink2: #b3b9c6;
-  --muted: #7c8496;
+  --muted: #a3abbd;
   --line: rgba(255, 255, 255, 0.08);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
 }
@@ -591,3 +591,23 @@ b.late { color: #e5484d; font-weight: 600; }
   .top-center { top: calc(58px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left)); transform: none; align-items: flex-start; }
   .mfloors { left: calc(12px + env(safe-area-inset-left)); }
 }
+details.more { border-top: 1px solid var(--line); padding-top: 6px; }
+details.more > summary { cursor: pointer; list-style: none; font-size: 12px; font-weight: 600; color: var(--ink2); padding: 4px 2px; border-radius: 8px; display: flex; align-items: center; gap: 6px; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::before { content: ''; width: 6px; height: 6px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform 0.2s var(--curva); opacity: 0.6; }
+details.more[open] > summary::before { transform: rotate(45deg); }
+details.more[open] > *:not(summary) { animation: entrar 260ms var(--curva) both; }
+
+/* office switcher brand, office settings, empty office, send status */
+button.brand { font: inherit; color: inherit; border: 0; cursor: pointer; text-align: left; }
+.fld { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: 12px; color: var(--muted); }
+.fld input, .teamcfg input, .teamcfg select { font: inherit; font-size: 13px; padding: 7px 9px; border-radius: 9px; border: 1px solid var(--line, rgba(0,0,0,.12)); background: var(--bg2, #fff); color: var(--ink, inherit); min-width: 0; }
+.teamcfg { display: grid; gap: 6px; margin-top: 8px; }
+.teamcfg .tc-h, .teamcfg .tc-r { display: grid; grid-template-columns: 1fr 1.4fr 70px 1fr; gap: 6px; align-items: center; font-size: 12px; }
+.teamcfg .tc-h { color: var(--muted); }
+.emptyoffice { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(440px, calc(100vw - 32px)); padding: 18px; z-index: 30; display: flex; flex-direction: column; gap: 8px; }
+.emptyoffice p { margin: 0; font-size: 13px; color: var(--muted); }
+.emptyoffice pre { margin: 0; padding: 10px; border-radius: 10px; background: rgba(0,0,0,.06); font-size: 11.5px; white-space: pre-wrap; word-break: break-all; }
+.sendstatus { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60; padding: 8px 14px; font-size: 13px; display: flex; gap: 8px; align-items: center; animation: pop .2s ease-out; }
+.sendstatus.ok { color: #00A85A; }
+.sendstatus.fail { color: #E5484D; }
