@@ -56,6 +56,17 @@ The interface is in Brazilian Portuguese. Each room is sized to its number of bo
 
 ---
 
+
+### Extras
+
+- **Meetings**: when 3 or more bots talk to the same bot, they all gather in a circle by the windows.
+- **Timeline** (*Linha do tempo*): scrub or play back the last 12 hours of status changes; the office replays them. Status history is kept for 48 hours in the browser.
+- **Notifications**: in the settings menu, turn on browser notifications and/or an alert sound for when a bot starts waiting on you.
+- **Floor celebration**: when every bot on a floor is done, the floor throws confetti.
+- **Metrics**: the bot card shows today's finished tasks, time spent working, errors and activity per hour.
+- **Office cat**: strolls around, naps on the rug and changes floors now and then.
+- **TV mode**: settings menu or `F`. Full screen, no panels, guided tour. Good for a spare monitor.
+
 ## Message protocol
 
 Publish JSON to your topic with `POST https://ntfy.sh/<TOPIC>`, using the JSON as the request body. Each ntfy message must be **one JSON object** (or an array of them). Messages are **partial updates that get merged**, so you can split them however you like. One object can also combine several keys, for example `roster` + `groups` + `chat`.
@@ -167,6 +178,14 @@ curl -d '{"type":"usage","total_used_pct":37,"resets_at":"2026-11-10T00:00:00Z",
 ```bash
 curl -d '{"cortex":{"notes":123,"recent":[{"title":"Pricing notes","updated":"2026-11-07T12:00:00Z"}]}}' https://ntfy.sh/$TOPIC
 ```
+
+### `weather`: the sky outside
+
+```bash
+curl -d '{"weather":"rain"}' https://ntfy.sh/$TOPIC   # clear | cloudy | rain | storm | snow
+```
+
+Rain, snow and storm lightning fall around the building; cloudy and rainy skies dim the light. With the light mode on **Auto**, the office also follows your local time, with warm tones at dawn and dusk.
 
 ### Persistence
 
