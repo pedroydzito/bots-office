@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Scene from './scene/Scene'
-import { buildingSize, floorLayout } from './scene/layout'
-import { sceneSignals } from './scene/registry'
+import { cortexLayout, floorLayout } from './scene/layout'
+import { botPositions, sceneSignals } from './scene/registry'
 import { dataStore, deriveFloors, loadTopic, ingest } from './lib/state'
 import { useNow, useStore } from './lib/createStore'
-import { chatLink, CORTEX_KEY, effStatus, talkActive } from './lib/constants'
+import { chatLink, CORTEX_KEY, effStatus, resolveColor, talkActive } from './lib/constants'
 import { connectNtfy, validTopic } from './lib/ntfy'
 import { demoApprove, startDemo } from './lib/demo'
 import { Activity, Brand, ConnectBanner, Hints, LeftPanel, ModeToggles, Pills, RightPanel, Toast, Weekly } from './ui/Panels'
@@ -53,17 +53,55 @@ export default function App() {
   }, [topic])
 
   // ---- floors
-  const sig = data.order.map((n) => n + '\u0001' + data.bots[n]?.team).join('\u0002')
+  const sig = data.order.map((n) => n + '\u0001' + data.bots[n]?.team + '\u0001' + data.bots[n]?.color).join('\u0002')
   const floors = useMemo(() => {
-    const f = deriveFloors(dataStore.get())
-    return [...f, { key: CORTEX_KEY, name: 'Cortex', num: f.length + 1, bots: [] }]
+    const st = dataStore.get()
+    const f = deriveFloors(st).map((fl) => {
+      // team color = most common bot color on the floor
+      const count = {}
+      for (const n of fl.bots) {
+        const c = resolveColor(st.bots[n]?.color)
+        count[c] = (count[c] || 0) + 1
+      }
+      const color = Object.entries(count).sort((a, b) => b[1] - a[1])[0]?.[0] || '#959595'
+      return { ...fl, color }
+    })
+    return [...f, { key: CORTEX_KEY, name: 'Cortex', num: f.length + 1, bots: [], color: '#F93498' }]
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig])
-  const size = useMemo(() => buildingSize(Math.max(1, ...floors.map((f) => f.bots.length))), [floors])
-  const layouts = useMemo(() => Object.fromEntries(floors.map((f) => [f.key, floorLayout(f.bots.length, size.W, size.D)])), [floors, size])
+  const layouts = useMemo(
+    () => Object.fromEntries(floors.map((f) => [f.key, f.key === CORTEX_KEY ? cortexLayout() : floorLayout(f.bots.length)])),
+    [floors],
+  )
+  const size = useMemo(() => {
+    const ls = Object.values(layouts)
+    return { W: Math.max(...ls.map((l) => l.W)), D: Math.max(...ls.map((l) => l.D)) }
+  }, [layouts])
   const selKey = floors.some((f) => f.key === floorKey) ? floorKey : floors[0]?.key
   const floorIdx = Math.max(0, floors.findIndex((f) => f.key === selKey))
   const floor = floors[floorIdx]
+  const lay = layouts[floor?.key]
+
+  // Following a bot: when it disappears into the elevator, ride along to the floor it comes out on.
+  const selKeyRef = useRef(selKey)
+  selKeyRef.current = selKey
+  useEffect(() => {
+    if (!selectedBot) return
+    const id = setInterval(() => {
+      const s = dataStore.get()
+      const b = s.bots[selectedBot]
+      if (!b) return
+      const t = s.talks[selectedBot]
+      const away = t && talkActive(t, Date.now()) && s.bots[t.to] && s.bots[t.to].team !== b.team
+      const want = away ? s.bots[t.to].team : b.team
+      if (want !== selKeyRef.current && !botPositions.has(selectedBot)) {
+        setFloorKey(want)
+        sceneSignals.focusRequest = selectedBot
+      }
+    }, 400)
+    return () => clearInterval(id)
+  }, [selectedBot])
+  const focus = useMemo(() => (lay ? { ...lay.focus, dist: lay.dist } : { x: 0, z: 0, dist: 12 }), [lay])
 
   const goFloor = useCallback((k) => {
     setFloorKey(k)
@@ -167,6 +205,7 @@ export default function App() {
         floors={floors}
         selectedIdx={floorIdx}
         floorIdx={floorIdx}
+        focus={focus}
         size={size}
         layouts={layouts}
         data={data}

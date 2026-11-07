@@ -42,6 +42,53 @@ function star(points, outer, inner) {
   return pts
 }
 
+
+function circleIntersect(a, b, pick) {
+  const [x1, y1, r1] = a, [x2, y2, r2] = b
+  const dx = x2 - x1, dy = y2 - y1, d = Math.hypot(dx, dy)
+  const l = (r1 * r1 - r2 * r2 + d * d) / (2 * d)
+  const h = Math.sqrt(Math.max(0, r1 * r1 - l * l))
+  const mx = x1 + (dx * l) / d, my = y1 + (dy * l) / d
+  const p1 = [mx + (h * dy) / d, my - (h * dx) / d]
+  const p2 = [mx - (h * dy) / d, my + (h * dx) / d]
+  return pick(p1, p2)
+}
+const ang = (c, p) => Math.atan2(p[1] - c[1], p[0] - c[0])
+
+/** Smooth outline of a ring of overlapping circles (ordered counter-clockwise). */
+function ringUnion(circles) {
+  const n = circles.length
+  const cx = circles.reduce((a, c) => a + c[0], 0) / n, cy = circles.reduce((a, c) => a + c[1], 0) / n
+  const far = (p1, p2) => (Math.hypot(p1[0] - cx, p1[1] - cy) > Math.hypot(p2[0] - cx, p2[1] - cy) ? p1 : p2)
+  const pts = circles.map((c, i) => circleIntersect(c, circles[(i + 1) % n], far))
+  const s = new THREE.Shape()
+  circles.forEach((c, i) => {
+    const from = pts[(i - 1 + n) % n], to = pts[i]
+    let a0 = ang(c, from), a1 = ang(c, to)
+    while (a1 < a0) a1 += Math.PI * 2
+    if (i === 0) s.moveTo(from[0], from[1])
+    s.absarc(c[0], c[1], c[2], a0, a1, false)
+  })
+  s.closePath()
+  return s
+}
+
+/** App-style cloud: flat bottom with rounded corners and three soft bumps. */
+function cloudShape() {
+  const R = [0.5, 0.36, 0.34], L = [-0.5, 0.36, 0.34], M = [0.02, 0.62, 0.46]
+  const upper = (p1, p2) => (p1[1] > p2[1] ? p1 : p2)
+  const pRM = circleIntersect(R, M, upper)
+  const pML = circleIntersect(M, L, upper)
+  const s = new THREE.Shape()
+  s.moveTo(-0.5, 0.02)
+  s.lineTo(0.5, 0.02)
+  s.absarc(R[0], R[1], R[2], -Math.PI / 2, ang(R, pRM), false)
+  s.absarc(M[0], M[1], M[2], ang(M, pRM), ang(M, pML), false)
+  s.absarc(L[0], L[1], L[2], ang(L, pML), Math.PI * 1.5, false)
+  s.closePath()
+  return s
+}
+
 function puffy(shape, size = 2) {
   const g = new THREE.ExtrudeGeometry(shape, {
     depth: size * 0.16,
@@ -87,11 +134,7 @@ function heartShape() {
 }
 
 const BUILDERS = {
-  cloud: () =>
-    blobs([
-      [0, 0.36, 0.36], [-0.3, 0.27, 0.26], [0.3, 0.27, 0.26],
-      [-0.15, 0.6, 0.27], [0.17, 0.63, 0.25], [0, 0.2, 0.3],
-    ], 0.78),
+  cloud: () => puffy(cloudShape(), 1.6),
   wedge: () => {
     const pts = []
     const R = 1.15, half = (40 * Math.PI) / 180
@@ -118,34 +161,29 @@ const BUILDERS = {
   sphere: () => new THREE.SphereGeometry(0.5, 48, 32),
   star4: () => puffy(roundedShape(star(4, 1, 0.45), 0.12), 2),
   star6: () => puffy(roundedShape(star(6, 1, 0.62), 0.1), 2),
-  clover: () => blobs([[0, 0.72, 0.25], [-0.25, 0.47, 0.25], [0.25, 0.47, 0.25], [0, 0.24, 0.25], [0, 0.47, 0.22]], 0.6),
+  clover: () => puffy(ringUnion([[0.27, 0, 0.3], [0, 0.27, 0.3], [-0.27, 0, 0.3], [0, -0.27, 0.3]]), 1.3),
   bubble: () => blobs([[0, 0.5, 0.42], [-0.3, 0.12, 0.12]], 0.82),
-  flower: () => {
-    const l = [[0, 0.5, 0.2]]
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2
-      l.push([Math.cos(a) * 0.26, 0.5 + Math.sin(a) * 0.26, 0.17])
-    }
-    return blobs(l, 0.6)
-  },
+  flower: () => puffy(ringUnion(Array.from({ length: 6 }, (_, i) => [Math.cos((i / 6) * Math.PI * 2) * 0.3, Math.sin((i / 6) * Math.PI * 2) * 0.3, 0.22])), 1.3),
   drop: () => lathe((t) => (t < 0.55 ? Math.sin(Math.acos(1 - t / 0.55)) * 0.42 : 0.42 * Math.pow(1 - (t - 0.55) / 0.45, 1.3) * Math.cos(((t - 0.55) / 0.45) * 0.6))),
   pill: () => new THREE.CapsuleGeometry(0.3, 0.38, 12, 32),
   triangle: () => puffy(roundedShape(polygon(3, 1), 0.28), 2),
   pentagon: () => puffy(roundedShape(polygon(5, 1), 0.22), 2),
   hexagon: () => puffy(roundedShape(polygon(6, 1), 0.2), 2),
   cone: () => lathe((t) => (t < 0.12 ? 0.44 * Math.sin((t / 0.12) * Math.PI / 2) : 0.44 * (1 - (t - 0.12) / 0.88) + 0.06 * Math.sin(((t - 0.12) / 0.88) * Math.PI))),
-  trio: () => blobs([[-0.2, 0.2, 0.2], [0.2, 0.2, 0.2], [0, 0.52, 0.22]], 0.85),
+  trio: () => puffy(ringUnion([[0.24, -0.14, 0.27], [0, 0.27, 0.27], [-0.24, -0.14, 0.27]]), 1.3),
+  circle: () => puffy(new THREE.Shape().absarc(0, 0, 1, 0, Math.PI * 2, false), 2.4),
+  photo: () => puffy(new THREE.Shape().absarc(0, 0, 1, 0, Math.PI * 2, false), 2.4),
   rounded_square: () => puffy(roundedShape([[-1, -1], [1, -1], [1, 1], [-1, 1]], 0.38), 2),
 }
 
-const EYE_Y = { wedge: 0.4, heart: 0.58, drop: 0.36, cone: 0.32, triangle: 0.34, pill: 0.6, trio: 0.62, bubble: 0.62 }
-const EYE_X = { wedge: 0.11, cone: 0.09, triangle: 0.1, trio: 0.08, drop: 0.11 }
+const EYE_Y = { cloud: 0.5, clover: 0.55, flower: 0.55, wedge: 0.4, heart: 0.58, drop: 0.36, cone: 0.32, triangle: 0.34, pill: 0.6, trio: 0.62, bubble: 0.62 }
+const EYE_X = { cloud: 0.15, wedge: 0.11, cone: 0.09, triangle: 0.1, trio: 0.08, drop: 0.11 }
 
-function normalize(g) {
+function normalize(g, maxW = MAX_W) {
   g.computeBoundingBox()
   const b = g.boundingBox
   const w = b.max.x - b.min.x, h = b.max.y - b.min.y, d = b.max.z - b.min.z
-  const s = Math.min(TARGET_H / h, MAX_W / Math.max(w, d))
+  const s = Math.min(TARGET_H / h, maxW / Math.max(w, d))
   g.scale(s, s, s)
   g.computeBoundingBox()
   const c = g.boundingBox
@@ -162,7 +200,7 @@ const Z = new THREE.Vector3(0, 0, 1)
 export function getBotAsset(shapeName) {
   const shape = BUILDERS[shapeName] ? shapeName : 'cloud'
   if (cache.has(shape)) return cache.get(shape)
-  const geometry = normalize(BUILDERS[shape]())
+  const geometry = normalize(BUILDERS[shape](), shape === 'cloud' ? 1.02 : MAX_W)
   const bb = geometry.boundingBox
   const height = bb.max.y, width = bb.max.x - bb.min.x
   const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial())
@@ -192,7 +230,15 @@ export function getBotAsset(shapeName) {
     ? { position: mHit.point.clone().addScaledVector(mHit.face.normal, 0.004).toArray(), quaternion: new THREE.Quaternion().setFromUnitVectors(Z, mHit.face.normal.clone().lerp(Z, 0.35).normalize()).toArray() }
     : null
 
-  const asset = { geometry, eyes, mouth, top, height, width, depth: bb.max.z - bb.min.z, eyeY }
+  const blush = [-1, 1].map((sg) => {
+    ray.set(new THREE.Vector3(sg * (eyeX + 0.1), eyeY - 0.08, 5), new THREE.Vector3(0, 0, -1))
+    const h = ray.intersectObject(mesh)[0]
+    if (!h) return null
+    const nrm = h.face.normal.clone().lerp(Z, 0.3).normalize()
+    return { position: h.point.clone().addScaledVector(nrm, 0.003).toArray(), quaternion: new THREE.Quaternion().setFromUnitVectors(Z, nrm).toArray() }
+  }).filter(Boolean)
+  const photoFace = shape === 'photo' ? { z: bb.max.z + 0.002, y: height / 2, r: width * 0.4 } : null
+  const asset = { geometry, eyes, mouth, blush, top, height, width, depth: bb.max.z - bb.min.z, eyeY, photoFace }
   cache.set(shape, asset)
   return asset
 }

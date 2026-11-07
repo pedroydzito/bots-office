@@ -61,7 +61,7 @@ function Plaza({ W, D, night }) {
 
 /** Floors below the selected one render as glass facade; the selected one is open. */
 export default function Building({ floors, selectedIdx, size, layouts, data, now, night, selectedBot, spotlight, onSelect }) {
-  const { W, D } = size
+  const { W, D } = size // largest footprint, for the plaza
   const sel = floors[selectedIdx]
   const drop = useRef()
   const dropY = useRef(1.2)
@@ -77,7 +77,7 @@ export default function Building({ floors, selectedIdx, size, layouts, data, now
     <group>
       <Plaza W={W} D={D} night={night} />
       {floors.slice(0, selectedIdx).map((f, i) => (
-        <Facade key={f.key} W={W} D={D} y={i * FLOOR_H} night={night} />
+        <Facade key={f.key} W={layouts[f.key].W} D={layouts[f.key].D} y={i * FLOOR_H} night={night} />
       ))}
       <group ref={drop} position={[0, y, 0]}>
         {sel &&

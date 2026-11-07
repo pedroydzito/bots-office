@@ -11,6 +11,7 @@
 #   scripts/post.sh usage 37 2026-11-10T00:00:00Z '{"SDR":4.1,"Closer":2.5}'
 #   scripts/post.sh cortex 123 '[{"title":"Pricing notes","updated":"2026-11-07T12:00:00Z"}]'
 #   scripts/post.sh roster                     # publishes src/roster.json (looks + teams)
+#   scripts/post.sh photo "Closer" face.jpg     # round photo avatar (needs ImageMagick)
 #   scripts/post.sh raw '{"groups":{"SDR":"Sales"}}'
 #
 # Requires curl. `roster` also needs jq. Every message body is a single JSON object.
@@ -65,11 +66,17 @@ case "$cmd" in
     here="$(cd "$(dirname "$0")/.." && pwd)"
     send "$(jq -c '{roster: [.[] | {name, id, shape, color, accessory, team}]}' "$here/src/roster.json")"
     ;;
+  photo)
+    [[ $# -ge 2 ]] || { echo "usage: photo <bot> <image-file>" >&2; exit 1; }
+    command -v convert >/dev/null || { echo "photo needs ImageMagick (convert)" >&2; exit 1; }
+    b64="$(convert "$2" -resize 64x64^ -gravity center -extent 64x64 -strip -quality 70 jpg:- | base64 | tr -d '\n')"
+    send "{\"looks\":{$(js "$1"):{\"shape\":\"photo\",\"photo\":\"data:image/jpeg;base64,$b64\"}}}"
+    ;;
   raw)
     send "$1"
     ;;
   *)
-    sed -n '2,19p' "$0"
+    sed -n '2,20p' "$0"
     exit 1
     ;;
 esac

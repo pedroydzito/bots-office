@@ -3,17 +3,17 @@
 import { dataStore, ingest } from './state'
 
 const STEPS = {
-  Ops: ['Sorting 140 emails', 'Reviewing contract clauses', 'Syncing calendar', 'Updating the daily journal', 'Filing invoices', 'Checking app crash logs', 'Drafting a reply to the bank'],
-  Sales: ['Qualifying 12 new leads', 'Writing follow-up sequence', 'Prospecting on LinkedIn', 'Prepping call notes', 'Scoring inbound demo requests', 'Investigating a lost deal', 'Rewriting the pitch hook'],
-  Design: ['Designing a banner for the launch', 'Critiquing the landing page', 'Exploring logo directions', 'Building a moodboard', 'Refining the color system', 'Exporting brand assets', 'Kerning the wordmark'],
-  Marketing: ['Drafting tonight’s post', 'Collecting testimonials', 'Planning the campaign calendar', 'Writing newsletter copy', 'A/B testing headlines'],
-  YouTube: ['Scripting the next video', 'Brainstorming video topics', 'Editing the long essay cut', 'Writing thumbnails titles', 'Scanning comments for ideas', 'Researching sources'],
-  default: ['Thinking it through', 'Reading the brief', 'Running checks'],
+  Ops: ['Organizando 140 e-mails', 'Revisando cláusulas do contrato', 'Sincronizando a agenda', 'Atualizando o diário', 'Lançando notas fiscais', 'Checando logs do app', 'Respondendo o banco'],
+  Sales: ['Qualificando 12 leads novos', 'Escrevendo a cadência de follow-up', 'Prospectando no LinkedIn', 'Preparando notas da call', 'Pontuando pedidos de demo', 'Investigando um negócio perdido', 'Reescrevendo o gancho do pitch'],
+  Design: ['Criando banner do lançamento', 'Criticando a landing page', 'Explorando caminhos de logo', 'Montando um moodboard', 'Refinando a paleta de cores', 'Exportando assets da marca', 'Ajustando o kerning'],
+  Marketing: ['Escrevendo o post de hoje', 'Coletando depoimentos', 'Planejando o calendário', 'Redigindo a newsletter', 'Testando headlines A/B'],
+  YouTube: ['Roteirizando o próximo vídeo', 'Levantando temas de vídeo', 'Editando o ensaio longo', 'Criando títulos de thumbnail', 'Lendo comentários atrás de ideias', 'Pesquisando fontes'],
+  default: ['Pensando no assunto', 'Lendo o briefing', 'Rodando verificações'],
 }
-const DONE = ['Done: shipped it', 'Finished the draft', 'Done: killing the weak ones', 'All set', 'Published']
-const WAIT = ['Needs your OK to publish', 'Approve the budget?', 'Pick a thumbnail', 'Confirm the send list']
-const ERR = ['API rate limited', 'Login expired', 'Upload failed']
-const TALKS = ['Can you review this draft?', 'Need numbers for the deck', 'Syncing on the launch plan', 'Quick question on the brief', 'Handing off the leads list', 'Want your take on the hook', 'Aligning on tone of voice']
+const DONE = ['Pronto: publicado', 'Rascunho finalizado', 'Pronto: cortei os fracos', 'Tudo certo', 'Publicado']
+const WAIT = ['Precisa do seu OK pra publicar', 'Aprova o orçamento?', 'Escolhe a thumbnail', 'Confirma a lista de envio']
+const ERR = ['Limite da API atingido', 'Login expirou', 'Falha no upload']
+const TALKS = ['Pode revisar esse rascunho?', 'Preciso dos números pro deck', 'Alinhando o plano de lançamento', 'Dúvida rápida sobre o briefing', 'Passando a lista de leads', 'Quero tua opinião no gancho', 'Alinhando o tom de voz']
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)]
 let seq = 0
@@ -28,7 +28,7 @@ function stepsFor(name) {
 }
 
 export function demoApprove(name) {
-  send({ bot: name, status: 'working', step: 'Approved, publishing now' })
+  send({ bot: name, status: 'working', step: 'Aprovado, publicando agora' })
 }
 
 export function startDemo() {
@@ -49,24 +49,24 @@ export function startDemo() {
   seed.push({ type: 'usage', total_used_pct: 31, resets_at: new Date(now + (3 * 24 + 14) * 3600e3).toISOString(), bots: usageBots })
   const routineBots = [names[3], names[7], names[13], names[25], names[28], names[0]].filter(Boolean)
   const R = [
-    [{ name: 'Inbox zero', schedule: 'Every day 08:00', next_run: new Date(now + 5 * 3600e3).toISOString() }],
-    [{ name: 'Lead sweep', schedule: 'Weekdays 09:30', next_run: new Date(now + 7 * 3600e3).toISOString() }],
-    [{ name: 'Design review', schedule: 'Fridays 16:00', next_run: new Date(now + 50 * 3600e3).toISOString() }],
-    [{ name: 'Post scheduler', schedule: 'Every day 19:00', next_run: new Date(now + 2 * 3600e3).toISOString() }],
-    [{ name: 'Trend scan', schedule: 'Every 6h', next_run: new Date(now + 3600e3).toISOString() }],
-    [{ name: 'Daily journal', schedule: 'Every day 22:00', next_run: new Date(now + 9 * 3600e3).toISOString() }],
+    [{ name: 'Caixa zerada', schedule: 'Todo dia 08:00', next_run: new Date(now + 5 * 3600e3).toISOString() }],
+    [{ name: 'Varredura de leads', schedule: 'Dias úteis 09:30', next_run: new Date(now + 7 * 3600e3).toISOString() }],
+    [{ name: 'Revisão de design', schedule: 'Sextas 16:00', next_run: new Date(now + 50 * 3600e3).toISOString() }],
+    [{ name: 'Agendar posts', schedule: 'Todo dia 19:00', next_run: new Date(now + 2 * 3600e3).toISOString() }],
+    [{ name: 'Radar de tendências', schedule: 'A cada 6h', next_run: new Date(now + 3600e3).toISOString() }],
+    [{ name: 'Diário', schedule: 'Todo dia 22:00', next_run: new Date(now + 9 * 3600e3).toISOString() }],
   ]
   routineBots.forEach((b, i) => seed.push({ routines: { bot: b, items: R[i] } }))
   seed.push({
     cortex: {
       notes: 1287,
       recent: [
-        { title: 'Pricing experiments Q4', updated: new Date(now - 6 * 60e3).toISOString() },
-        { title: 'Brand voice guidelines', updated: new Date(now - 40 * 60e3).toISOString() },
-        { title: 'Lead scoring rubric', updated: new Date(now - 2 * 3600e3).toISOString() },
-        { title: 'Video ideas backlog', updated: new Date(now - 5 * 3600e3).toISOString() },
-        { title: 'Contract templates', updated: new Date(now - 26 * 3600e3).toISOString() },
-        { title: 'Onboarding checklist', updated: new Date(now - 50 * 3600e3).toISOString() },
+        { title: 'Experimentos de preço Q4', updated: new Date(now - 6 * 60e3).toISOString() },
+        { title: 'Guia de tom de voz', updated: new Date(now - 40 * 60e3).toISOString() },
+        { title: 'Critérios de score de leads', updated: new Date(now - 2 * 3600e3).toISOString() },
+        { title: 'Backlog de ideias de vídeo', updated: new Date(now - 5 * 3600e3).toISOString() },
+        { title: 'Modelos de contrato', updated: new Date(now - 26 * 3600e3).toISOString() },
+        { title: 'Checklist de onboarding', updated: new Date(now - 50 * 3600e3).toISOString() },
       ],
     },
   })
@@ -88,7 +88,7 @@ export function startDemo() {
           else if (r < 0.53 && !Object.values(st.bots).some((x) => x.status === 'waiting_user')) send({ bot: n, status: 'waiting_user', step: pick(WAIT) })
           else if (r < 0.56) {
             send({ bot: n, status: 'error', step: pick(ERR) })
-            later(() => send({ bot: n, status: 'working', step: 'Retrying' }), 9000)
+            later(() => send({ bot: n, status: 'working', step: 'Tentando de novo' }), 9000)
           } else send({ bot: n, status: 'working', step: pick(steps) })
           break
         case 'done':
@@ -119,7 +119,7 @@ export function startDemo() {
       send({ type: 'talk', from, to, step: topic, status: 'start' })
       const dur = 22000 + Math.random() * 14000
       later(() => send({ type: 'talk', from, to, step: pick(TALKS) }), dur * 0.5)
-      later(() => send({ type: 'talk', from, to, step: 'Thanks, got it', status: 'end' }), dur)
+      later(() => send({ type: 'talk', from, to, step: 'Valeu, entendi', status: 'end' }), dur)
     }
     later(talk, 7000 + Math.random() * 8000)
   }

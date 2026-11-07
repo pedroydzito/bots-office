@@ -17,6 +17,9 @@ function Body({ shape }) {
       return <path d="M9.5 25a6 6 0 0 1-.9-11.9A8 8 0 0 1 23.6 11a6.9 6.9 0 0 1-.4 14z" />
     case 'wedge':
       return <path d="M16 5.5c1 0 1.7.6 2.2 1.5l8.3 15.2c.9 1.7-.1 3.3-2 3.6-5.6.9-11.4.9-17 0-1.9-.3-2.9-1.9-2-3.6L13.8 7c.5-.9 1.2-1.5 2.2-1.5z" />
+    case 'circle':
+    case 'photo':
+      return <circle cx="16" cy="16.5" r="11" />
     case 'pebble':
       return <ellipse cx="16" cy="16.5" rx="10" ry="11" />
     case 'heart':
@@ -63,6 +66,12 @@ export default function Avatar({ bot, size = 28, ring }) {
   const color = resolveColor(bot?.color)
   const eye = isDark(color) ? '#fff' : '#141414'
   const ey = bot?.shape === 'wedge' ? 19 : bot?.shape === 'heart' ? 15.5 : 16.5
+  if (bot?.photo)
+    return (
+      <span className="avatar" style={{ width: size, height: size, '--ring': ring || 'transparent' }}>
+        <img src={bot.photo} alt="" />
+      </span>
+    )
   return (
     <span className="avatar" style={{ width: size, height: size, '--ring': ring || 'transparent', background: color + '1f' }}>
       <svg viewBox="0 0 32 32" width={size - 4} height={size - 4}>

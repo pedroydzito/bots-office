@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
@@ -10,7 +10,7 @@ import Confetti from './Confetti'
 
 const rand = (a, b) => a + Math.random() * (b - a)
 const pick = (a) => a[Math.floor(Math.random() * a.length)]
-const REPLIES = ['Sure, on it', 'Makes sense!', 'Send it over', 'Hmm, let me check', 'Love it', 'Give me 5 min', 'Agreed', 'Ship it!']
+const REPLIES = ['Fechado, já vejo', 'Faz sentido!', 'Manda pra mim', 'Hmm, deixa eu ver', 'Adorei', 'Me dá 5 min', 'Combinado', 'Bora!']
 
 function lerpAngle(a, b, t) {
   let d = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI
@@ -26,6 +26,20 @@ const mouthGeo = new THREE.TorusGeometry(0.035, 0.009, 8, 20, Math.PI)
 const blackMat = new THREE.MeshStandardMaterial({ color: '#141414', roughness: 0.25 })
 const whiteMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.2 })
 const glintMat = new THREE.MeshBasicMaterial({ color: '#ffffff' })
+const blushGeo = new THREE.CircleGeometry(0.045, 20)
+const blushMat = new THREE.MeshBasicMaterial({ color: '#ff8fb1', transparent: true, opacity: 0.55, depthWrite: false })
+const mugGeo = new THREE.CylinderGeometry(0.05, 0.045, 0.1, 14)
+const mugMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.4 })
+const photoRimMat = new THREE.MeshBasicMaterial({ color: '#ffffff' })
+const photoCache = new Map()
+function photoTexture(url) {
+  if (!photoCache.has(url)) {
+    const t = new THREE.TextureLoader().load(url)
+    t.colorSpace = THREE.SRGBColorSpace
+    photoCache.set(url, t)
+  }
+  return photoCache.get(url)
+}
 
 function Accessory({ kind, asset, color }) {
   const top = asset.top
@@ -73,7 +87,23 @@ function Accessory({ kind, asset, color }) {
   if (kind === 'glasses')
     return (
       <group>
-        {asset.eyes.map((e, i) => (
+        {asset.photoFace && (
+          <group position={[0, asset.photoFace.y, asset.photoFace.z]}>
+            <mesh material={photoRimMat}>
+              <circleGeometry args={[asset.photoFace.r * 1.08, 48]} />
+            </mesh>
+            <mesh position={[0, 0, 0.002]}>
+              <circleGeometry args={[asset.photoFace.r, 48]} />
+              {bot.photo ? <meshBasicMaterial map={photoTexture(bot.photo)} toneMapped={false} /> : <meshBasicMaterial color={color} />}
+            </mesh>
+          </group>
+        )}
+        {!(asset.photoFace && bot.photo) && asset.blush.map((e, i) => (
+          <group key={'b' + i} position={e.position} quaternion={e.quaternion}>
+            <mesh geometry={blushGeo} material={blushMat} scale={[1.3, 0.8, 1]} />
+          </group>
+        ))}
+        {!(asset.photoFace && bot.photo) && asset.eyes.map((e, i) => (
           <mesh key={i} position={e.position} quaternion={e.quaternion}>
             <torusGeometry args={[0.072, 0.012, 8, 28]} />
             <meshStandardMaterial color="#111" roughness={0.3} />
@@ -111,9 +141,13 @@ function StatusIcon({ status, talking }) {
     case 'waiting_user':
       return <div className="sb sb-waiting">!</div>
     case 'error':
-      return <div className="sb sb-error">×</div>
+      return (
+        <div className="sb sb-error">
+          <svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" /></svg>
+        </div>
+      )
     default:
-      return <div className="sb sb-resting">z</div>
+      return <div className="sb sb-resting">z<i>z</i><i>z</i><i>z</i></div>
   }
 }
 
@@ -123,7 +157,7 @@ function StatusIcon({ status, talking }) {
  *  - otherwise resting/finished bots occasionally wander to a point of interest,
  *  - otherwise the bot sits at its seat.
  */
-export default function Bot({
+function Bot({
   bot, status, layout, seat, goal, talkView, floorY, selected, spotlight,
   onSelect, onGone, spawnAtGoal, night,
 }) {
@@ -131,7 +165,7 @@ export default function Bot({
   const color = resolveColor(bot.color)
   const dark = isDark(color)
   const mat = useMemo(
-    () => new THREE.MeshPhysicalMaterial({ color, roughness: 0.32, clearcoat: 0.6, clearcoatRoughness: 0.25, sheen: 0.3 }),
+    () => new THREE.MeshStandardMaterial({ color, roughness: 0.38, metalness: 0 }),
     [color],
   )
   useEffect(() => () => mat.dispose(), [mat])
@@ -141,6 +175,7 @@ export default function Bot({
   const body = useRef()
   const eyesRef = useRef([])
   const hands = useRef([])
+  const mug = useRef()
   const ring = useRef()
   const phase = useMemo(() => Math.random() * 10, [])
 
@@ -153,7 +188,7 @@ export default function Bot({
   const [partnerNear, setPartnerNear] = useState(false)
 
   const P = useRef({})
-  P.current = { status, goal, seat, layout, onGone, talkView }
+  P.current = { status, goal, seat, layout, onGone, talkView, hover }
 
   const S = useRef(null)
   if (!S.current) {
@@ -185,6 +220,11 @@ export default function Bot({
       pendingShake: false,
       hiddenFlag: !!(goal && spawnAtGoal && goal.hideOnArrive),
       gone: false,
+      nextQuirk: rand(6, 16),
+      quirk: null,
+      quirkT: 0,
+      landT: -1,
+      holding: false,
     }
   }
 
@@ -266,6 +306,9 @@ export default function Bot({
       s.arrived = true
       s.atKind = g.kind
       setArrivedKind(g.kind)
+      if (g.kind === 'seat') s.landT = t
+      if (g.kind === 'coffee') s.holding = true
+      if (g.kind === 'seat') s.holding = false
       if (s.wander && g === s.wander) s.wander.until = t + rand(6, 14)
       if (g.hideOnArrive && !s.hiddenFlag) {
         s.hiddenFlag = true
@@ -402,6 +445,37 @@ export default function Bot({
     }
     if (t < s.blinkUntil) eyeY = Math.min(eyeY, 0.1)
 
+    // ---- quirks: short one-off gestures that keep the office alive
+    if (!moving && !isTalking && t > s.nextQuirk) {
+      s.nextQuirk = t + rand(9, 22)
+      s.quirkT = t
+      s.quirk = st === 'working' ? pick(['think', 'stretch', 'nod']) : st === 'resting' ? pick(['yawn', 'stretch']) : st === 'error' ? 'facepalm' : st === 'done' ? 'cheer' : pick(['stretch', 'look'])
+    }
+    const qt = t - s.quirkT
+    if (s.quirk && qt < 2.2) {
+      const k = Math.sin(Math.min(1, qt / 2.2) * Math.PI)
+      switch (s.quirk) {
+        case 'think': hr = 0.2 * k; hz = 0.12 * k; rz = 0.12 * k; hl *= 1 - k; break
+        case 'stretch': hl = hr = 0.42 * k; sy *= 1 + 0.08 * k; rx -= 0.1 * k; break
+        case 'yawn': sy *= 1 + 0.06 * k; hl = hr = 0.3 * k; eyeY = Math.min(eyeY, 0.15); break
+        case 'nod': rx += Math.sin(qt * 9) * 0.08 * k; break
+        case 'facepalm': hr = 0.38 * k; hz = 0.18 * k; rx += 0.15 * k; break
+        case 'cheer': hl = hr = 0.45 * k; by += Math.abs(Math.sin(qt * 8)) * 0.12 * k; break
+        case 'look': ry += Math.sin(qt * 3) * 0.5 * k; break
+      }
+    } else s.quirk = null
+    // waiting: wave both arms; hover: wave hello
+    if (st === 'waiting_user' && !moving && !isTalking) {
+      hl = 0.38 + Math.sin(t * 9) * 0.08
+      hr = 0.38 + Math.sin(t * 9 + Math.PI) * 0.08
+    }
+    if (p.hover && !moving) {
+      hr = 0.4 + Math.sin(t * 12) * 0.07
+      hz = 0.05
+    }
+    // landing squash when sitting down
+    const lt = t - s.landT
+    if (s.landT >= 0 && lt < 0.45) sy *= 1 - Math.sin((lt / 0.45) * Math.PI) * 0.12
     const b = body.current
     b.position.set(jx, by, 0)
     b.rotation.set(rx, ry, rz)
@@ -411,6 +485,10 @@ export default function Bot({
     const hw = asset.width / 2 + 0.03
     if (hands.current[0]) hands.current[0].position.set(-hw, 0.22 + hl, 0.08 + hz)
     if (hands.current[1]) hands.current[1].position.set(hw, 0.22 + hr, 0.08 + hz)
+    if (mug.current) {
+      mug.current.visible = s.holding
+      mug.current.position.set(hw + 0.02, 0.3 + hr, 0.12 + hz)
+    }
 
     if (st === 'error') mat.emissive.setRGB(0.6 * (0.5 + 0.5 * Math.sin(t * 6)), 0, 0)
     else mat.emissive.setRGB(0, 0, 0)
@@ -469,7 +547,7 @@ export default function Bot({
             </mesh>
           </group>
         ))}
-        {asset.mouth && (status === 'done' || talking || status === 'waiting_user') && (
+        {asset.mouth && !(asset.photoFace && bot.photo) && (status === 'done' || talking || status === 'waiting_user') && (
           <group position={asset.mouth.position} quaternion={asset.mouth.quaternion}>
             <mesh geometry={mouthGeo} material={dark ? whiteMat : blackMat} rotation={[0, 0, Math.PI]} />
           </group>
@@ -477,10 +555,11 @@ export default function Bot({
         {[0, 1].map((i) => (
           <mesh key={i} ref={(m) => (hands.current[i] = m)} geometry={handGeo} material={mat} castShadow />
         ))}
+        <mesh ref={mug} geometry={mugGeo} material={mugMat} visible={false} castShadow />
         <Accessory kind={bot.accessory} asset={asset} color={color} />
       </group>
       {!hidden && (
-        <Html position={[0, iconY, 0]} center distanceFactor={13} zIndexRange={[30, 0]} pointerEvents="none">
+        <Html position={[0, iconY, 0]} center distanceFactor={10} zIndexRange={[30, 0]} pointerEvents="none">
           <div className={`bot-tag${selected ? ' sel' : ''}`}>
             {speechText && (
               <div className={`speech ${talking ? 'talk' : ''}`}>
@@ -497,3 +576,14 @@ export default function Bot({
     </group>
   )
 }
+
+const goalKey = (g) => (g ? `${g.kind}:${g.x.toFixed(2)},${g.z.toFixed(2)}:${g.hideOnArrive ? 1 : 0}${g.goneOnArrive ? 1 : 0}` : '')
+const talkKey = (t) => (t ? `${t.role}|${t.partner}|${t.step}` : '')
+function same(a, b) {
+  return (
+    a.bot === b.bot && a.status === b.status && a.seat === b.seat && a.layout === b.layout &&
+    a.floorY === b.floorY && a.selected === b.selected && a.spotlight === b.spotlight && a.night === b.night &&
+    goalKey(a.goal) === goalKey(b.goal) && talkKey(a.talkView) === talkKey(b.talkView)
+  )
+}
+export default memo(Bot, same)

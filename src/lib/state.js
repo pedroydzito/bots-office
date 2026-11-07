@@ -47,6 +47,10 @@ function setLook(d, name, l) {
   if (typeof l.shape === 'string' && SHAPES.includes(l.shape.trim().toLowerCase())) b.shape = l.shape.trim().toLowerCase()
   if (typeof l.color === 'string' && l.color.length <= 16) b.color = l.color.trim()
   if (typeof l.accessory === 'string' && ACCESSORIES.includes(l.accessory.trim().toLowerCase())) b.accessory = l.accessory.trim().toLowerCase()
+  if (typeof l.photo === 'string' && l.photo.length < 12000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(l.photo)) {
+    b.photo = l.photo
+    if (!l.shape) b.shape = 'photo'
+  }
   const team = clean(l.team || l.group, 32)
   if (team) b.team = team
   const id = clean(l.id, 64)
@@ -78,17 +82,17 @@ function applyPayload(d, p, t) {
       if (st === 'end' || st === 'stop' || st === 'done') {
         if (cur && cur.to === to && t >= cur.t) {
           delete d.talks[from]
-          pushActivity(d, { t, kind: 'talk', from, to, step: step || 'wrapped up', end: true })
+          pushActivity(d, { t, kind: 'talk', from, to, step: step || 'encerrado', end: true })
         }
       } else if (!cur || t >= cur.lastT || cur.to !== to) {
         const same = cur && cur.to === to
         d.talks[from] = {
           to,
-          step: step || (same ? cur.step : 'quick sync'),
+          step: step || (same ? cur.step : 'papo rápido'),
           t: same ? cur.t : t,
           lastT: Math.max(t, same ? cur.lastT : 0),
         }
-        pushActivity(d, { t, kind: 'talk', from, to, step: step || 'quick sync' })
+        pushActivity(d, { t, kind: 'talk', from, to, step: step || 'papo rápido' })
       }
     }
   } else if (typeof p.bot === 'string' && p.status) {

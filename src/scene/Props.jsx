@@ -139,7 +139,7 @@ export function WallTitle({ title, subtitle, position, rotation }) {
   useEffect(() => () => tex.dispose(), [tex])
   return (
     <mesh position={position} rotation={rotation}>
-      <planeGeometry args={[6, 1.5]} />
+      <planeGeometry args={[3.6, 0.9]} />
       <meshBasicMaterial map={tex} transparent toneMapped={false} />
     </mesh>
   )

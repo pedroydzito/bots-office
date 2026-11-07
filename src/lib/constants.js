@@ -33,16 +33,16 @@ export function isDark(hex) {
 
 export const SHAPES = [
   'cloud', 'wedge', 'pebble', 'heart', 'sphere', 'star4', 'star6', 'clover', 'bubble',
-  'flower', 'drop', 'pill', 'triangle', 'pentagon', 'hexagon', 'cone', 'trio', 'rounded_square',
+  'flower', 'drop', 'pill', 'triangle', 'pentagon', 'hexagon', 'cone', 'trio', 'rounded_square', 'circle', 'photo',
 ]
 export const ACCESSORIES = ['none', 'glasses', 'antenna', 'stem', 'bow']
 
 export const STATUS = {
-  working: { label: 'Working', color: '#2FB36B' },
-  waiting_user: { label: 'Waiting on you', color: '#F5A524' },
-  error: { label: 'Error', color: '#E5484D' },
-  done: { label: 'Finished', color: '#1E86FC' },
-  resting: { label: 'Resting', color: '#A3A7AE' },
+  working: { label: 'Trabalhando', color: '#2FB36B' },
+  waiting_user: { label: 'Esperando você', color: '#F5A524' },
+  error: { label: 'Erro', color: '#E5484D' },
+  done: { label: 'Concluído', color: '#1E86FC' },
+  resting: { label: 'Descansando', color: '#A3A7AE' },
 }
 
 export const DECAY_MS = 2 * 3600 * 1000
@@ -79,5 +79,5 @@ export function durationShort(ms) {
   const m = Math.floor(ms / 60000)
   const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60
   const s = d ? `${d}d ${h}h` : h ? `${h}h ${mm}m` : `${mm}m`
-  return neg ? `${s} ago` : s
+  return neg ? `há ${s}` : s
 }

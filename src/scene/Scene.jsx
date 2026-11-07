@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Environment, Lightformer, OrbitControls } from '@react-three/drei'
+import { Environment, Lightformer, OrbitControls, PerformanceMonitor } from '@react-three/drei'
 import * as THREE from 'three'
 import Building from './Building'
 import { FLOOR_H } from './layout'
@@ -9,7 +9,7 @@ import { botPositions, sceneSignals } from './registry'
 const DAY_BG = new THREE.Color('#eceef2')
 const NIGHT_BG = new THREE.Color('#0c1120')
 
-function Lights({ night }) {
+function Lights({ night, low }) {
   const { scene } = useThree()
   const hemi = useRef(), sun = useRef(), amb = useRef()
   const k = useRef(night ? 1 : 0)
@@ -36,13 +36,13 @@ function Lights({ night }) {
     <>
       <hemisphereLight ref={hemi} args={['#ffffff', '#d4d7de', 1.15]} />
       <ambientLight ref={amb} intensity={0.35} />
-      <SunWithTarget sunRef={sun} />
+      <SunWithTarget sunRef={sun} low={low} />
     </>
   )
 }
 
 /** Directional light that follows the camera target so shadows stay crisp on the current floor. */
-function SunWithTarget({ sunRef }) {
+function SunWithTarget({ sunRef, low }) {
   const controls = useThree((s) => s.controls)
   const target = useRef()
   useEffect(() => {
@@ -58,18 +58,18 @@ function SunWithTarget({ sunRef }) {
     <>
       <directionalLight
         ref={sunRef}
-        castShadow
+        castShadow={!low}
         intensity={2.1}
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-14}
-        shadow-camera-right={14}
-        shadow-camera-top={14}
-        shadow-camera-bottom={-14}
+        shadow-mapSize={[1536, 1536]}
+        shadow-camera-left={-11}
+        shadow-camera-right={11}
+        shadow-camera-top={11}
+        shadow-camera-bottom={-11}
         shadow-camera-near={1}
         shadow-camera-far={45}
         shadow-bias={-0.0004}
         shadow-normalBias={0.02}
-        shadow-radius={6}
+        shadow-radius={4}
       />
       <object3D ref={target} />
     </>
@@ -79,15 +79,44 @@ function SunWithTarget({ sunRef }) {
 const keys = new Set()
 const fwd = new THREE.Vector3(), right = new THREE.Vector3(), delta = new THREE.Vector3()
 
-function CameraRig({ floorIdx, selectedBot, tour, onUserMove }) {
-  const { camera, controls } = useThree()
+const VIEW_DIR = new THREE.Vector3(1, 0.78, 1).normalize()
+
+function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove }) {
+  const { camera, controls, gl, size } = useThree()
   const desired = useRef(new THREE.Vector3(0, 0.6, 0))
-  const last = useRef(floorIdx)
+  const zoomGoal = useRef(null)
+  const placed = useRef(false)
+  const fy = floorIdx * FLOOR_H + 1.2
+  // narrow screens (phones) need to back off so the whole room fits
+  const fit = Math.max(1, Math.pow(1.25 / Math.max(0.3, size.width / size.height), 0.7))
+  const goalDist = focus.dist * fit
+
+  // smooth wheel zoom: wheel moves a goal distance, the camera eases toward it
+  useEffect(() => {
+    const el = gl.domElement
+    const onWheel = (e) => {
+      e.preventDefault()
+      if (!controls) return
+      const cur = zoomGoal.current ?? camera.position.distanceTo(controls.target)
+      const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY
+      zoomGoal.current = THREE.MathUtils.clamp(cur * Math.exp(d * 0.0012), controls.minDistance, controls.maxDistance)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [gl, controls, camera])
 
   useEffect(() => {
-    desired.current.set(0, floorIdx * FLOOR_H + 0.6, 0)
-    last.current = floorIdx
-  }, [floorIdx])
+    desired.current.set(focus.x, fy, focus.z)
+    zoomGoal.current = goalDist
+    if (!placed.current && controls) {
+      // first frame: put the camera right at the room, no fly-in
+      placed.current = true
+      controls.target.copy(desired.current)
+      camera.position.copy(desired.current).addScaledVector(VIEW_DIR, goalDist)
+      controls.update()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floorIdx, focus.x, focus.z, focus.dist, fy, controls, camera])
 
   useEffect(() => {
     const down = (e) => {
@@ -147,39 +176,60 @@ function CameraRig({ floorIdx, selectedBot, tour, onUserMove }) {
     }
     // zoom buttons
     if (sceneSignals.zoom !== 0) {
-      const f = sceneSignals.zoom > 0 ? 0.82 : 1.22
+      const f = sceneSignals.zoom > 0 ? 0.78 : 1.28
       sceneSignals.zoom = 0
-      const off = camera.position.clone().sub(target)
-      const len = THREE.MathUtils.clamp(off.length() * f, controls.minDistance, controls.maxDistance)
-      camera.position.copy(target).add(off.setLength(len))
+      const cur = zoomGoal.current ?? camera.position.distanceTo(target)
+      zoomGoal.current = THREE.MathUtils.clamp(cur * f, controls.minDistance, controls.maxDistance)
     }
-    // focus request zooms in a bit
+    // focus request zooms in on the bot
     if (sceneSignals.focusRequest) {
       sceneSignals.focusRequest = null
+      zoomGoal.current = 8
+    }
+    if (zoomGoal.current != null) {
       const off = camera.position.clone().sub(target)
-      if (off.length() > 16) camera.position.copy(target).add(off.setLength(16))
+      const len = off.length()
+      const next = len + (zoomGoal.current - len) * Math.min(1, dt * 6)
+      camera.position.copy(target).add(off.setLength(next))
+      if (Math.abs(next - zoomGoal.current) < 0.01) zoomGoal.current = null
     }
     controls.update()
   })
   return null
 }
 
+const MOBILE = typeof window !== 'undefined' && (window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth < 820)
+
 export default function Scene(props) {
-  const { night, tour, floorIdx, selectedBot, onPointerMissed, onUserMove } = props
+  const { night, tour, floorIdx, focus, selectedBot, onPointerMissed, onUserMove } = props
+  // Adaptive quality: phones start light; any device drops resolution and shadows if FPS falls.
+  const [low, setLow] = useState(MOBILE)
+  const [dpr, setDpr] = useState(MOBILE ? 1.25 : Math.min(1.75, window.devicePixelRatio || 1))
   return (
     <Canvas
-      shadows="soft"
-      dpr={[1, 2]}
-      gl={{ antialias: true, powerPreference: 'high-performance' }}
-      camera={{ fov: 30, position: [13.5, 12.5 + floorIdx * FLOOR_H, 13.5], near: 0.5, far: 260 }}
+      shadows
+      dpr={dpr}
+      gl={{ antialias: !MOBILE, powerPreference: 'high-performance', stencil: false }}
+      camera={{ fov: 30, position: [12, 10 + floorIdx * FLOOR_H, 12], near: 0.5, far: 200 }}
       onPointerMissed={onPointerMissed}
       onCreated={({ gl }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping
         gl.toneMappingExposure = 1.05
       }}
     >
-      <Lights night={night} />
-      <Environment resolution={128} frames={1}>
+      <PerformanceMonitor
+        flipflops={3}
+        onDecline={() => {
+          setDpr((d) => Math.max(1, d - 0.25))
+          setLow(true)
+        }}
+        onIncline={() => {
+          if (!MOBILE) setLow(false)
+          setDpr((d) => Math.min(MOBILE ? 1.5 : Math.min(2, window.devicePixelRatio || 1), d + 0.25))
+        }}
+      />
+      <Lights night={night} low={low} />
+      <Environment resolution={64} frames={1}>
         <Lightformer form="rect" intensity={2.5} position={[0, 6, 0]} rotation-x={Math.PI / 2} scale={[12, 12, 1]} />
         <Lightformer form="rect" intensity={1.2} position={[8, 3, 4]} rotation-y={-Math.PI / 2} scale={[8, 4, 1]} />
         <Lightformer form="rect" intensity={0.8} position={[-6, 2, 6]} rotation-y={Math.PI / 3} scale={[6, 3, 1]} color="#ffeedd" />
@@ -188,14 +238,15 @@ export default function Scene(props) {
         makeDefault
         enableDamping
         dampingFactor={0.08}
-        minDistance={5}
-        maxDistance={60}
-        minPolarAngle={0.25}
-        maxPolarAngle={1.32}
+        minDistance={4}
+        maxDistance={45}
+        minPolarAngle={0.3}
+        maxPolarAngle={1.3}
+        enableZoom={MOBILE}
         onStart={onUserMove}
       />
-      <CameraRig floorIdx={floorIdx} selectedBot={selectedBot} tour={tour} onUserMove={onUserMove} />
-      <Building {...props} />
+      <CameraRig floorIdx={floorIdx} focus={focus} selectedBot={selectedBot} tour={tour} onUserMove={onUserMove} />
+      <Building {...props} low={low} />
     </Canvas>
   )
 }

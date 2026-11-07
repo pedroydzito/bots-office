@@ -151,6 +151,41 @@ export function drawTV(tv, { label, value, series, accent = '#34d399' }) {
   tv.texture.needsUpdate = true
 }
 
+function roundRect(g, x, y, w, h, r) {
+  g.beginPath()
+  g.moveTo(x + r, y)
+  g.arcTo(x + w, y, x + w, y + h, r)
+  g.arcTo(x + w, y + h, x, y + h, r)
+  g.arcTo(x, y + h, x, y, r)
+  g.arcTo(x, y, x + w, y, r)
+  g.closePath()
+}
+
+/** White rounded card with a title and an optional sub line (for sprites). */
+export function makeCardTexture(title, sub, { big = false, accent = '#16181d' } = {}) {
+  const [c, g] = canvas(512, big ? 220 : 128)
+  const H = c.height
+  g.shadowColor = 'rgba(0,0,0,0.12)'
+  g.shadowBlur = 14
+  g.fillStyle = '#ffffff'
+  roundRect(g, 12, 10, 488, H - 24, 26)
+  g.fill()
+  g.shadowBlur = 0
+  g.textAlign = 'center'
+  g.fillStyle = accent
+  g.font = big ? `800 92px ${FONT}` : `650 38px ${FONT}`
+  let t = title
+  while (g.measureText(t).width > 460 && t.length > 4) t = t.slice(0, -2)
+  if (t !== title) t = t.trimEnd() + '…'
+  g.fillText(t, 256, big ? 112 : sub ? 62 : 78)
+  if (sub) {
+    g.fillStyle = '#8b9099'
+    g.font = `500 ${big ? 34 : 26}px ${FONT}`
+    g.fillText(sub, 256, big ? 170 : 98)
+  }
+  return tex(c)
+}
+
 export function makeRugTexture(color) {
   const [c, g] = canvas(256, 256)
   g.fillStyle = color

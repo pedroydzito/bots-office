@@ -21,7 +21,9 @@ Vercel: import the repo, framework preset "Vite" (already in `vercel.json`). No 
 
 ## Controls
 
-Drag to rotate, right-drag to pan, scroll to zoom, `WASD` to move, `↑`/`↓` to change floors, `T` toggles Tour, `N` toggles night, `Esc` deselects. Click a bot (in the scene or the right panel) to follow it and see its details.
+Drag to rotate, right-drag to pan, scroll to zoom (smooth), `WASD` to move, `↑`/`↓` to change floors, `T` toggles Tour, `N` toggles night, `Esc` deselects. Click a bot (in the scene or the right panel) to follow it and see its details. If a followed bot takes the elevator, the camera rides along to the floor it walks out on.
+
+The interface is in Brazilian Portuguese. Each room is sized to its number of bots, and quality adapts automatically (resolution and shadows drop on slow devices and phones).
 
 ## Message protocol
 
@@ -63,6 +65,14 @@ Shapes matching the Grok Bot app avatars: `cloud`, `wedge`, `pebble`, `heart`. A
 Colors: `violet` #8F59F9, `blue` #1E86FC, `orange` #FD690F, `red` #E5484D, `magenta` #F93498, `brown` #A06B39, `black` #1a1a1a, `none`/`grey` #959595, or any `#rrggbb`.
 
 Accessories: `none`, `glasses`, `antenna`, `stem`, `bow`.
+
+**Photo bots.** Some Grok bots use a round photo instead of a shape. Send a tiny thumbnail as a data URL and the bot becomes a round "coin" character with the photo on its face (and in the panels):
+
+```json
+{"looks":{"Closer":{"shape":"photo","photo":"data:image/jpeg;base64,/9j/4AAQ..."}}}
+```
+
+Only `data:image/png|jpeg|webp;base64,…` is accepted (max ~12 KB; a 64×64 JPEG is ~2 KB), so the app still never fetches anything outside ntfy.sh. `scripts/post.sh photo "Closer" face.jpg` builds and sends it for you (needs ImageMagick). Without a photo, `photo`/`circle` render as a plain circle.
 
 If no chat link is sent for a bot, its roster `id` is used to build `grokbot://app/v1/agent?id=<id>`. Only `grokbot://` and `https://` links are accepted.
 

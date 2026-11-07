@@ -1,24 +1,46 @@
 // Floor plan maths. Coordinates are local to a floor: x right, z toward the
 // camera, y up. Back wall at z=-D/2, left wall at x=-W/2 (with the elevator).
+// Each room is sized to its own number of bots.
 export const SX = 1.75 // seat spacing in a row
 export const SZ = 2.9 // row spacing
-export const FLOOR_H = 3.8 // building storey height
+export const FLOOR_H = 3.8 // storey height
 export const SEAT_Y = 0.5
+
+const LEFT = 4.0 // wall + elevator + corridor
+const RIGHT = 1.9
+const BACK = 3.4 // back wall + coffee lane
+const FRONT = 4.4 // lounge / window lane
 
 export function colsFor(n) {
   return n <= 4 ? Math.max(n, 1) : n <= 6 ? 3 : 4
 }
 
-export function buildingSize(maxBots) {
-  const rows = Math.ceil(Math.max(maxBots, 1) / colsFor(maxBots))
-  return { W: 17, D: Math.max(14.5, rows * SZ + 7.6) }
+function viewDistance(w, d) {
+  return Math.min(22, Math.max(13, 5 + Math.max(w, d) * 1.3))
 }
 
-export function floorLayout(n, W, D) {
+function leftWall(W, D) {
+  const elevator = { kind: 'elevator', x: -W / 2 + 0.55, z: D / 2 - 2.3, az: D / 2 - 2.3, yaw: -Math.PI / 2 }
+  const coolerZ = -D / 2 + 2.7
+  const midStart = coolerZ + 1.0
+  const midEnd = elevator.z - 1.2
+  const mid = midEnd - midStart
+  return {
+    elevator,
+    coolerZ,
+    shelfZ: mid > 2.0 ? (midStart + midEnd) / 2 + (mid > 4 ? 0.9 : 0) : null,
+    stickyZ: mid > 4 ? midStart + 0.9 : null,
+  }
+}
+
+export function floorLayout(n) {
   const cols = colsFor(n)
   const rowsN = Math.ceil(Math.max(n, 1) / cols)
-  const x0 = -W / 2 + 4.9
-  const z0 = -D / 2 + 3.5
+  const deskW = (cols - 1) * SX + 1.76
+  const W = Math.max(11.5, LEFT + deskW + RIGHT)
+  const D = Math.max(9.6, BACK + (rowsN - 1) * SZ + 1.3 + FRONT)
+  const x0 = -W / 2 + LEFT + 0.88
+  const z0 = -D / 2 + BACK
   const seats = []
   const rows = []
   for (let r = 0; r < rowsN; r++) {
@@ -28,25 +50,42 @@ export function floorLayout(n, W, D) {
     rows.push({ z, x1: x0 - 0.88, x2: x0 + (cols - 1) * SX + 0.88, aisle: z - 1.1 })
     for (let c = 0; c < cnt; c++) seats.push({ x: x0 + c * SX, z, az: z - 1.1, row: r })
   }
-  const xL = -W / 2 + 3.15
+  const xL = -W / 2 + 3.05
+  const lw = leftWall(W, D)
   const pois = [
-    { kind: 'coffee', x: -W / 2 + 3.2, z: -D / 2 + 1.25, yaw: Math.PI },
-    { kind: 'cooler', x: -W / 2 + 1.45, z: -D / 2 + 4.6, yaw: -Math.PI / 2 },
-    { kind: 'books', x: -W / 2 + 1.45, z: D / 2 - 6.4, yaw: -Math.PI / 2 },
-    { kind: 'view', x: -0.6, z: D / 2 - 1.2, yaw: 0 },
-    { kind: 'view', x: 1.8, z: D / 2 - 1.2, yaw: 0.3 },
-  ].map((p) => ({ ...p, az: p.z }))
-  const elevator = { kind: 'elevator', x: -W / 2 + 0.55, z: D / 2 - 3.3, az: D / 2 - 3.3, yaw: -Math.PI / 2 }
-  const elevatorDoor = { x: -W / 2 + 1.3, z: D / 2 - 3.3 }
-  return { W, D, seats, rows, xL, pois, elevator, elevatorDoor, x0, z0, cols }
+    { kind: 'coffee', x: -W / 2 + 3.0, z: -D / 2 + 1.25, yaw: Math.PI },
+    { kind: 'cooler', x: -W / 2 + 1.45, z: lw.coolerZ, yaw: -Math.PI / 2 },
+    { kind: 'view', x: x0 + 0.4, z: D / 2 - 1.1, yaw: 0 },
+    { kind: 'view', x: x0 + 1.9, z: D / 2 - 1.1, yaw: 0.3 },
+  ]
+  if (lw.shelfZ != null) pois.push({ kind: 'books', x: -W / 2 + 1.45, z: lw.shelfZ, yaw: -Math.PI / 2 })
+  const blockCx = x0 + ((cols - 1) * SX) / 2
+  const blockCz = z0 + ((rows.length - 1) * SZ) / 2 + 0.4
+  return {
+    W, D, seats, rows, xL, cols, x0, z0,
+    pois: pois.map((p) => ({ ...p, az: p.z })),
+    elevator: lw.elevator,
+    wall: lw,
+    focus: { x: blockCx * 0.6, z: blockCz * 0.5 - D * 0.07 },
+    dist: viewDistance(deskW + 2, rows.length * SZ + 2),
+  }
+}
+
+export function cortexLayout() {
+  const W = 13, D = 12
+  const lw = leftWall(W, D)
+  return {
+    W, D, seats: [], rows: [], xL: -W / 2 + 3.05, cols: 0,
+    pois: [], elevator: lw.elevator, wall: lw,
+    focus: { x: 0, z: -0.8 },
+    dist: 18,
+  }
 }
 
 /** Polyline through the lanes: own lane -> left corridor -> target lane. */
 export function planPath(a, b, L) {
   const pts = [[a.x, a.z], [a.x, a.az]]
-  if (Math.abs(a.az - b.az) > 0.01) {
-    pts.push([L.xL, a.az], [L.xL, b.az])
-  }
+  if (Math.abs(a.az - b.az) > 0.01) pts.push([L.xL, a.az], [L.xL, b.az])
   pts.push([b.x, b.az], [b.x, b.z])
   const out = [pts[0]]
   for (const p of pts.slice(1)) {

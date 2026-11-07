@@ -29,7 +29,7 @@ export function Shell({ layout, title, subtitle }) {
       <mesh position={[-W / 2 + 0.125, 1.6, 0]} material={wallMat} receiveShadow castShadow>
         <boxGeometry args={[0.25, 3.2, D]} />
       </mesh>
-      <WallTitle title={title} subtitle={subtitle} position={[-W / 2 + 7.6, 2.45, -D / 2 + 0.26]} />
+      <WallTitle title={title} subtitle={subtitle} position={[-W / 2 + 5.0, 2.62, -D / 2 + 0.26]} />
     </group>
   )
 }
@@ -99,24 +99,24 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
 
   return (
     <group>
-      <Shell layout={layout} title={floor.name} subtitle={`Floor ${floor.num}`} />
-      <Clock position={[-W / 2 + 2.3, 2.45, -D / 2 + 0.28]} />
-      <CoffeeCorner position={[-W / 2 + 3.2, 0, -D / 2 + 0.52]} />
+      <Shell layout={layout} title={floor.name} subtitle={`Andar ${floor.num}`} />
+      <Clock position={[-W / 2 + 1.55, 2.45, -D / 2 + 0.28]} />
+      <CoffeeCorner position={[-W / 2 + 3.0, 0, -D / 2 + 0.52]} />
       <TVScreen
-        position={[W / 2 - 3.8, 1.95, -D / 2 + 0.3]}
-        label="EVENTS / 24 MIN"
+        position={[W / 2 - 2.5, 1.4, -D / 2 + 0.3]}
+        label="EVENTOS / 24 MIN"
         getValue={() => eventsSeries().reduce((a, b) => a + b, 0)}
         getSeries={eventsSeries}
         night={night}
       />
       <Plant position={[-W / 2 + 0.75, 0, -D / 2 + 0.75]} scale={1.15} />
       <Plant position={[W / 2 - 1.0, 0, -D / 2 + 0.9]} scale={1.3} kind={1} />
-      <Plant position={[W / 2 - 1.0, 0, -D / 2 + 6.5]} scale={0.9} />
-      <Plant position={[-W / 2 + 0.75, 0, D / 2 - 1.0]} scale={1.0} kind={1} />
-      <WaterCooler position={[-W / 2 + 0.6, 0, -D / 2 + 4.6]} rotation={[0, Math.PI / 2, 0]} />
-      <StickyWall position={[-W / 2 + 0.27, 1.2, -D / 2 + 7.2]} rotation={[0, Math.PI / 2, 0]} />
-      <Bookshelf position={[-W / 2 + 0.47, 0, D / 2 - 6.4]} rotation={[0, Math.PI / 2, 0]} seed={floor.num} />
-      <Lounge position={[W / 2 - 2.7, 0, D / 2 - 2.5]} night={night} />
+      {D > 12 && <Plant position={[W / 2 - 0.9, 0, -D / 2 + 5.5]} scale={0.9} />}
+      <Plant position={[-W / 2 + 0.7, 0, D / 2 - 0.7]} scale={0.9} kind={1} />
+      <WaterCooler position={[-W / 2 + 0.6, 0, layout.wall.coolerZ]} rotation={[0, Math.PI / 2, 0]} />
+      {layout.wall.stickyZ != null && <StickyWall position={[-W / 2 + 0.27, 1.25, layout.wall.stickyZ - 0.55]} rotation={[0, Math.PI / 2, 0]} />}
+      {layout.wall.shelfZ != null && <Bookshelf position={[-W / 2 + 0.47, 0, layout.wall.shelfZ]} rotation={[0, Math.PI / 2, 0]} seed={floor.num} />}
+      <Lounge position={[W / 2 - 2.4, 0, D / 2 - 2.3]} night={night} />
       <Railing W={W} D={D} />
       <Elevator layout={layout} floorY={floorY} night={night} />
 
@@ -134,7 +134,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         )
       })}
       {night &&
-        layout.rows.map((r, i) => (
+        layout.rows.slice(0, 2).map((r, i) => (
           <pointLight key={i} position={[(r.x1 + r.x2) / 2, 2.6, r.z + 0.6]} intensity={5} distance={7} decay={1.5} color="#ffe2b8" />
         ))}
 
