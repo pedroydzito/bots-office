@@ -59,6 +59,9 @@ The interface is in Brazilian Portuguese. Each room is sized to its number of bo
 
 ### Extras
 
+- **Reactions**: in a bot's card, send a like, heart, party, clap or laugh. It is published to the topic as `{"react":{"bot":"Closer","kind":"heart"}}`, so it floats over the bot on every screen.
+- **Timeline markers**: errors (red), approval requests (amber) and meetings (purple) are dots above the timeline; click one to jump there.
+
 - **Same office on every screen**: what each bot does and where it walks is computed from the clock and the topic's messages only (no randomness per device), so a laptop and a phone logged into the same code show exactly the same scene at the same time.
 - **Whole building** (*Prédio* / `B`): every floor open and live, stacked in a cutaway.
 - **Search** (`Ctrl+K` or `/`): find a bot by name, team or task; the camera flies to it.
