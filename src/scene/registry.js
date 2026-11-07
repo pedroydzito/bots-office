@@ -33,6 +33,9 @@ export function lastRide(name) {
   return null
 }
 
+/** Per-floor memory of each bot's simulation state (position, activity, personality). */
+export const botMemory = new Map()
+
 /** Seated bots publish their swivel so their chair turns with them. */
 export const seatYaw = new Map()
 

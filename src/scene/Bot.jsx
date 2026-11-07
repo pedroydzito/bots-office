@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { getBotAsset } from './shapes'
 import { isDark, resolveColor, STATUS } from '../lib/constants'
 import { planPath, SEAT_Y } from './layout'
-import { botPositions, poiKey, poiTaken, seatYaw, sitting } from './registry'
+import { botMemory, botPositions, poiKey, poiTaken, seatYaw, sitting } from './registry'
 import Confetti from './Confetti'
 
 const rand = (a, b) => a + Math.random() * (b - a)
@@ -183,8 +183,16 @@ function Bot({
   const phase = useMemo(() => Math.random() * 10, [])
 
   const [hover, setHover] = useState(false)
-  const [hidden, setHidden] = useState(() => !!(goal && spawnAtGoal && goal.hideOnArrive))
-  const [arrivedKind, setArrivedKind] = useState(null)
+  // Each bot keeps living while its floor is off screen: its state is remembered per floor, so
+  // switching floors and coming back shows it exactly where/what it was doing.
+  const memKey = `${floorY}|${bot.name}|${seat ? 'home' : 'visit'}`
+  const remembered = useMemo(() => {
+    const m = botMemory.get(memKey)
+    return m && !m.gone ? m : null
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const [hidden, setHidden] = useState(() => (remembered ? remembered.hiddenFlag : !!(goal && spawnAtGoal && goal.hideOnArrive)))
+  const [arrivedKind, setArrivedKind] = useState(() => (remembered && remembered.arrived ? remembered.atKind : null))
   const [speech, setSpeech] = useState(false)
   const [confetti, setConfetti] = useState(0)
   const [turn, setTurn] = useState(0)
@@ -193,7 +201,7 @@ function Bot({
   const P = useRef({})
   P.current = { status, goal, seat, layout, onGone, talkView, hover, appearAt }
 
-  const S = useRef(null)
+  const S = useRef(remembered)
   if (!S.current) {
     let start = seat ? { x: seat.x, z: seat.z } : layout.elevator
     let atKind = seat ? 'seat' : 'elevator'
@@ -234,7 +242,9 @@ function Bot({
       landT: -1,
       holding: false,
     }
+    botMemory.set(memKey, S.current)
   }
+  const fk = (q) => `${floorY}|${poiKey(q)}` // POI claims are per floor
 
   // Status transitions -> one-shot animations + speech bubble
   const prev = useRef({ status, step: bot.step, mounted: false })
@@ -268,9 +278,12 @@ function Bot({
     () => () => {
       botPositions.delete(bot.name)
       seatYaw.delete(bot.name)
-      if (S.current?.wander) {
-        poiTaken.delete(poiKey(S.current.wander))
-        sitting.delete(poiKey(S.current.wander))
+      // the bot keeps its spot (and its claim on it) while the floor is off screen;
+      // only cushions are per visible floor
+      if (S.current?.wander) sitting.delete(poiKey(S.current.wander))
+      if (S.current?.gone) {
+        if (S.current.wander) poiTaken.delete(fk(S.current.wander))
+        botMemory.delete(memKey)
       }
     },
     [bot.name],
@@ -282,6 +295,7 @@ function Bot({
     const s = S.current
     const p = P.current
     if (!root.current || s.gone) return
+    if (s.arrived && s.wander && s.wander.sit && s.goal === s.wander) sitting.add(poiKey(s.wander))
     // waiting for the elevator car to arrive on this floor: stay inside, hidden
     if (p.appearAt && Date.now() < p.appearAt) {
       if (!s.hiddenFlag) {
@@ -308,7 +322,7 @@ function Bot({
     if (!g) {
       const idleish = p.status === 'resting' || p.status === 'done'
       if (s.wander && (!idleish || (s.wander.until && t > s.wander.until))) {
-        poiTaken.delete(poiKey(s.wander))
+        poiTaken.delete(fk(s.wander))
         sitting.delete(poiKey(s.wander))
         s.activity = null
         s.wander = null
@@ -316,14 +330,14 @@ function Bot({
       if (!idleish) s.idleSince = t
       // only after being idle a while, at this bot's own pace, and never too many at once
       const cap = Math.max(1, Math.round((p.layout.seats.length || 3) / 3))
-      if (!s.wander && idleish && p.seat && t > s.nextWander && t - s.idleSince > 6 && poiTaken.size < cap) {
+      if (!s.wander && idleish && p.seat && t > s.nextWander && t - s.idleSince > 6 && [...poiTaken].filter((k) => k.startsWith(`${floorY}|`)).length < cap) {
         s.nextWander = t + rand(35, 110) * s.wanderRate
-        const free = p.layout.pois.filter((q) => !poiTaken.has(poiKey(q)))
+        const free = p.layout.pois.filter((q) => !poiTaken.has(fk(q)))
         const liked = free.filter((q) => s.likes.includes(q.kind))
         const choice = liked.length ? pick(liked) : free.length ? pick(free) : null
         if (choice) {
           s.wander = { ...choice, until: null }
-          poiTaken.add(poiKey(s.wander))
+          poiTaken.add(fk(s.wander))
         }
       } else if (!s.wander && t > s.nextWander) s.nextWander = t + rand(10, 30) * s.wanderRate
       g = s.wander || (p.seat ? { kind: 'seat', x: p.seat.x, z: p.seat.z, az: p.seat.az, ex: p.seat.ex, yaw: 0 } : p.layout.elevator)
@@ -492,11 +506,20 @@ function Bot({
         sy = 1 + Math.sin(t * 2) * 0.02
       }
     } else if (st === 'working' && s.atKind === 'seat') {
-      by = Math.abs(Math.sin(t * 9 + phase)) * 0.018
-      rx = 0.12
-      hl = Math.max(0, Math.sin(t * 17 + phase)) * 0.05
-      hr = Math.max(0, Math.sin(t * 17 + phase + Math.PI)) * 0.05
+      // working = at the computer: bursts of typing, then reading the screen, then typing again
+      const typing = Math.sin(t * 0.45 + phase) + Math.sin(t * 0.17 + phase * 2) * 0.6 > -0.35
+      rx = 0.13
       hz = 0.1
+      if (typing) {
+        by = Math.abs(Math.sin(t * 9 + phase)) * 0.018
+        hl = Math.max(0, Math.sin(t * 17 + phase)) * 0.05
+        hr = Math.max(0, Math.sin(t * 17 + phase + Math.PI)) * 0.05
+      } else {
+        // reading: still hands, small head movements following the text
+        rx = 0.16 + Math.sin(t * 1.3 + phase) * 0.02
+        rz = Math.sin(t * 0.9 + phase) * 0.03
+        hl = hr = 0.01
+      }
     } else if (st === 'waiting_user') {
       const b = Math.abs(Math.sin(t * 4.5 + phase))
       by = b * 0.14
