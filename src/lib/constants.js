@@ -62,13 +62,17 @@ export const STATUS = {
 }
 
 export const DECAY_MS = 2 * 3600 * 1000
+export const WORKING_DECAY_MS = 30 * 60 * 1000
 export const TALK_TIMEOUT_MS = 90 * 1000
 export const CORTEX_KEY = '__cortex__'
 
 /** Status the UI shows: idle and anything older than ~2h become "resting". */
 export function effStatus(bot, now) {
   if (!bot || !bot.status || bot.status === 'idle') return 'resting'
-  if (now - (bot.ts || 0) > DECAY_MS) return 'resting'
+  const age = now - (bot.ts || 0)
+  // a bot that said "working" and then went quiet probably finished without telling us
+  if (bot.status === 'working' && age > WORKING_DECAY_MS) return 'resting'
+  if (age > DECAY_MS) return 'resting'
   return bot.status
 }
 

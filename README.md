@@ -128,7 +128,7 @@ curl -d '{"bot":"Lead Scout","status":"done","step":"Qualified 12 leads"}' https
 | `idle` | Resting (`z`) | eyes closed, leaning back, occasionally wanders off |
 
 These aliases also work: `busy`/`running` → working, `finished`/`success` → done, `resting` → idle, `waiting`/`needs_user` → waiting_user, `failed` → error.
-`step` is a short line (≤ 60 characters) that appears in the speech bubble, the panels and the Activity feed. A status older than about 2 hours decays to **resting**.
+`step` is a short line (≤ 60 characters) that appears in the speech bubble, the panels and the Activity feed. A `working` status with no new message for 30 minutes decays to **resting** (the bot probably finished without saying so); `waiting_user` and `error` decay after about 2 hours.
 
 ### `talk`: bot-to-bot conversation
 
