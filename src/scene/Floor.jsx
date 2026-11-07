@@ -124,8 +124,11 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
     return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   })()
 
-  return (
-    <group>
+  // Furniture, walls and decor don't change with every status update: build them once per
+  // layout / light mode instead of on every re-render (big win on phones).
+  const staticRoom = useMemo(
+    () => (
+      <>
       <Shell layout={layout} title={floor.name} subtitle={`Andar ${floor.num}`} accent={floor.color} />
       <Clock position={[-W / 2 + 1.55, 2.45, -D / 2 + 0.28]} />
       <CoffeeCorner position={[-W / 2 + 3.0, 0, -D / 2 + 0.52]} />
@@ -161,6 +164,31 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         d.type === 'armchair' ? <Armchair key={i} x={d.x} z={d.z} c={d.c} /> :
         d.type === 'lamp' ? <FloorLamp key={i} x={d.x} z={d.z} night={night} /> : null,
       )}
+      {layout.rows.map((r, i) => (
+        <DeskRow key={i} row={r} />
+      ))}
+      {petKind !== 'fish' && petKind !== 'none' && <Pet layout={layout} floorIdx={floorIdx} kind={petKind} />}
+      {petKind === 'fish' && <Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} />}
+      <Seasonal layout={layout} seed={floor.key} />
+      {/* wall art keeps both walls lively: posters high above the left-wall furniture, art + shelf on the back wall */}
+      <Poster position={[-W / 2 + 0.27, 2.4, layout.wall.coolerZ]} rotation={[0, Math.PI / 2, 0]} seed={hash(floor.key) % 97} w={0.8} h={0.6} />
+      <Poster position={[-W / 2 + 0.27, 2.4, D / 2 - 2.6]} rotation={[0, Math.PI / 2, 0]} seed={(hash(floor.key) % 97) + 3} w={0.9} h={0.6} />
+      <Poster position={[-W / 2 + 0.27, 1.9, D / 2 - 4.1]} rotation={[0, Math.PI / 2, 0]} seed={(hash(floor.key) % 97) + 5} w={0.7} h={0.95} />
+      {W / 2 - 3.8 - (-W / 2 + 7.0) > 1.6 && (
+        <group>
+          <Poster position={[(-W / 2 + 7.0 + W / 2 - 3.8) / 2 - 0.55, 1.95, -D / 2 + 0.27]} seed={(hash(floor.key) % 97) + 7} w={0.85} h={1.15} />
+          <WallShelf position={[(-W / 2 + 7.0 + W / 2 - 3.8) / 2 + 0.75, 1.3, -D / 2 + 0.25]} w={1.0} />
+        </group>
+      )}
+      </>
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [layout, night, floor.key, floor.name, floor.num, floor.color, floorY, petKind, home],
+  )
+
+  return (
+    <group>
+      {staticRoom}
       <StatusLamp position={[-W / 2 + 2.95, 2.4, -D / 2 + 0.3]} color={floorColor} />
       {layout.wall.stickyZ != null && (
         <InfoBoard
@@ -173,23 +201,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         />
       )}
 
-      {layout.rows.map((r, i) => (
-        <DeskRow key={i} row={r} />
-      ))}
-      {petKind !== 'fish' && petKind !== 'none' && <Pet layout={layout} floorIdx={floorIdx} kind={petKind} />}
-      {petKind === 'fish' && <Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} />}
       <MailFlights mail={data.mail} floorIdx={floorIdx} layout={layout} />
-      <Seasonal layout={layout} seed={floor.key} />
-      {/* wall art keeps both walls lively: posters high above the left-wall furniture, art + shelf on the back wall */}
-      <Poster position={[-W / 2 + 0.27, 2.4, layout.wall.coolerZ]} rotation={[0, Math.PI / 2, 0]} seed={hash(floor.key) % 97} w={0.8} h={0.6} />
-      <Poster position={[-W / 2 + 0.27, 2.4, D / 2 - 2.6]} rotation={[0, Math.PI / 2, 0]} seed={(hash(floor.key) % 97) + 3} w={0.9} h={0.6} />
-      <Poster position={[-W / 2 + 0.27, 1.9, D / 2 - 4.1]} rotation={[0, Math.PI / 2, 0]} seed={(hash(floor.key) % 97) + 5} w={0.7} h={0.95} />
-      {W / 2 - 3.8 - (-W / 2 + 7.0) > 1.6 && (
-        <group>
-          <Poster position={[(-W / 2 + 7.0 + W / 2 - 3.8) / 2 - 0.55, 1.95, -D / 2 + 0.27]} seed={(hash(floor.key) % 97) + 7} w={0.85} h={1.15} />
-          <WallShelf position={[(-W / 2 + 7.0 + W / 2 - 3.8) / 2 + 0.75, 1.3, -D / 2 + 0.25]} w={1.0} />
-        </group>
-      )}
       {celebrate &&
         layout.seats.slice(0, home.length).map((st, i) => (
           <group key={`${celebrate}-${i}`} position={[st.x, 1.2, st.z]}>

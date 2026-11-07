@@ -209,16 +209,36 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove }) {
   return null
 }
 
+/** Phones: render at most ~30 frames per second (half the GPU work and heat); desktop runs free. */
+function FrameLimiter({ fps = 30 }) {
+  const invalidate = useThree((st) => st.invalidate)
+  useEffect(() => {
+    let raf, last = 0
+    const loop = (t) => {
+      raf = requestAnimationFrame(loop)
+      if (document.visibilityState !== 'visible') return
+      if (t - last >= 1000 / fps - 2) {
+        last = t
+        invalidate()
+      }
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [invalidate, fps])
+  return null
+}
+
 const MOBILE = typeof window !== 'undefined' && (window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth < 820)
 
 export default function Scene(props) {
   const { night, nightness, weather, tour, floorIdx, focus, selectedBot, onPointerMissed, onUserMove } = props
   // Adaptive quality: phones start light; any device drops resolution and shadows if FPS falls.
   const [low, setLow] = useState(MOBILE)
-  const [dpr, setDpr] = useState(MOBILE ? 1.25 : Math.min(1.75, window.devicePixelRatio || 1))
+  const [dpr, setDpr] = useState(MOBILE ? Math.min(1.25, window.devicePixelRatio || 1) : Math.min(1.75, window.devicePixelRatio || 1))
   return (
     <Canvas
-      shadows
+      shadows={!MOBILE}
+      frameloop={MOBILE ? 'demand' : 'always'}
       dpr={dpr}
       gl={{ antialias: !MOBILE, powerPreference: 'high-performance', stencil: false }}
       camera={{ fov: 30, position: [12, 10 + floorIdx * FLOOR_H, 12], near: 0.5, far: 200 }}
@@ -230,15 +250,18 @@ export default function Scene(props) {
     >
       <PerformanceMonitor
         flipflops={3}
+        // phones are capped at 30 fps on purpose: judge them against that, not 60
+        bounds={(refresh) => (MOBILE ? [20, 28] : refresh > 90 ? [50, 90] : [40, 55])}
         onDecline={() => {
           setDpr((d) => Math.max(1, d - 0.25))
           setLow(true)
         }}
         onIncline={() => {
           if (!MOBILE) setLow(false)
-          setDpr((d) => Math.min(MOBILE ? 1.5 : Math.min(2, window.devicePixelRatio || 1), d + 0.25))
+          setDpr((d) => Math.min(MOBILE ? Math.min(1.25, window.devicePixelRatio || 1) : Math.min(2, window.devicePixelRatio || 1), d + 0.25))
         }}
       />
+      {MOBILE && <FrameLimiter fps={30} />}
       <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={low} />
       <Weather kind={weather} low={low} />
       <Environment resolution={64} frames={1}>

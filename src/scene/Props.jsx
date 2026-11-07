@@ -601,9 +601,9 @@ export function InfoBoard({ position, rotation, title, lines, accent, cork, empt
       <mesh position={[0, 0, -0.02]} material={cork ? M.dark : M.white} castShadow>
         <boxGeometry args={[w + 0.08, h + 0.08, 0.04]} />
       </mesh>
-      <mesh position={[0, 0, 0.002]}>
+      <mesh position={[0, 0, 0.006]}>
         <planeGeometry args={[w, h]} />
-        <meshBasicMaterial map={tex.t} toneMapped={false} />
+        <meshBasicMaterial map={tex.t} toneMapped={false} polygonOffset polygonOffsetFactor={-1} />
       </mesh>
     </group>
   )
@@ -971,12 +971,12 @@ export function Poster({ position, rotation, seed = 1, w = 0.9, h = 1.2 }) {
   }, [seed, w, h])
   return (
     <group position={position} rotation={rotation}>
-      <mesh position={[0, 0, -0.015]} material={M.dark}>
+      <mesh position={[0, 0, -0.02]} material={M.dark}>
         <boxGeometry args={[w + 0.08, h + 0.08, 0.03]} />
       </mesh>
-      <mesh>
+      <mesh position={[0, 0, 0.006]}>
         <planeGeometry args={[w, h]} />
-        <meshStandardMaterial map={tex} roughness={0.8} />
+        <meshStandardMaterial map={tex} roughness={0.8} polygonOffset polygonOffsetFactor={-1} />
       </mesh>
     </group>
   )
