@@ -8,3 +8,8 @@ createRoot(document.getElementById('root')).render(
     <App />
   </React.StrictMode>,
 )
+
+// Installable PWA: cache the app shell so it opens instantly (production builds only)
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}))
+}

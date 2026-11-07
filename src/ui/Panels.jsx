@@ -279,10 +279,10 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
           const talk = data.talks[n]
           const talking = talkActive(talk, now)
           return (
-            <button key={n} className={`li bot ${selectedBot === n ? 'sel' : ''}`} onClick={() => onPickBot(n)}>
+            <button key={n} className={`li bot ${selectedBot === n ? 'sel' : ''} ${b.hidden ? 'is-hidden' : ''}`} onClick={() => onPickBot(n)}>
               <Avatar bot={b} size={30} ring={STATUS[st].color} />
               <div className="lt">
-                <b>{n}</b>
+                <b>{n}{b.hidden && <em className="tag-hidden">oculto</em>}</b>
                 <span>{talking ? `Conversando com ${talk.to} · ${talk.step}` : `${STATUS_WORD[st]}${b.step && st !== 'resting' ? ' · ' + b.step : ''}`}</span>
               </div>
             </button>

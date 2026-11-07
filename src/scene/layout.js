@@ -20,19 +20,31 @@ function viewDistance(w, d) {
 }
 
 function leftWall(W, D) {
-  // Elevator sits near the back-left corner, so it lines up with the building's
-  // shaft on every floor (rooms are anchored to the building's back-left corner).
   // glass elevator shaft inside the room's back-left corner; bots step inside to ride
   const elevator = { kind: 'elevator', x: -W / 2 + 0.8, z: -D / 2 + 2.3, az: -D / 2 + 2.3, yaw: -Math.PI / 2 }
-  const coolerZ = -D / 2 + 4.0
-  const midStart = coolerZ + 1.0
-  const midEnd = D / 2 - 1.5
-  const mid = midEnd - midStart
+  // Everything else on this wall is spread evenly along its free length (after the elevator),
+  // so the wall is never crowded at one end and empty at the other.
+  const a = -D / 2 + 3.4, b = D / 2 - 1.3
+  const items = [['cooler', 0.6], ['board', 1.8], ['shelf', 1.7], ['vending', 0.9]]
+  const total = items.reduce((s, [, w]) => s + w, 0)
+  const gap = Math.max(0.3, (b - a - total) / (items.length + 1))
+  const z = {}
+  const art = []
+  let cur = a + gap
+  for (const [k, w] of items) {
+    z[k] = cur + w / 2
+    cur += w + gap
+    // a framed picture in the middle of each wide gap
+    if (gap > 1.3 && cur - gap / 2 < b - 0.5) art.push(cur - gap / 2)
+  }
   return {
     elevator,
-    coolerZ,
-    shelfZ: mid > 2.0 ? (midStart + midEnd) / 2 + (mid > 4 ? 0.9 : 0) : null,
-    stickyZ: mid > 4 ? midStart + 0.9 : null,
+    coolerZ: z.cooler,
+    boardZ: z.board,
+    shelfZ: z.shelf,
+    vendingZ: z.vending,
+    stickyZ: z.board + 0.4, // kept for older callers
+    artZ: art,
   }
 }
 
@@ -93,8 +105,8 @@ export function floorLayout(n, W, D) {
   // --- more furniture for the open space, each with something bots can do there
   const extraPois = []
   // snack machine against the left wall, near the front
-  decor.push({ type: 'vending', x: -W / 2 + 0.55, z: D / 2 - 2.6 })
-  extraPois.push({ kind: 'vending', x: -W / 2 + 1.6, z: D / 2 - 2.6, yaw: -Math.PI / 2 })
+  decor.push({ type: 'vending', x: -W / 2 + 0.55, z: lw.vendingZ })
+  extraPois.push({ kind: 'vending', x: -W / 2 + 1.6, z: lw.vendingZ, yaw: -Math.PI / 2 })
   // printer under the TV
   decor.push({ type: 'printer', x: W / 2 - 3.7, z: -D / 2 + 0.6 })
   extraPois.push({ kind: 'printer', x: W / 2 - 3.7, z: -D / 2 + 1.5, yaw: Math.PI })
@@ -117,7 +129,6 @@ export function floorLayout(n, W, D) {
     extraPois.push({ kind: 'armchair', x: ax + 1.25, z: D / 2 - 1.9, az: D / 2 - 2.9, yaw: 0, sit: true })
   }
   // plants to soften corners
-  decor.push({ type: 'plant', x: -W / 2 + 0.7, z: D / 2 - 4.0, k: 0 })
   decor.push({ type: 'plant', x: W / 2 - 0.8, z: D / 2 - 4.5, k: 1 })
   const pois = [
     { kind: 'coffee', x: -W / 2 + 3.0, z: -D / 2 + 1.25, yaw: Math.PI },

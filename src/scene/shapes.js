@@ -176,8 +176,72 @@ const BUILDERS = {
   rounded_square: () => puffy(roundedShape([[-1, -1], [1, -1], [1, 1], [-1, 1]], 0.38), 2),
 }
 
-const EYE_Y = { cloud: 0.5, clover: 0.55, flower: 0.55, wedge: 0.4, heart: 0.58, drop: 0.36, cone: 0.32, triangle: 0.34, pill: 0.6, trio: 0.62, bubble: 0.62 }
-const EYE_X = { cloud: 0.15, wedge: 0.11, cone: 0.09, triangle: 0.1, trio: 0.08, drop: 0.11 }
+// ---------------------------------------------------------------- Grok Bot shapes (exact names)
+function superellipse(n = 4, a = 1, b = 1, steps = 64) {
+  const pts = []
+  for (let i = 0; i < steps; i++) {
+    const t = (i / steps) * Math.PI * 2
+    const c = Math.cos(t), sn = Math.sin(t)
+    pts.push([a * Math.sign(c) * Math.pow(Math.abs(c), 2 / n), b * Math.sign(sn) * Math.pow(Math.abs(sn), 2 / n)])
+  }
+  return pts
+}
+function arcPts(cx, cy, r, a0, a1, steps = 16) {
+  return Array.from({ length: steps + 1 }, (_, i) => {
+    const a = a0 + ((a1 - a0) * i) / steps
+    return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]
+  })
+}
+function beanShape() {
+  const s = new THREE.Shape()
+  s.moveTo(-0.9, 0.1)
+  s.bezierCurveTo(-0.9, 0.75, -0.2, 0.85, 0.05, 0.55)
+  s.bezierCurveTo(0.25, 0.35, 0.95, 0.75, 0.95, 0.05)
+  s.bezierCurveTo(0.95, -0.7, 0.2, -0.75, 0, -0.7)
+  s.bezierCurveTo(-0.4, -0.7, -0.9, -0.6, -0.9, 0.1)
+  return s
+}
+const rot2 = (pts, a) => pts.map(([x, y]) => [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)])
+
+Object.assign(BUILDERS, {
+  blob: () => BUILDERS.circle(),
+  bean: () => puffy(beanShape(), 1.9),
+  egg: () => lathe((t) => 0.46 * Math.sin(Math.acos(Math.max(-1, Math.min(1, 2 * t - 1)))) * (1 - 0.2 * t)),
+  squircle: () => puffy(new THREE.Shape(superellipse(4.5).map(([x, y]) => new THREE.Vector2(x, y))), 2.2),
+  tablet: () => puffy(roundedShape([[-0.62, -1], [0.62, -1], [0.62, 1], [-0.62, 1]], 0.34), 2),
+  capsule: () => {
+    const g = BUILDERS.pill()
+    g.rotateZ(Math.PI / 2) // lying down, like the app
+    return g
+  },
+  cylinder: () => lathe((t) => (t < 0.12 ? 0.4 * Math.sin((t / 0.12) * (Math.PI / 2)) : t > 0.88 ? 0.4 * Math.sin(((1 - t) / 0.12) * (Math.PI / 2)) : 0.4)),
+  hex: () => BUILDERS.hexagon(),
+  gem: () => puffy(roundedShape([[-0.6, 0.55], [0.6, 0.55], [1, 0.15], [0, -1], [-1, 0.15]], [0.12, 0.12, 0.12, 0.16, 0.12]), 2),
+  crystal: () => puffy(roundedShape([[0, 1.25], [0.55, 0.6], [0.55, -0.6], [0, -1.25], [-0.55, -0.6], [-0.55, 0.6]], 0.12), 2),
+  shield: () => puffy(roundedShape([[-0.8, 0.9], [0.8, 0.9], [0.8, 0.05], [0, -1], [-0.8, 0.05]], [0.25, 0.25, 0.5, 0.18, 0.5]), 2),
+  dome: () => {
+    const pts = [...arcPts(0, -0.4, 1, 0, Math.PI, 20)]
+    return puffy(roundedShape(pts, pts.map((_, i) => (i === 0 || i === pts.length - 1 ? 0.22 : 0))), 2)
+  },
+  arch: () => {
+    const pts = [[-0.7, -1], [0.7, -1], ...arcPts(0, 0.2, 0.7, 0, Math.PI, 16)]
+    return puffy(roundedShape(pts, pts.map((_, i) => (i < 2 ? 0.18 : 0))), 2)
+  },
+  teardrop: () => BUILDERS.drop(),
+  leaf: () => {
+    const up = arcPts(0, -0.75, 1.25, Math.PI - 0.93, 0.93, 18).reverse()
+    const dn = arcPts(0, 0.75, 1.25, -0.93, -Math.PI + 0.93, 18).reverse()
+    const pts = rot2([...up, ...dn], Math.PI / 4)
+    return puffy(roundedShape(pts, 0.04), 2)
+  },
+  square: () => BUILDERS.rounded_square(),
+  sparkle: () => BUILDERS.star4(),
+  house: () => puffy(roundedShape([[-0.8, -0.9], [0.8, -0.9], [0.8, 0.2], [0, 1], [-0.8, 0.2]], [0.18, 0.18, 0.14, 0.2, 0.14]), 2),
+  star: () => puffy(roundedShape(star(5, 1, 0.48), 0.1), 2),
+})
+
+const EYE_Y = { egg: 0.5, tablet: 0.62, cylinder: 0.6, gem: 0.62, crystal: 0.55, shield: 0.6, dome: 0.38, arch: 0.6, leaf: 0.5, house: 0.45, star: 0.5, teardrop: 0.36, bean: 0.55,  cloud: 0.5, clover: 0.55, flower: 0.55, wedge: 0.4, heart: 0.58, drop: 0.36, cone: 0.32, triangle: 0.34, pill: 0.6, trio: 0.62, bubble: 0.62 }
+const EYE_X = { teardrop: 0.11, crystal: 0.1, star: 0.11, gem: 0.12,  cloud: 0.15, wedge: 0.11, cone: 0.09, triangle: 0.1, trio: 0.08, drop: 0.11 }
 
 function normalize(g, maxW = MAX_W) {
   g.computeBoundingBox()
@@ -198,7 +262,7 @@ const ray = new THREE.Raycaster()
 const Z = new THREE.Vector3(0, 0, 1)
 
 export function getBotAsset(shapeName) {
-  const shape = BUILDERS[shapeName] ? shapeName : 'cloud'
+  const shape = BUILDERS[shapeName] ? shapeName : 'blob'
   if (cache.has(shape)) return cache.get(shape)
   const geometry = normalize(BUILDERS[shape](), shape === 'cloud' ? 1.02 : MAX_W)
   const bb = geometry.boundingBox
@@ -208,7 +272,9 @@ export function getBotAsset(shapeName) {
 
   const eyeY = (EYE_Y[shape] ?? 0.55) * height
   const eyeX = (EYE_X[shape] ?? 0.13) * Math.max(0.75, width / 0.8)
-  const eyes = [-eyeX, eyeX].map((x) => {
+  // Grok style: the two eyes sit a little to the right of centre and slightly high
+  const shift = width * 0.09
+  const eyes = [-eyeX * 0.8 + shift, eyeX * 0.8 + shift].map((x) => {
     ray.set(new THREE.Vector3(x, eyeY, 5), new THREE.Vector3(0, 0, -1))
     const hit = ray.intersectObject(mesh)[0]
     const point = hit ? hit.point.clone() : new THREE.Vector3(x, eyeY, bb.max.z)

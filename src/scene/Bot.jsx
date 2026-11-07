@@ -161,7 +161,7 @@ function Accessory({ kind, asset, color }) {
             </mesh>
           </group>
         )}
-        {!(asset.photoFace && bot.photo) && asset.blush.map((e, i) => (
+        {!(asset.photoFace && bot.photo) && !bot.hidden && asset.blush.map((e, i) => (
           <group key={'b' + i} position={e.position} quaternion={e.quaternion}>
             <mesh geometry={blushGeo} material={blushMat} scale={[1.3, 0.8, 1]} />
           </group>
@@ -250,9 +250,10 @@ function StatusIcon({ status, talking }) {
  */
 function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey = '', floorY, selected, spotlight, onSelect, night }) {
   const asset = useMemo(() => getBotAsset(bot.shape), [bot.shape])
-  const color = resolveColor(bot.color)
+  // hidden bots (hidden in the Grok app) are quieter: washed-out colour, translucent, a bit smaller
+  const color = bot.hidden ? '#' + new THREE.Color(resolveColor(bot.color)).lerp(new THREE.Color('#c3c7cf'), 0.6).getHexString() : resolveColor(bot.color)
   const dark = isDark(color)
-  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color, roughness: 0.38, metalness: 0 }), [color])
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color, roughness: 0.38, metalness: 0, transparent: !!bot.hidden, opacity: bot.hidden ? 0.55 : 1 }), [color, bot.hidden])
   useEffect(() => () => mat.dispose(), [mat])
   const ringMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#fff', transparent: true, opacity: 0.5, depthWrite: false }), [])
 
@@ -329,7 +330,9 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     }
     const moving = sim.moving
     const seated = sim.seated
-    const sleeping = seated && st === 'resting' && isSleepy(statusAt(p.data.history || [], p.name, T), T)
+    // only nap after a real status that has been quiet for an hour (a fresh roster isn't asleep)
+    const lastSt = statusAt(p.data.history || [], p.name, T)
+    const sleeping = seated && st === 'resting' && !!lastSt && isSleepy(lastSt, T)
 
     // ---- facing
     let targetYaw = v.yaw
@@ -551,7 +554,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     b.rotation.set(rx, ry, rz)
     const sx = 1 / Math.sqrt(sy)
     b.scale.set(sx, sy, sx)
-    for (const e of eyesRef.current) if (e) e.scale.y += (eyeY - e.scale.y) * Math.min(1, dt * 25)
+    for (const e of eyesRef.current) if (e) e.scale.y += (eyeY * 1.55 - e.scale.y) * Math.min(1, dt * 25)
     const hw = asset.width / 2 + 0.03
     if (hands.current[0]) hands.current[0].position.set(-hw, 0.22 + hl, 0.08 + hz)
     if (hands.current[1]) hands.current[1].position.set(hw, 0.22 + hr, 0.08 + hz)
@@ -592,7 +595,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
   if (gone) return null
 
   return (
-    <group ref={root}>
+    <group ref={root} scale={bot.hidden ? 0.88 : 1}>
       <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} geometry={ringGeo} material={ringMat} visible={!hidden} />
       <group ref={body} visible={!hidden}>
         <mesh
@@ -616,8 +619,8 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
         />
         {asset.eyes.map((e, i) => (
           <group key={i} position={e.position} quaternion={e.quaternion}>
-            <mesh ref={(m) => (eyesRef.current[i] = m)} geometry={eyeGeo} material={dark ? whiteMat : blackMat} scale={[0.85, 1.25, 0.45]}>
-              {!dark && <mesh geometry={glintGeo} material={glintMat} position={[0.018, 0.022, 0.045]} />}
+            {/* Grok-style eyes: short slanted ovals, no highlight */}
+            <mesh ref={(m) => (eyesRef.current[i] = m)} geometry={eyeGeo} material={dark ? whiteMat : blackMat} scale={[0.62, 1.55, 0.4]} rotation={[0, 0, 0.42]}>
             </mesh>
           </group>
         ))}
@@ -637,7 +640,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
       </group>
       {!hidden && (
         <Html position={[0, iconY, 0]} center distanceFactor={10} zIndexRange={[30, 0]} pointerEvents="none">
-          <div className={`bot-tag${selected ? ' sel' : ''}`}>
+          <div className={`bot-tag${selected ? ' sel' : ''}${bot.hidden ? ' is-hidden' : ''}`}>
             {speechText && (
               <div className={`speech ${talking ? 'talk' : ''}`}>
                 {!talking && <b>{bot.name}</b>}
@@ -646,6 +649,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
             )}
             <ReactionFloat name={bot.name} />
             <StatusIcon status={status} talking={talking} />
+            {bot.hidden && <div className="hidden-tag">oculto</div>}
             {(hover || selected) && !speechText && <div className="name-chip">{bot.name}</div>}
           </div>
         </Html>

@@ -84,7 +84,7 @@ case "$cmd" in
       fi
       if [[ -n "$chunk" ]] && (( ${#chunk} + ${#item} + 16 > max )); then flush; fi
       chunk="${chunk:+$chunk,}$item"
-    done < <(jq -c '.[] | {name, id, shape, color, accessory, team, photo} | with_entries(select(.value != null))' "${1:-$here/src/roster.json}")
+    done < <(jq -c '.[] | {name, id, shape, color, accessory, team, photo, hidden} | with_entries(select(.value != null))' "${1:-$here/src/roster.json}")
     flush
     echo "roster sent in $parts message(s)"
     ;;

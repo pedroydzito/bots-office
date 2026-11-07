@@ -160,6 +160,28 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove }) {
     }
   }, [onUserMove])
 
+  // panning (right-drag / two fingers) moves the focus point: keep it where the user left it
+  const dragging = useRef(false)
+  useEffect(() => {
+    if (!controls) return
+    const start = () => (dragging.current = true)
+    // damping keeps gliding a moment after release: settle on where it stops
+    let t = null
+    const end = () => {
+      clearTimeout(t)
+      t = setTimeout(() => {
+        dragging.current = false
+        desired.current.copy(controls.target)
+      }, 450)
+    }
+    controls.addEventListener('start', start)
+    controls.addEventListener('end', end)
+    return () => {
+      controls.removeEventListener('start', start)
+      controls.removeEventListener('end', end)
+    }
+  }, [controls])
+
   useEffect(() => {
     if (controls) {
       controls.autoRotate = !!tour
@@ -191,6 +213,10 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove }) {
       const p = botPositions.get(selectedBot)
       if (r) desired.current.copy(r)
       else if (p) desired.current.set(p.x + floorOffset.x, p.y, p.z + floorOffset.z)
+    }
+    if (dragging.current) {
+      // while the user drags, follow their hand (and damping) instead of pulling back
+      desired.current.copy(target)
     }
     delta.copy(desired.current).sub(target).multiplyScalar(Math.min(1, dt * 4))
     if (delta.lengthSq() > 1e-8) {

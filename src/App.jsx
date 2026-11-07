@@ -64,7 +64,7 @@ function Office({ topic, onSignOut, onSignIn }) {
   const [lightMode, setLightMode] = useState(() => prefs.get('light', 'auto'))
   useEffect(() => prefs.set('light', lightMode), [lightMode])
   const [replayT, setReplayT] = useState(null) // timeline replay (ms) or null = live
-  const [tv, setTv] = useState(false)
+  const [tv, setTv] = useState(() => new URLSearchParams(window.location.search).has('tv'))
   const [celebration, setCelebration] = useState(null)
   const [overview, setOverview] = useState(false) // whole building, every floor live
   const [searchOpen, setSearchOpen] = useState(false)

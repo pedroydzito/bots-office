@@ -13,6 +13,43 @@ const poly = (n, r, rot = -Math.PI / 2, inner = null) => {
 
 function Body({ shape }) {
   switch (shape) {
+    case 'blob':
+      return <circle cx="16" cy="16.5" r="11" />
+    case 'egg':
+      return <path d="M16 5c5.5 0 9.5 7 9.5 12.5S21.5 27 16 27s-9.5-4-9.5-9.5S10.5 5 16 5z" />
+    case 'bean':
+      return <path d="M6 16c0-5 5-7 9-5 3 1.5 5-1 8-1 3 0 4 3 4 6 0 6-5 9-11 9-6 0-10-3-10-9z" />
+    case 'squircle':
+    case 'square':
+      return <rect x="6" y="6.5" width="20" height="20" rx="7" transform="rotate(-12 16 16.5)" />
+    case 'tablet':
+      return <rect x="9" y="4.5" width="14" height="24" rx="5" />
+    case 'capsule':
+      return <rect x="4" y="10" width="24" height="14" rx="7" />
+    case 'cylinder':
+      return <rect x="8" y="5" width="16" height="23" rx="4" />
+    case 'hex':
+      return poly(6, 11.5)
+    case 'gem':
+      return <path d="M10 8h12l5 6-11 14L5 14z" strokeLinejoin="round" strokeWidth="2.5" />
+    case 'crystal':
+      return <path d="M16 3l7 7v13l-7 7-7-7V10z" strokeLinejoin="round" strokeWidth="2.5" />
+    case 'shield':
+      return <path d="M7 6h18v9c0 6-5 10-9 12-4-2-9-6-9-12z" strokeLinejoin="round" strokeWidth="2" />
+    case 'dome':
+      return <path d="M4 24a12 12 0 0 1 24 0z" strokeLinejoin="round" strokeWidth="2" />
+    case 'arch':
+      return <path d="M9 28V15a7 7 0 0 1 14 0v13z" strokeLinejoin="round" strokeWidth="2" />
+    case 'teardrop':
+      return <path d="M16 4.5c4 5.5 9 10 9 14.6a9 9 0 0 1-18 0C7 14.5 12 10 16 4.5z" />
+    case 'leaf':
+      return <path d="M6 26C6 13 13 6 26 6c0 13-7 20-20 20z" />
+    case 'sparkle':
+      return poly(4, 12, -Math.PI / 2, 5.6)
+    case 'house':
+      return <path d="M6 15l10-9 10 9v11H6z" strokeLinejoin="round" strokeWidth="2.5" />
+    case 'star':
+      return poly(5, 12, -Math.PI / 2, 5.8)
     case 'cloud':
       return <path d="M9.5 25a6 6 0 0 1-.9-11.9A8 8 0 0 1 23.6 11a6.9 6.9 0 0 1-.4 14z" />
     case 'wedge':
@@ -78,8 +115,8 @@ export default function Avatar({ bot, size = 28, ring }) {
         <g fill={color} stroke={color}>
           <Body shape={bot?.shape} />
         </g>
-        <ellipse cx="13.2" cy={ey} rx="1.25" ry="1.7" fill={eye} />
-        <ellipse cx="18.8" cy={ey} rx="1.25" ry="1.7" fill={eye} />
+        <ellipse cx="15" cy={ey - 1} rx="1.05" ry="2.1" fill={eye} transform={`rotate(-24 15 ${ey - 1})`} />
+        <ellipse cx="19.6" cy={ey - 1} rx="1.05" ry="2.1" fill={eye} transform={`rotate(-24 19.6 ${ey - 1})`} />
       </svg>
     </span>
   )

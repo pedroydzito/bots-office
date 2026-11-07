@@ -5,7 +5,7 @@
 // the topic. The bundled example roster is only used by demo mode.
 import demoRoster from '../roster.json'
 import { createStore } from './createStore'
-import { SHAPES, ACCESSORIES } from './constants'
+import { normalizeShape, ACCESSORIES } from './constants'
 
 const MAX_BOTS = 150
 const MAX_ACTIVITY = 80
@@ -55,13 +55,16 @@ function ensureBot(d, rawName) {
 function setLook(d, name, l) {
   if (!l || typeof l !== 'object') return
   const b = { ...d.bots[name] }
-  if (typeof l.shape === 'string' && SHAPES.includes(l.shape.trim().toLowerCase())) b.shape = l.shape.trim().toLowerCase()
+  const shape = normalizeShape(l.shape)
+  if (shape) b.shape = shape
   if (typeof l.color === 'string' && l.color.length <= 16) b.color = l.color.trim()
   if (typeof l.accessory === 'string' && ACCESSORIES.includes(l.accessory.trim().toLowerCase())) b.accessory = l.accessory.trim().toLowerCase()
   if (typeof l.photo === 'string' && l.photo.length < 12000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(l.photo)) {
     b.photo = l.photo
     if (!l.shape) b.shape = 'photo'
   }
+  // hidden in the Grok app: still on its floor, drawn quieter with a tag
+  if (typeof l.hidden === 'boolean') b.hidden = l.hidden
   // personal desk items and birthday (MM-DD or YYYY-MM-DD)
   if (Array.isArray(l.desk)) b.desk = l.desk.filter((x) => typeof x === 'string').map((x) => x.trim().toLowerCase()).filter((x) => /^(plant|photo|trophy|lamp|cactus|books)$/.test(x)).slice(0, 2)
   if (typeof l.birthday === 'string' && /^(\d{4}-)?\d{2}-\d{2}$/.test(l.birthday.trim())) b.birthday = l.birthday.trim().slice(-5)

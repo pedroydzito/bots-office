@@ -171,9 +171,10 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       {petKind === 'fish' && <Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} />}
       <Seasonal layout={layout} seed={floor.key} />
       {/* wall art keeps both walls lively: posters high above the left-wall furniture, art + shelf on the back wall */}
-      <Poster position={[-W / 2 + 0.27, 2.4, layout.wall.coolerZ]} rotation={[0, Math.PI / 2, 0]} seed={hash(floor.key) % 97} w={0.8} h={0.6} />
-      <Poster position={[-W / 2 + 0.27, 2.4, D / 2 - 2.6]} rotation={[0, Math.PI / 2, 0]} seed={(hash(floor.key) % 97) + 3} w={0.9} h={0.6} />
-      <Poster position={[-W / 2 + 0.27, 1.9, D / 2 - 4.1]} rotation={[0, Math.PI / 2, 0]} seed={(hash(floor.key) % 97) + 5} w={0.7} h={0.95} />
+      {/* pictures sit in the gaps between the left-wall furniture, at one shared height */}
+      {layout.wall.artZ.map((z, i) => (
+        <Poster key={i} position={[-W / 2 + 0.27, 1.75, z]} rotation={[0, Math.PI / 2, 0]} seed={(hash(floor.key) % 97) + i * 3} w={0.85} h={1.05} />
+      ))}
       {W / 2 - 3.8 - (-W / 2 + 7.0) > 1.6 && (
         <group>
           <Poster position={[(-W / 2 + 7.0 + W / 2 - 3.8) / 2 - 0.55, 1.95, -D / 2 + 0.27]} seed={(hash(floor.key) % 97) + 7} w={0.85} h={1.15} />
@@ -192,7 +193,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       <StatusLamp position={[-W / 2 + 2.95, 2.4, -D / 2 + 0.3]} color={floorColor} />
       {layout.wall.stickyZ != null && (
         <InfoBoard
-          position={[-W / 2 + 0.29, 1.75, layout.wall.stickyZ - 0.4]}
+          position={[-W / 2 + 0.29, 1.75, layout.wall.boardZ]}
           rotation={[0, Math.PI / 2, 0]}
           title="Destaques de hoje"
           accent="#8F59F9"

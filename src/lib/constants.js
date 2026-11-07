@@ -1,19 +1,20 @@
 export const PALETTE = {
-  violet: '#8F59F9',
-  purple: '#8F59F9',
-  blue: '#1E86FC',
-  orange: '#FD690F',
-  red: '#E5484D',
-  magenta: '#F93498',
-  pink: '#F93498',
-  brown: '#A06B39',
+  violet: '#9B5CF6',
+  purple: '#9B5CF6',
+  blue: '#1683FF',
+  orange: '#FF6A00',
+  red: '#FF2D3D',
+  magenta: '#FF2FA0',
+  pink: '#FF2FA0',
+  brown: '#8E5E34',
   black: '#1a1a1a',
-  none: '#959595',
-  grey: '#959595',
-  gray: '#959595',
-  green: '#2FB36B',
-  yellow: '#F5B70A',
+  none: '#6E6E6E',
+  grey: '#6E6E6E',
+  gray: '#6E6E6E',
+  green: '#00C46A',
+  yellow: '#FF9F0A',
   teal: '#14B8A6',
+  cyan: '#00B3A7',
 }
 
 export function resolveColor(c) {
@@ -31,10 +32,25 @@ export function isDark(hex) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b < 70
 }
 
-export const SHAPES = [
-  'cloud', 'wedge', 'pebble', 'heart', 'sphere', 'star4', 'star6', 'clover', 'bubble',
-  'flower', 'drop', 'pill', 'triangle', 'pentagon', 'hexagon', 'cone', 'trio', 'rounded_square', 'circle', 'photo',
+// Grok Bot avatar shapes (exact names from the app)
+export const GROK_SHAPES = [
+  'blob', 'pebble', 'bean', 'egg', 'squircle', 'tablet', 'capsule', 'cylinder', 'hex', 'gem', 'crystal', 'wedge', 'shield',
+  'dome', 'arch', 'cloud', 'teardrop', 'leaf', 'square', 'sparkle', 'clover', 'flower', 'heart', 'house', 'star',
 ]
+// older names still accepted
+export const SHAPE_ALIASES = {
+  circle: 'blob', sphere: 'blob', hexagon: 'hex', drop: 'teardrop', rounded_square: 'square', pill: 'capsule', star4: 'sparkle',
+}
+export const SHAPES = [...GROK_SHAPES, 'star6', 'bubble', 'triangle', 'pentagon', 'cone', 'trio', 'photo']
+/** Canonical shape name, or null if unknown. */
+export function normalizeShape(name) {
+  if (typeof name !== 'string') return null
+  const k = name.trim().toLowerCase().replace(/[\s-]+/g, '_')
+  const c = SHAPE_ALIASES[k] || k
+  return SHAPES.includes(c) ? c : null
+}
+// Grok Bot colours (exact names); `grey`, `none`, `purple`, `pink`, `teal` kept as aliases
+export const GROK_COLORS = ['black', 'brown', 'red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'violet', 'magenta', 'gray']
 export const ACCESSORIES = ['none', 'glasses', 'antenna', 'stem', 'bow', 'headphones', 'cap', 'scarf', 'crown']
 
 export const STATUS = {

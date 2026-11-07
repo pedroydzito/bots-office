@@ -59,6 +59,10 @@ The interface is in Brazilian Portuguese. Each room is sized to its number of bo
 
 ### Extras
 
+- **Grok Bot shapes and colours (exact names)**: shapes `blob, pebble, bean, egg, squircle, tablet, capsule, cylinder, hex, gem, crystal, wedge, shield, dome, arch, cloud, teardrop, leaf, square, sparkle, clover, flower, heart, house, star`; colours `black, brown, red, orange, yellow, green, cyan, blue, violet, magenta, gray`. Old names still work as aliases (`circle`=blob, `hexagon`=hex, `drop`=teardrop, `rounded_square`=square, `pill`=capsule, `star4`=sparkle, `grey`=gray). Eyes follow the app's style (two slanted ovals).
+- **Hidden bots**: `"hidden": true` in the roster or `looks` keeps the bot on its team's floor, but quieter: washed-out, translucent, a bit smaller, with an "oculto" tag.
+- **Installable app (PWA)**: install it from the browser menu ("Add to home screen" / "Install"). It opens instantly from cache and updates in the background; live data always comes straight from ntfy. `/?tv=1` opens directly in TV mode (also an app shortcut).
+
 - **Mail**: `{"type":"mail","from":"A","to":"B","step":"Relatório"}` — an envelope lifts off A's desk and lands on B's (through the elevator if B is on another floor).
 - **Team goals on the TV**: `{"goals":{"Sales":{"label":"Leads qualificados","target":40}}}`. The TV shows this week's finished tasks against the goal.
 - **Pets**: each floor has one — `{"pets":{"Ops":"dog","Design":"cat","Sales":"fish"}}` (fish = aquarium). Without it each team gets one picked from its name.
