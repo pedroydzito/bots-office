@@ -25,7 +25,7 @@ export function Shell({ layout, title, subtitle, accent }) {
       <mesh position={[0, -0.175, 0]} material={slabMat} receiveShadow>
         <boxGeometry args={[W, 0.35, D]} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]} material={floorMat} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]} material={floorMat} receiveShadow>
         <planeGeometry args={[W, D]} />
       </mesh>
       <mesh position={[0, 1.6, -D / 2 + 0.125]} material={wallMat} receiveShadow castShadow>
@@ -69,7 +69,7 @@ function eventsSeries() {
   return buckets
 }
 
-export default function Floor({ floor, layout, data, now, floorY, night, selectedBot, spotlight, onSelect, floorCount = 1, celebrate = null }) {
+export default function Floor({ floor, layout, data, now, floorY, night, selectedBot, spotlight, onSelect, onLongPress, floorCount = 1, celebrate = null }) {
   const { W, D } = layout
   const home = floor.bots
   const floorIdx = floor.num - 1
@@ -242,6 +242,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
           selected={selectedBot === n}
           spotlight={spotlight === n}
           onSelect={onSelect}
+          onLongPress={onLongPress}
         />
       ))}
       {visitors.map((n) => (
@@ -260,6 +261,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
           selected={selectedBot === n}
           spotlight={spotlight === n}
           onSelect={onSelect}
+          onLongPress={onLongPress}
         />
       ))}
     </group>

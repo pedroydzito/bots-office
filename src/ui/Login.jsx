@@ -56,6 +56,7 @@ export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOff
   const [music, setMusic] = useState(() => prefs.get('music', true))
   const [ui, setUi] = useState(() => prefs.get('uisound', true))
   const names = useStore(prefStore, (p) => p.names)
+  const [vib, setVib] = useState(() => prefs.get('vibrate', true))
   const ref = useRef(null)
   useEffect(() => {
     if (!open) return
@@ -132,6 +133,17 @@ export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOff
             }}
           >
             <Speaker size={14} /> Sons da interface <i className={ui ? 'on' : ''} />
+          </button>
+          <button
+            className="toggle"
+            onClick={() => {
+              const v = !prefs.get('vibrate', true)
+              prefs.set('vibrate', v)
+              setVib(v)
+              if (v && navigator.vibrate) navigator.vibrate(15)
+            }}
+          >
+            <Bell size={14} /> Vibração <i className={vib ? 'on' : ''} />
           </button>
           <button className="toggle" onClick={() => setPref('names', !names)}>
             <Tag size={14} /> Mostrar nomes <i className={names ? 'on' : ''} />

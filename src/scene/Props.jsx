@@ -376,7 +376,7 @@ export function Lounge({ position, night, seats = [] }) {
   const rug = useMemo(() => makeRugTexture('#e8e3dc'), [])
   return (
     <group position={position}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]} receiveShadow>
         <planeGeometry args={[3.6, 2.8]} />
         <meshStandardMaterial map={rug} roughness={0.95} />
       </mesh>
@@ -516,9 +516,9 @@ export function Elevator({ layout, floorY, label, night }) {
 
 export function Rug({ x, z, w, d, color = '#ece7f6', round = false }) {
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.006, z]} receiveShadow scale={round ? [w / 2, d / 2, 1] : [1, 1, 1]}>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[x, round ? 0.024 : 0.018, z]} receiveShadow scale={round ? [w / 2, d / 2, 1] : [1, 1, 1]}>
       {round ? <circleGeometry args={[1, 48]} /> : <planeGeometry args={[w, d]} />}
-      <meshStandardMaterial color={color} roughness={0.95} />
+      <meshStandardMaterial color={color} roughness={0.95} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} />
     </mesh>
   )
 }
@@ -713,36 +713,37 @@ export function GlassElevator({ layout, night, floorY = null }) {
   const z = layout.elevator.z
   const left = useRef(), right = useRef()
   const open = useRef(0)
-  const glass = useMemo(() => new THREE.MeshStandardMaterial({ color: '#d6e8f7', transparent: true, opacity: 0.28, roughness: 0.05, depthWrite: false }), [])
+  const glass = useMemo(() => new THREE.MeshPhysicalMaterial({ color: '#e3f0fb', transparent: true, opacity: 0.32, roughness: 0.08, depthWrite: false }), [])
+  const frame = useMemo(() => new THREE.MeshStandardMaterial({ color: '#fbfbfc', roughness: 0.35 }), [])
   useFrame((_, dt) => {
     let near = false
     for (const p of botPositions.values()) if ((floorY == null || Math.abs(p.y - floorY - 0.8) < 1.5) && Math.hypot(p.x - (layout.elevator.x + 0.6), p.z - z) < 1.3) near = true
     open.current += ((near ? 1 : 0) - open.current) * Math.min(1, dt * 5)
-    const o = open.current * 0.42
+    const o = open.current * 0.4
     if (left.current) left.current.position.z = -0.27 - o
     if (right.current) right.current.position.z = 0.27 + o
   })
-  const x = -W / 2 + 0.8
+  // soft, rounded cabin standing clear of the wall (no surfaces touching the wall = no flicker)
+  const x = -W / 2 + 0.95
   return (
     <group position={[x, 0, z]}>
-      {/* corner posts */}
+      <RoundedBox args={[1.2, 0.08, 1.5]} radius={0.04} smoothness={3} position={[0, 0.04, 0]} material={frame} receiveShadow />
+      <RoundedBox args={[1.24, 0.16, 1.54]} radius={0.07} smoothness={3} position={[0, 2.82, 0]} material={frame} castShadow />
       {[[-0.55, -0.7], [0.55, -0.7], [-0.55, 0.7], [0.55, 0.7]].map(([px, pz], i) => (
-        <mesh key={i} position={[px, 1.45, pz]} material={M.metal}>
-          <boxGeometry args={[0.06, 2.9, 0.06]} />
+        <mesh key={i} position={[px, 1.43, pz]} material={frame} castShadow>
+          <cylinderGeometry args={[0.05, 0.05, 2.7, 16]} />
         </mesh>
       ))}
-      {/* glass walls (back, front, left) + roof band */}
-      <mesh position={[0, 1.45, -0.7]} material={glass}><boxGeometry args={[1.1, 2.9, 0.02]} /></mesh>
-      <mesh position={[0, 1.45, 0.7]} material={glass}><boxGeometry args={[1.1, 2.9, 0.02]} /></mesh>
-      <mesh position={[0, 2.85, 0]} material={M.metal}><boxGeometry args={[1.16, 0.1, 1.46]} /></mesh>
-      {/* sliding glass doors facing the room */}
-      <group position={[0.56, 1.1, 0]}>
+      <mesh position={[0, 1.43, -0.7]} material={glass}><boxGeometry args={[1.0, 2.7, 0.02]} /></mesh>
+      <mesh position={[0, 1.43, 0.7]} material={glass}><boxGeometry args={[1.0, 2.7, 0.02]} /></mesh>
+      <mesh position={[-0.55, 1.43, 0]} material={glass}><boxGeometry args={[0.02, 2.7, 1.3]} /></mesh>
+      <group position={[0.56, 1.15, 0]}>
         <mesh ref={left} position={[0, 0, -0.27]} material={glass}><boxGeometry args={[0.02, 2.2, 0.54]} /></mesh>
         <mesh ref={right} position={[0, 0, 0.27]} material={glass}><boxGeometry args={[0.02, 2.2, 0.54]} /></mesh>
       </group>
-      <mesh position={[0.6, 2.42, 0]}>
-        <boxGeometry args={[0.02, 0.14, 0.4]} />
-        <meshStandardMaterial color="#111" emissive="#5cc8ff" emissiveIntensity={night ? 1.4 : 0.7} />
+      <mesh position={[0.63, 2.55, 0]}>
+        <boxGeometry args={[0.03, 0.12, 0.36]} />
+        <meshStandardMaterial color="#1c1f26" emissive="#5cc8ff" emissiveIntensity={night ? 1.4 : 0.8} />
       </mesh>
     </group>
   )

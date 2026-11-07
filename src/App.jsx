@@ -13,6 +13,7 @@ import { Activity, Brand, ConnectBanner, Hints, LeftPanel, ModeToggles, Pills, R
 import { Login, Settings } from './ui/Login'
 import { Celebration, MobileFloors, Search, Timeline, TvExit } from './ui/Extras'
 import { HealthModal, OfficesModal, QueueModal, ShortcutsModal } from './ui/Ops'
+import { buzz, MiniMap, QuickMenu, SearchField, Welcome } from './ui/Interact'
 import { OVERVIEW_GAP } from './scene/Building'
 import { FLOOR_H } from './scene/layout'
 import { botsAt } from './lib/metrics'
@@ -227,6 +228,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
       if (!b || readonly) return
       setDismissed((d) => ({ ...d, [n]: b.ts }))
       send({ decision: { bot: n, action, note } })
+      buzz(action === 'approve' ? 20 : [15, 40, 15])
       if (!topic) {
         if (action === 'approve') demoApprove(n)
         else send({ bot: n, status: 'idle', step: note ? `Recusado: ${note}` : 'Recusado' })
@@ -239,6 +241,8 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const [healthOpen, setHealthOpen] = useState(false)
   const [keysOpen, setKeysOpen] = useState(false)
   const [officesOpen, setOfficesOpen] = useState(false)
+  const [quick, setQuick] = useState(null) // long-press menu on a bot
+  const [welcome, setWelcome] = useState(() => !prefs.get('welcomed', false))
   const view = useCallback(
     (n) => {
       pickBot(n)
@@ -305,7 +309,10 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const prevDone = useRef(null)
   useEffect(() => {
     const w = new Set(live.order.filter((n) => effStatus(live.bots[n], Date.now()) === 'waiting_user'))
-    if (prevWaiting.current) for (const n of w) if (!prevWaiting.current.has(n)) notifyWaiting(live.bots[n], () => pickBot(n))
+    if (prevWaiting.current) for (const n of w) if (!prevWaiting.current.has(n)) {
+      notifyWaiting(live.bots[n], () => pickBot(n))
+      buzz([40, 60, 40])
+    }
     // a soft chime when someone finishes (interface sounds on)
     const d = new Set(live.order.filter((n) => effStatus(live.bots[n], Date.now()) === 'done'))
     if (prevDone.current && prefs.get('uisound', true) && [...d].some((n) => !prevDone.current.has(n))) uiSound('done')
@@ -437,12 +444,17 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         selectedBot={selectedBot}
         spotlight={spotlight}
         onSelect={pickBot}
+        onLongPress={(n, x, y) => {
+          buzz(12)
+          setQuick({ name: n, x, y })
+        }}
         onPointerMissed={() => setSelectedBot(null)}
         onUserMove={onUserMove}
       />
       <div className="hud">
         <div className="top-left">
           <Brand conn={conn} now={now} />
+          <SearchField onOpen={() => setSearchOpen(true)} />
           <ModeToggles mode={lightMode} setMode={setLightMode} tour={tour} setTour={setTour} overview={overview} setOverview={setOverview} onSearch={() => setSearchOpen(true)} />
           <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} mode={lightMode} setMode={setLightMode} onOffices={() => setOfficesOpen(true)} onHealth={() => setHealthOpen(true)} onKeys={() => setKeysOpen(true)} readonly={readonly} />
         </div>
@@ -486,6 +498,20 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         {queueOpen && <QueueModal waiting={waiting} now={now} onDecide={decide} onPick={pickBot} onClose={() => setQueueOpen(false)} readonly={readonly} />}
         {healthOpen && <HealthModal conn={conn} data={live} now={now} topic={topic} onClose={() => setHealthOpen(false)} />}
         {keysOpen && <ShortcutsModal onClose={() => setKeysOpen(false)} />}
+        {quick && (
+          <QuickMenu
+            q={quick}
+            data={data}
+            now={now}
+            onClose={() => setQuick(null)}
+            onApprove={readonly ? null : approve}
+            onReact={readonly ? null : (n, kind) => send({ react: { bot: n, kind } })}
+            onOpenChat={(n) => openLink(chatLink(dataStore.get(), n))}
+            onFollow={pickBot}
+          />
+        )}
+        <MiniMap layout={lay} floor={floor} data={data} now={now} onPick={pickBot} selected={selectedBot} />
+        {welcome && <Welcome onDone={() => (prefs.set('welcomed', true), setWelcome(false))} />}
         {officesOpen && <OfficesModal current={topic} onSwitch={onSwitch} onAdd={onSignIn} onClose={() => setOfficesOpen(false)} />}
         {unlock && !celebration && <Celebration c={{ t: unlock.t, title: `${unlock.bot} desbloqueou: ${unlock.label}`, sub: 'Novo troféu na mesa' }} />}
         {searchOpen && <Search data={data} now={now} onPick={(n) => { setOverview(false); pickBot(n) }} onClose={() => setSearchOpen(false)} />}

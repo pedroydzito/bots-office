@@ -76,7 +76,7 @@ function Plaza({ W, D, night }) {
 /** Glass elevator shaft on the outside of the left wall; cars carry riding bots between floors. */
 /** The elevator car inside the glass shaft of the open floor: it arrives from above/below during rides. */
 function ElevatorShaft({ W, D, floorIdx, night, data, followed }) {
-  const x = -W / 2 + 0.8, z = -D / 2 + 2.3
+  const x = -W / 2 + 0.95, z = -D / 2 + 2.3
   const fy = floorIdx * FLOOR_H
   const cars = useRef([])
   const riders = useRef([])
@@ -99,8 +99,7 @@ function ElevatorShaft({ W, D, floorIdx, night, data, followed }) {
       const r = live[i]
       if (!r) {
         // parked car on the ground floor
-        car.visible = i === 0
-        if (i === 0) car.position.set(x, fy, z)
+        car.visible = false // the glass cabin on each floor already shows the elevator at rest
         if (riders.current[i]) riders.current[i].visible = false
         continue
       }
@@ -177,7 +176,7 @@ function Overview({ floors, layouts, data, now, night, selectedBot, spotlight, o
   )
 }
 
-export default function Building({ floors, selectedIdx, size, layouts, data, now, night, selectedBot, spotlight, onSelect, celebrate, overview }) {
+export default function Building({ floors, selectedIdx, size, layouts, data, now, night, selectedBot, spotlight, onSelect, onLongPress, celebrate, overview }) {
   const { W, D } = size // largest footprint, for the plaza
   const sel = floors[selectedIdx]
   const drop = useRef()
@@ -226,6 +225,7 @@ export default function Building({ floors, selectedIdx, size, layouts, data, now
                 selectedBot={selectedBot}
                 spotlight={spotlight}
                 onSelect={onSelect}
+                onLongPress={onLongPress}
                 floorCount={floors.length}
                 celebrate={celebrate && celebrate.key === sel.key ? celebrate.t : null}
               />

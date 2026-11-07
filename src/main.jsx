@@ -3,6 +3,13 @@ import { createRoot } from 'react-dom/client'
 import App from './App'
 import './styles.css'
 
+// the app started: allow the boot watchdog to reload again next time if ever needed
+try {
+  sessionStorage.removeItem('bo-reloaded')
+} catch {
+  /* ignore */
+}
+
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />

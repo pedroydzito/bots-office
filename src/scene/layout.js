@@ -21,7 +21,7 @@ function viewDistance(w, d) {
 
 function leftWall(W, D) {
   // glass elevator shaft inside the room's back-left corner; bots step inside to ride
-  const elevator = { kind: 'elevator', x: -W / 2 + 0.8, z: -D / 2 + 2.3, az: -D / 2 + 2.3, yaw: -Math.PI / 2 }
+  const elevator = { kind: 'elevator', x: -W / 2 + 0.95, z: -D / 2 + 2.3, az: -D / 2 + 2.3, yaw: -Math.PI / 2 }
   // Everything else on this wall is spread evenly along its free length (after the elevator),
   // so the wall is never crowded at one end and empty at the other.
   const a = -D / 2 + 3.4, b = D / 2 - 1.3

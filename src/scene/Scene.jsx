@@ -272,21 +272,46 @@ export default function Scene(props) {
   const { night, nightness, weather, tour, floorIdx, focus, selectedBot, onPointerMissed, onUserMove } = props
   // Adaptive quality: phones start light; any device drops resolution and shadows if FPS falls.
   const [low, setLow] = useState(MOBILE)
+  // Phones drop the GPU context when the app goes to the background (black building on return).
+  // Rebuild the canvas when that happens.
+  const [glKey, setGlKey] = useState(0)
+  const glRef = useRef(null)
+  useEffect(() => {
+    const check = () => {
+      if (document.visibilityState !== 'visible') return
+      const g = glRef.current
+      if (g && g.getContext().isContextLost()) setGlKey((k) => k + 1)
+    }
+    document.addEventListener('visibilitychange', check)
+    window.addEventListener('pageshow', check)
+    return () => {
+      document.removeEventListener('visibilitychange', check)
+      window.removeEventListener('pageshow', check)
+    }
+  }, [])
   const [dpr, setDpr] = useState(MOBILE ? Math.min(2, window.devicePixelRatio || 1) : Math.min(1.75, window.devicePixelRatio || 1))
   return (
     <Canvas
+      key={glKey}
       shadows={!MOBILE}
       dpr={dpr}
       gl={{ antialias: true, powerPreference: 'high-performance', stencil: false }}
-      camera={{ fov: 30, position: [12, 10 + floorIdx * FLOOR_H, 12], near: 0.5, far: 200 }}
+      camera={{ fov: 30, position: [12, 10 + floorIdx * FLOOR_H, 12], near: 1, far: 160 }}
       onPointerMissed={onPointerMissed}
       onCreated={({ gl }) => {
+        glRef.current = gl
+        gl.domElement.addEventListener('webglcontextlost', (e) => e.preventDefault())
+        gl.domElement.addEventListener('webglcontextrestored', () => setGlKey((k) => k + 1))
         gl.toneMapping = THREE.ACESFilmicToneMapping
         gl.toneMappingExposure = 1.05
       }}
     >
       <PerformanceMonitor
         flipflops={3}
+        onFallback={() => {
+          setLow(true)
+          setDpr(MOBILE ? 1.15 : 1)
+        }}
         // phones are capped at 30 fps on purpose: judge them against that, not 60
         // aim at the screen's own refresh rate (120 Hz phone, 75 Hz monitor...)
         bounds={(refresh) => [refresh * 0.72, refresh * 0.92]}

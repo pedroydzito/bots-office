@@ -6,6 +6,7 @@ import { CORTEX_KEY, durationShort, effStatus, hhmm, resolveColor, STATUS, talkA
 import { sceneSignals } from '../scene/registry'
 import { botMetrics, fmtDuration } from '../lib/metrics'
 import { DecisionBox, isStuck } from './Ops'
+import { useSwipeDown } from './Interact'
 
 const STATUS_WORD = { working: 'Trabalhando', waiting_user: 'Esperando você', error: 'Erro', done: 'Concluído', resting: 'Descansando' }
 
@@ -193,6 +194,7 @@ function headerColor(sts) {
 }
 
 export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, chatOf, onApprove, onReact, onDecide }) {
+  const swipe = useSwipeDown(onClose)
   if (selectedBot && data.bots[selectedBot]) {
     const b = data.bots[selectedBot]
     const st = effStatus(b, now)
@@ -201,8 +203,9 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
     const link = chatOf(selectedBot)
     const usage = data.usage?.bots?.[selectedBot]
     return (
-      <div className="right card botcard">
-        <div className="bh" style={{ background: resolveColor(b.color) }}>
+      <div className="right card botcard" style={swipe.dy ? { transform: `translateY(${swipe.dy}px)`, transition: 'none' } : undefined}>
+        <div className="bh" style={{ background: resolveColor(b.color) }} {...swipe.handlers}>
+          <span className="grab" aria-hidden="true" />
           <button className="x" onClick={onClose} aria-label="Fechar"><Close size={16} /></button>
           <Avatar bot={b} size={46} />
           <div>

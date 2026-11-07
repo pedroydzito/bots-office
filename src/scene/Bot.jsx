@@ -233,7 +233,8 @@ function StatusIcon({ status, talking }) {
  *  - otherwise resting/finished bots occasionally wander to a point of interest,
  *  - otherwise the bot sits at its seat.
  */
-function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey = '', floorY, selected, spotlight, onSelect, night }) {
+function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey = '', floorY, selected, spotlight, onSelect, onLongPress, night }) {
+  const press = useRef({ timer: null, fired: false })
   const asset = useMemo(() => getBotAsset(bot.shape), [bot.shape])
   // hidden bots (hidden in the Grok app) are quieter: washed-out colour, translucent, a bit smaller
   const color = bot.hidden ? '#' + new THREE.Color(resolveColor(bot.color)).lerp(new THREE.Color('#c3c7cf'), 0.6).getHexString() : resolveColor(bot.color)
@@ -554,7 +555,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     if (st === 'error') mat.emissive.setRGB(0.6 * (0.5 + 0.5 * Math.sin(t * 6)), 0, 0)
     else mat.emissive.setRGB(0, 0, 0)
     if (ring.current) {
-      ring.current.position.y = -sim.y + 0.015
+      ring.current.position.y = -sim.y + 0.045
       const pulse = st === 'waiting_user' || st === 'error' ? 0.5 + 0.5 * Math.sin(t * 5) : 0.6
       ringMat.opacity = (st === 'resting' ? 0 : 0.55) * pulse
       ring.current.scale.setScalar(st === 'waiting_user' ? 1 + 0.15 * Math.sin(t * 5) : 1)
@@ -598,8 +599,21 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
             setHover(false)
             document.body.style.cursor = ''
           }}
+          onPointerDown={(e) => {
+            // press and hold = quick actions
+            const { clientX, clientY } = e.nativeEvent
+            press.current.fired = false
+            clearTimeout(press.current.timer)
+            press.current.timer = setTimeout(() => {
+              press.current.fired = true
+              onLongPress && onLongPress(bot.name, clientX, clientY)
+            }, 480)
+          }}
+          onPointerUp={() => clearTimeout(press.current.timer)}
+          onPointerLeave={() => clearTimeout(press.current.timer)}
           onClick={(e) => {
             e.stopPropagation()
+            if (press.current.fired) return
             onSelect && onSelect(bot.name)
           }}
         />

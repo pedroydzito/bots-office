@@ -127,7 +127,7 @@ export default function Cortex({ layout, cortex, floorNum, floorY, night }) {
       <group>
         <Brain notes={cortex?.notes} />
         <NoteCards recent={cortex?.recent || []} />
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} receiveShadow>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} receiveShadow>
           <circleGeometry args={[3.2, 48]} />
           <meshStandardMaterial color="#efe9fb" roughness={0.9} />
         </mesh>

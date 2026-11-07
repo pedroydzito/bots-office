@@ -1,12 +1,13 @@
-// Offline-first shell for the Bot Office PWA.
-// - Hashed build assets (/assets/*) never change: cache-first, kept forever.
-// - The page itself: served from cache instantly, refreshed in the background.
-// - ntfy.sh (live data) is never cached or intercepted.
-const VERSION = 'bot-office-v3'
-const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/icon-192.png', '/icon-512.png']
+// Bot Office PWA service worker.
+// - The page (navigations): NETWORK FIRST, so a new deploy is picked up right away; the cached
+//   copy is only used when offline or the network takes too long. (Serving a stale page first
+//   could point at build files that no longer exist after a deploy -> stuck on the splash.)
+// - Hashed build assets (/assets/*): cache-first (their name changes when they change).
+// - ntfy.sh (live data) is never intercepted.
+const VERSION = 'bot-office-v4'
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()))
+  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(['/manifest.webmanifest', '/favicon.svg', '/icon-192.png', '/icon-512.png'])).then(() => self.skipWaiting()))
 })
 
 self.addEventListener('activate', (e) => {
@@ -15,11 +16,29 @@ self.addEventListener('activate', (e) => {
   )
 })
 
+const timeout = (ms) => new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
+
 self.addEventListener('fetch', (e) => {
   const req = e.request
   if (req.method !== 'GET') return
   const url = new URL(req.url)
-  if (url.origin !== self.location.origin) return // ntfy & anything external: straight to the network
+  if (url.origin !== self.location.origin) return
+
+  if (req.mode === 'navigate') {
+    e.respondWith(
+      (async () => {
+        const c = await caches.open(VERSION)
+        try {
+          const res = await Promise.race([fetch(req), timeout(4000)])
+          if (res.ok) c.put('/', res.clone())
+          return res
+        } catch {
+          return (await c.match('/')) || fetch(req)
+        }
+      })(),
+    )
+    return
+  }
 
   if (url.pathname.startsWith('/assets/')) {
     e.respondWith(
@@ -31,21 +50,5 @@ self.addEventListener('fetch', (e) => {
         return res
       }),
     )
-    return
   }
-
-  // navigations and other same-origin files: stale-while-revalidate
-  e.respondWith(
-    caches.open(VERSION).then(async (c) => {
-      const key = req.mode === 'navigate' ? '/' : req
-      const hit = await c.match(key)
-      const fresh = fetch(req)
-        .then((res) => {
-          if (res.ok) c.put(key, res.clone())
-          return res
-        })
-        .catch(() => hit)
-      return hit || fresh
-    }),
-  )
 })
