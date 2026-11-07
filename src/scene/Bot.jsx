@@ -9,6 +9,7 @@ import { isSleepy, rnd, simBot, statusAt, syncNow } from './sim'
 import { Clap, Heart, Laugh, Party, ThumbUp } from '../ui/Icons'
 import { useStore } from '../lib/createStore'
 import { dataStore } from '../lib/state'
+import { prefStore } from '../lib/notify'
 import Confetti from './Confetti'
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)]
@@ -150,23 +151,7 @@ function Accessory({ kind, asset, color }) {
   if (kind === 'glasses')
     return (
       <group>
-        {asset.photoFace && (
-          <group position={[0, asset.photoFace.y, asset.photoFace.z]}>
-            <mesh material={photoRimMat}>
-              <circleGeometry args={[asset.photoFace.r * 1.08, 48]} />
-            </mesh>
-            <mesh position={[0, 0, 0.002]}>
-              <circleGeometry args={[asset.photoFace.r, 48]} />
-              {bot.photo ? <meshBasicMaterial map={photoTexture(bot.photo)} toneMapped={false} /> : <meshBasicMaterial color={color} />}
-            </mesh>
-          </group>
-        )}
-        {!(asset.photoFace && bot.photo) && !bot.hidden && asset.blush.map((e, i) => (
-          <group key={'b' + i} position={e.position} quaternion={e.quaternion}>
-            <mesh geometry={blushGeo} material={blushMat} scale={[1.3, 0.8, 1]} />
-          </group>
-        ))}
-        {!(asset.photoFace && bot.photo) && asset.eyes.map((e, i) => (
+        {asset.eyes.map((e, i) => (
           <mesh key={i} position={e.position} quaternion={e.quaternion}>
             <torusGeometry args={[0.072, 0.012, 8, 28]} />
             <meshStandardMaterial color="#111" roughness={0.3} />
@@ -583,6 +568,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
 
   // after 5 minutes of continuous work a bot puts its headphones on; in the snow everyone wears a scarf
   const snowy = data.weather === 'snow'
+  const showNames = useStore(prefStore, (p) => p.names)
   const iconY = asset.top + 0.42
   const talking = !!talkUi && !hidden
   let speechText = null
@@ -617,7 +603,18 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
             onSelect && onSelect(bot.name)
           }}
         />
-        {asset.eyes.map((e, i) => (
+        {asset.photoFace && (
+          <group position={[0, asset.photoFace.y, asset.photoFace.z]}>
+            <mesh material={photoRimMat}>
+              <circleGeometry args={[asset.photoFace.r * 1.08, 48]} />
+            </mesh>
+            <mesh position={[0, 0, 0.002]}>
+              <circleGeometry args={[asset.photoFace.r, 48]} />
+              {bot.photo ? <meshBasicMaterial map={photoTexture(bot.photo)} toneMapped={false} /> : <meshBasicMaterial color={color} />}
+            </mesh>
+          </group>
+        )}
+        {!(asset.photoFace && bot.photo) && asset.eyes.map((e, i) => (
           <group key={i} position={e.position} quaternion={e.quaternion}>
             {/* Grok-style eyes: short slanted ovals, no highlight */}
             <mesh ref={(m) => (eyesRef.current[i] = m)} geometry={eyeGeo} material={dark ? whiteMat : blackMat} scale={[0.62, 1.55, 0.4]} rotation={[0, 0, 0.42]}>
@@ -650,6 +647,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
             <ReactionFloat name={bot.name} />
             <StatusIcon status={status} talking={talking} />
             {bot.hidden && <div className="hidden-tag">oculto</div>}
+            {showNames && !speechText && !(hover || selected) && <div className="name-mini">{bot.name}</div>}
             {(hover || selected) && !speechText && <div className="name-chip">{bot.name}</div>}
           </div>
         </Html>

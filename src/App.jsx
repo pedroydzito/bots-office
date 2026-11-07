@@ -7,11 +7,12 @@ import { dataStore, deriveFloors, forgetTopic, loadTopic, ingest } from './lib/s
 import { useNow, useStore } from './lib/createStore'
 import { chatLink, CORTEX_KEY, effStatus, resolveColor, talkActive } from './lib/constants'
 import { connectNtfy, publish } from './lib/ntfy'
-import { captureHash, clearCode, getCode, setCode } from './lib/auth'
+import { captureHash, clearCode, getCode, isReadonly, setCode } from './lib/auth'
 import { demoApprove, startDemo } from './lib/demo'
 import { Activity, Brand, ConnectBanner, Hints, LeftPanel, ModeToggles, Pills, RightPanel, Toast, Weekly } from './ui/Panels'
 import { Login, Settings } from './ui/Login'
 import { Celebration, MobileFloors, Search, Timeline, TvExit } from './ui/Extras'
+import { HealthModal, OfficesModal, QueueModal, ShortcutsModal } from './ui/Ops'
 import { OVERVIEW_GAP } from './scene/Building'
 import { FLOOR_H } from './scene/layout'
 import { botsAt } from './lib/metrics'
@@ -54,11 +55,18 @@ export default function App() {
   }, [code])
   const toLogin = useCallback(() => setDemo(false), [])
 
+  const switchTo = useCallback((c) => {
+    setCode(c)
+    setCodeState(c)
+    setDemo(false)
+  }, [])
   if (!code && !demo) return <Login onSubmit={signIn} onDemo={() => setDemo(true)} />
-  return <Office key={code || 'demo'} topic={code} onSignOut={signOut} onSignIn={toLogin} />
+  return <Office key={code || 'demo'} topic={code} onSignOut={signOut} onSignIn={toLogin} onSwitch={switchTo} />
 }
 
-function Office({ topic, onSignOut, onSignIn }) {
+function Office({ topic, onSignOut, onSignIn, onSwitch }) {
+  // a view-only office can't approve, react or reply
+  const readonly = !!topic && isReadonly(topic)
   const [conn, setConn] = useState(topic ? 'syncing' : 'demo')
   // light: 'auto' follows the real local time (dawn/dusk tones), or forced day/night
   const [lightMode, setLightMode] = useState(() => prefs.get('light', 'auto'))
@@ -204,16 +212,33 @@ function Office({ topic, onSignOut, onSignIn }) {
     [],
   )
 
-  const approve = useCallback(
-    (n) => {
-      const b = dataStore.get().bots[n]
-      if (!b) return
-      setDismissed((d) => ({ ...d, [n]: b.ts }))
-      if (!topic) demoApprove(n)
-      else openLink(chatLink(dataStore.get(), n))
+  // publish to the topic (live) or apply locally (demo)
+  const send = useCallback(
+    (payload) => {
+      if (topic) publish(topic, payload)
+      else ingest([{ id: `local-${Date.now()}-${Math.random()}`, time: Date.now(), payload }])
     },
     [topic],
   )
+  // approve / reject (with an optional note): published as {"decision":...} for your automation
+  const decide = useCallback(
+    (n, action = 'approve', note = '') => {
+      const b = dataStore.get().bots[n]
+      if (!b || readonly) return
+      setDismissed((d) => ({ ...d, [n]: b.ts }))
+      send({ decision: { bot: n, action, note } })
+      if (!topic) {
+        if (action === 'approve') demoApprove(n)
+        else send({ bot: n, status: 'idle', step: note ? `Recusado: ${note}` : 'Recusado' })
+      }
+    },
+    [topic, readonly, send],
+  )
+  const approve = useCallback((n) => decide(n, 'approve', ''), [decide])
+  const [queueOpen, setQueueOpen] = useState(false)
+  const [healthOpen, setHealthOpen] = useState(false)
+  const [keysOpen, setKeysOpen] = useState(false)
+  const [officesOpen, setOfficesOpen] = useState(false)
   const view = useCallback(
     (n) => {
       pickBot(n)
@@ -235,6 +260,9 @@ function Office({ topic, onSignOut, onSignIn }) {
       else if (e.key === 'n' || e.key === 'N') setLightMode((m) => (m === 'night' ? 'day' : 'night'))
       else if (e.key === 'f' || e.key === 'F') setTv((x) => !x)
       else if (e.key === 'b' || e.key === 'B') setOverview((x) => !x)
+      else if (e.key === 'a' || e.key === 'A') setQueueOpen((x) => !x)
+      else if (e.key === 'h' || e.key === 'H') setHealthOpen((x) => !x)
+      else if (e.key === '?') setKeysOpen((x) => !x)
       else if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || e.key === '/') {
         e.preventDefault()
         setSearchOpen(true)
@@ -416,7 +444,7 @@ function Office({ topic, onSignOut, onSignIn }) {
         <div className="top-left">
           <Brand conn={conn} now={now} />
           <ModeToggles mode={lightMode} setMode={setLightMode} tour={tour} setTour={setTour} overview={overview} setOverview={setOverview} onSearch={() => setSearchOpen(true)} />
-          <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} mode={lightMode} setMode={setLightMode} />
+          <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} mode={lightMode} setMode={setLightMode} onOffices={() => setOfficesOpen(true)} onHealth={() => setHealthOpen(true)} onKeys={() => setKeysOpen(true)} readonly={readonly} />
         </div>
         <div className="top-center">
           <Pills counts={counts} />
@@ -432,6 +460,7 @@ function Office({ topic, onSignOut, onSignIn }) {
           onApprove={approve}
           onPickBot={pickBot}
           talks={talks}
+          onQueue={() => setQueueOpen(true)}
         />
         <RightPanel
           floor={floor}
@@ -442,13 +471,10 @@ function Office({ topic, onSignOut, onSignIn }) {
           onClose={() => setSelectedBot(null)}
           chatOf={(n) => chatLink(data, n)}
           onApprove={approve}
-          onReact={(n, kind) => {
-            const msg = { react: { bot: n, kind } }
-            if (topic) publish(topic, msg)
-            else ingest([{ id: `local-${Date.now()}`, time: Date.now(), payload: msg }])
-          }}
+          onReact={readonly ? null : (n, kind) => send({ react: { bot: n, kind } })}
+          onDecide={readonly ? null : decide}
         />
-        <Activity data={data} onPick={pickBot} />
+        <Activity data={data} onPick={pickBot} floorBots={floor?.bots || []} />
         <Weekly usage={data.usage} data={data} />
         <div className="bottom-center">
           {!topic && !replayT && <ConnectBanner onSignIn={onSignIn} />}
@@ -457,6 +483,10 @@ function Office({ topic, onSignOut, onSignIn }) {
         </div>
         <MobileFloors floors={floors} data={data} now={now} selectedKey={selKey} onFloor={goFloor} />
         <Celebration c={celebration} />
+        {queueOpen && <QueueModal waiting={waiting} now={now} onDecide={decide} onPick={pickBot} onClose={() => setQueueOpen(false)} readonly={readonly} />}
+        {healthOpen && <HealthModal conn={conn} data={live} now={now} topic={topic} onClose={() => setHealthOpen(false)} />}
+        {keysOpen && <ShortcutsModal onClose={() => setKeysOpen(false)} />}
+        {officesOpen && <OfficesModal current={topic} onSwitch={onSwitch} onAdd={onSignIn} onClose={() => setOfficesOpen(false)} />}
         {unlock && !celebration && <Celebration c={{ t: unlock.t, title: `${unlock.bot} desbloqueou: ${unlock.label}`, sub: 'Novo troféu na mesa' }} />}
         {searchOpen && <Search data={data} now={now} onPick={(n) => { setOverview(false); pickBot(n) }} onClose={() => setSearchOpen(false)} />}
       </div>

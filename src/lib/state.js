@@ -35,6 +35,7 @@ function blank() {
     history: [], weather: null, talkLog: [], reactions: [],
     // mail between floors, team goals, office pets, all-time stats for achievements, weekly counts
     mail: [], goals: {}, pets: {}, stats: {}, week: null, unlocks: [],
+    usageHist: [], // [{ t, total }] for the weekly-limit forecast
   }
 }
 
@@ -261,12 +262,20 @@ function applyPayload(d, p, t) {
         if (name && n != null) bots[name] = n
       }
     }
+    d.usageHist = [...(d.usageHist || []).filter((h) => t - h.t < 8 * 24 * 3600e3), { t, total: Math.max(0, Math.min(100, num(u.total_used_pct) ?? 0)) }].slice(-200)
     d.usage = {
       total: Math.max(0, Math.min(100, num(u.total_used_pct) ?? 0)),
       resets_at: clean(u.resets_at, 40),
       bots,
       t,
     }
+  }
+
+  // {"decision":{"bot":"Closer","action":"approve|reject","note":"..."}} — your answer, published from the site
+  if (p.decision && typeof p.decision === 'object' && typeof p.decision.bot === 'string') {
+    const name = clean(p.decision.bot, 48)
+    const action = p.decision.action === 'reject' ? 'reject' : 'approve'
+    if (d.bots[name]) pushActivity(d, { t, kind: 'decision', bot: name, action, step: clean(p.decision.note, 120) })
   }
 
   // {"type":"mail","from":"A","to":"B","step":"Relatório"} — an envelope travels to B's desk
@@ -351,6 +360,7 @@ function draft(s) {
     talkLog: [...(s.talkLog || [])],
     reactions: s.reactions || [],
     mail: s.mail || [],
+    usageHist: s.usageHist || [],
     stats: { ...(s.stats || {}) },
     unlocks: [...(s.unlocks || [])],
   }
@@ -423,6 +433,7 @@ export function loadTopic(topic) {
           history: p.history || [],
           talkLog: p.talkLog || [],
           mail: p.mail || [],
+          usageHist: p.usageHist || [],
           goals: p.goals || {},
           pets: p.pets || {},
           stats: p.stats || {},
@@ -464,7 +475,7 @@ function saveNow() {
   if (s.usage) writeJSON(partKey(currentTopic, 'usage'), s.usage)
   const main = {
     bots: s.bots, order: s.order, routines: s.routines, usage: s.usage, cortex: s.cortex,
-    activity: s.activity, history: s.history, talkLog: s.talkLog, mail: s.mail, goals: s.goals, pets: s.pets, stats: s.stats, week: s.week, unlocks: s.unlocks, weather: s.weather, chat: s.chat, talks: s.talks, lastTime: s.lastTime,
+    activity: s.activity, history: s.history, talkLog: s.talkLog, mail: s.mail, usageHist: s.usageHist, goals: s.goals, pets: s.pets, stats: s.stats, week: s.week, unlocks: s.unlocks, weather: s.weather, chat: s.chat, talks: s.talks, lastTime: s.lastTime,
     seen: [...seen].slice(-MAX_SEEN),
   }
   if (!writeJSON(storageKey, main)) writeJSON(storageKey, { ...main, activity: s.activity.slice(0, 20), history: s.history.slice(-300), seen: [...seen].slice(-100) })

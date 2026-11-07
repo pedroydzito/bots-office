@@ -35,3 +35,6 @@ export const Clap = (p) => <S {...p}><path d="M8 13l-2-2a1.5 1.5 0 0 1 2-2l4 4M1
 export const Laugh = (p) => <S {...p}><circle cx="12" cy="12" r="9" /><path d="M7.5 13.5a4.5 4.5 0 0 0 9 0zM8.5 9.5l1.5-1M15.5 9.5l-1.5-1" /></S>
 export const Mail = (p) => <S {...p}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></S>
 export const Trophy = (p) => <S {...p}><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8M9 17h6v3H9z" /></S>
+export const Tag = (p) => <S {...p}><path d="M3 12V4h8l10 10-8 8z" /><circle cx="7.5" cy="8.5" r="1.3" /></S>
+export const Pulse = (p) => <S {...p}><path d="M3 12h4l2-6 4 12 2-6h6" /></S>
+export const Keyboard = (p) => <S {...p}><rect x="2" y="6" width="20" height="12" rx="2" /><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10" /></S>

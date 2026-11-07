@@ -272,12 +272,12 @@ export default function Scene(props) {
   const { night, nightness, weather, tour, floorIdx, focus, selectedBot, onPointerMissed, onUserMove } = props
   // Adaptive quality: phones start light; any device drops resolution and shadows if FPS falls.
   const [low, setLow] = useState(MOBILE)
-  const [dpr, setDpr] = useState(MOBILE ? Math.min(1.25, window.devicePixelRatio || 1) : Math.min(1.75, window.devicePixelRatio || 1))
+  const [dpr, setDpr] = useState(MOBILE ? Math.min(1.6, window.devicePixelRatio || 1) : Math.min(1.75, window.devicePixelRatio || 1))
   return (
     <Canvas
       shadows={!MOBILE}
       dpr={dpr}
-      gl={{ antialias: !MOBILE, powerPreference: 'high-performance', stencil: false }}
+      gl={{ antialias: true, powerPreference: 'high-performance', stencil: false }}
       camera={{ fov: 30, position: [12, 10 + floorIdx * FLOOR_H, 12], near: 0.5, far: 200 }}
       onPointerMissed={onPointerMissed}
       onCreated={({ gl }) => {
@@ -296,7 +296,7 @@ export default function Scene(props) {
         }}
         onIncline={() => {
           if (!MOBILE) setLow(false)
-          setDpr((d) => Math.min(MOBILE ? Math.min(1.25, window.devicePixelRatio || 1) : Math.min(2, window.devicePixelRatio || 1), d + 0.25))
+          setDpr((d) => Math.min(MOBILE ? Math.min(1.75, window.devicePixelRatio || 1) : Math.min(2, window.devicePixelRatio || 1), d + 0.25))
         }}
       />
       <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={low} />

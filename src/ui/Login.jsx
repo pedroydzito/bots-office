@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { validTopic } from '../lib/ntfy'
 import { Bell, Gear, Speaker, Tv } from './Icons'
-import { chime, enableNotifications, notificationsSupported, prefs } from '../lib/notify'
+import { chime, enableNotifications, notificationsSupported, prefs, prefStore, setPref } from '../lib/notify'
+import { useStore } from '../lib/createStore'
 import { startAmbience, startMusic, stopAmbience, stopMusic, uiSound } from '../lib/ambience'
-import { Music } from './Icons'
+import { Keyboard, Layers, Music, Pulse, Tag } from './Icons'
 
 export function Login({ onSubmit, onDemo }) {
   const [v, setV] = useState('')
@@ -47,13 +48,14 @@ export function Login({ onSubmit, onDemo }) {
   )
 }
 
-export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode }) {
+export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOffices, onHealth, onKeys, readonly }) {
   const [open, setOpen] = useState(false)
   const [notify, setNotify] = useState(() => prefs.get('notify', false) && notificationsSupported() && Notification.permission === 'granted')
   const [sound, setSound] = useState(() => prefs.get('sound', false))
   const [amb, setAmb] = useState(() => prefs.get('ambience', false))
   const [music, setMusic] = useState(() => prefs.get('music', false))
   const [ui, setUi] = useState(() => prefs.get('uisound', false))
+  const names = useStore(prefStore, (p) => p.names)
   const ref = useRef(null)
   useEffect(() => {
     if (!open) return
@@ -131,7 +133,14 @@ export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode }) {
           >
             <Speaker size={14} /> Sons da interface <i className={ui ? 'on' : ''} />
           </button>
+          <button className="toggle" onClick={() => setPref('names', !names)}>
+            <Tag size={14} /> Mostrar nomes <i className={names ? 'on' : ''} />
+          </button>
           <button onClick={() => { setOpen(false); onTv() }}><Tv size={14} /> Modo TV</button>
+          <hr />
+          {onOffices && <button onClick={() => { setOpen(false); onOffices() }}><Layers size={14} /> Escritórios{readonly ? ' · só leitura' : ''}</button>}
+          {onHealth && <button onClick={() => { setOpen(false); onHealth() }}><Pulse size={14} /> Saúde do sistema</button>}
+          {onKeys && <button onClick={() => { setOpen(false); onKeys() }}><Keyboard size={14} /> Atalhos</button>}
           <hr />
           {live ? (
             <button onClick={onSignOut}>Sair</button>

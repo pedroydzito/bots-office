@@ -1,5 +1,6 @@
 // The only network access in the app: read-only subscription to one ntfy.sh topic.
 import { clock } from '../scene/sim'
+import { health, noteMessage } from './health'
 
 const BASE = 'https://ntfy.sh'
 
@@ -77,6 +78,7 @@ export function connectNtfy(topic, { onMessages, onStatus }) {
     const since = lastId || Math.floor(Date.now() / 1000 - 30)
     es = new EventSource(`${base}/sse?since=${since}`)
     es.onopen = () => {
+      health.connectedAt = Date.now()
       onStatus('live')
       if (hadError) {
         hadError = false
@@ -88,6 +90,7 @@ export function connectNtfy(topic, { onMessages, onStatus }) {
         const raw = JSON.parse(ev.data)
         if (typeof raw.time === 'number' && (raw.event === 'message' || raw.event === 'open' || raw.event === 'keepalive')) sampleClock(raw.time)
         const m = toMsg(raw)
+        if (m) noteMessage(m.time, true)
         if (m) onMessages([m])
       } catch {
         /* ignore */

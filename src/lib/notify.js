@@ -1,5 +1,7 @@
 // Small per-browser preferences + "a bot needs you" notifications (browser notification and a soft chime).
 
+import { createStore } from './createStore'
+
 export const prefs = {
   get(k, d) {
     try {
@@ -67,4 +69,11 @@ export function notifyWaiting(bot, onClick) {
   } catch {
     /* some mobile browsers only allow notifications from a service worker */
   }
+}
+
+/** Reactive view prefs (re-render the scene when they change). */
+export const prefStore = createStore({ names: prefs.get('names', true) })
+export function setPref(k, v) {
+  prefs.set(k, v)
+  prefStore.set({ [k]: v })
 }

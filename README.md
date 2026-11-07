@@ -59,6 +59,18 @@ The interface is in Brazilian Portuguese. Each room is sized to its number of bo
 
 ### Extras
 
+- **Approve / reject with a note**: from the bot card or the approval queue (`A`). The site publishes `{"decision":{"bot":"Closer","action":"approve|reject","note":"..."}}` to your topic, so your automation can pass the answer back to the bot. The "Open chat" link is still there.
+- **Approval queue** (`A`): everything waiting on you, oldest first, with how long it has been waiting.
+- **Stuck bots**: a bot "working" on the same step for 20+ minutes gets a "parado há…" tag.
+- **Activity filters**: all, errors, conversations, this floor.
+- **System health** (`H` or settings): connection, last message, average delay, messages in the last hour, bots silent for 2h+, local storage used.
+- **Weekly limit by team** and a **forecast** ("at this pace you hit 100% on Thursday ~14h") from the usage messages of the week; warning above 80%.
+- **Keyboard shortcuts**: `?` shows them all.
+- **Several offices**: settings → Escritórios. Switch between saved access codes, name them, remove them.
+- **View-only link**: from Escritórios, copy a `/#ver:<code>` link. That device can watch but not approve, react or reply. (The ntfy topic itself is still public to anyone who knows it.)
+- **Routines**: countdown to the next run, and "atrasada" in red when a run is 5+ minutes overdue without news.
+- **Names**: every bot shows a small name label (settings → Mostrar nomes to turn it off).
+
 - **Grok Bot shapes and colours (exact names)**: shapes `blob, pebble, bean, egg, squircle, tablet, capsule, cylinder, hex, gem, crystal, wedge, shield, dome, arch, cloud, teardrop, leaf, square, sparkle, clover, flower, heart, house, star`; colours `black, brown, red, orange, yellow, green, cyan, blue, violet, magenta, gray`. Old names still work as aliases (`circle`=blob, `hexagon`=hex, `drop`=teardrop, `rounded_square`=square, `pill`=capsule, `star4`=sparkle, `grey`=gray). Eyes follow the app's style (two slanted ovals).
 - **Hidden bots**: `"hidden": true` in the roster or `looks` keeps the bot on its team's floor, but quieter: washed-out, translucent, a bit smaller, with an "oculto" tag.
 - **Installable app (PWA)**: install it from the browser menu ("Add to home screen" / "Install"). It opens instantly from cache and updates in the background; live data always comes straight from ntfy. `/?tv=1` opens directly in TV mode (also an app shortcut).

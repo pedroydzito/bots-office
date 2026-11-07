@@ -5,6 +5,7 @@ import { Arrow, Auto, Building2, Search as SearchIco, Brain, Chat, Check, Close,
 import { CORTEX_KEY, durationShort, effStatus, hhmm, resolveColor, STATUS, talkActive } from '../lib/constants'
 import { sceneSignals } from '../scene/registry'
 import { botMetrics, fmtDuration } from '../lib/metrics'
+import { DecisionBox, isStuck } from './Ops'
 
 const STATUS_WORD = { working: 'Trabalhando', waiting_user: 'Esperando você', error: 'Erro', done: 'Concluído', resting: 'Descansando' }
 
@@ -85,7 +86,7 @@ function Collapse({ title, count, open, setOpen, children, accent }) {
   )
 }
 
-export function LeftPanel({ floors, data, now, selectedKey, onFloor, waiting, onApprove, onPickBot, talks }) {
+export function LeftPanel({ floors, data, now, selectedKey, onFloor, waiting, onApprove, onPickBot, talks, onQueue }) {
   const [open, setOpen] = useState({ waiting: true, talks: true, finished: false, routines: false })
   const tog = (k) => (v) => setOpen((o) => ({ ...o, [k]: v }))
   const finished = data.order.filter((n) => effStatus(data.bots[n], now) === 'done')
@@ -121,6 +122,7 @@ export function LeftPanel({ floors, data, now, selectedKey, onFloor, waiting, on
       </div>
       <Collapse title="Esperando por mim" count={waiting.length} open={open.waiting} setOpen={tog('waiting')} accent>
         {waiting.length === 0 && <p className="muted">Nada precisa de você</p>}
+        {waiting.length > 1 && onQueue && <button className="ghost sm qbtn" onClick={onQueue}>Ver fila completa (A)</button>}
         {waiting.map((b) => (
           <div key={b.name} className="li">
             <Avatar bot={b} size={24} />
@@ -166,7 +168,7 @@ export function LeftPanel({ floors, data, now, selectedKey, onFloor, waiting, on
             <Avatar bot={data.bots[r.bot]} size={22} />
             <div className="lt">
               <b>{r.name || 'Rotina'}</b>
-              <span>{r.bot} · {r.schedule}{r.next_run ? ` · próxima ${fmtNext(r.next_run)}` : ''}</span>
+              <span>{r.bot} · {r.schedule}{r.next_run ? <> · <RoutineWhen next={r.next_run} now={now} /></> : ''}</span>
             </div>
           </div>
         ))}
@@ -190,7 +192,7 @@ function headerColor(sts) {
   return '#8b9099'
 }
 
-export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, chatOf, onApprove, onReact }) {
+export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, chatOf, onApprove, onReact, onDecide }) {
   if (selectedBot && data.bots[selectedBot]) {
     const b = data.bots[selectedBot]
     const st = effStatus(b, now)
@@ -230,14 +232,14 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
             <div className="sub">
               <h4>Rotinas</h4>
               {data.routines[selectedBot].map((r, i) => (
-                <div key={i} className="mini"><b>{r.name}</b><span>{r.schedule}{r.next_run ? ` · próxima ${fmtNext(r.next_run)}` : ''}</span></div>
+                <div key={i} className="mini"><b>{r.name}</b><span>{r.schedule}{r.next_run ? <> · <RoutineWhen next={r.next_run} now={now} /></> : ''}</span></div>
               ))}
             </div>
           )}
           <div className="actions">
             {link && <a className="btn ghost" href={link} target={link.startsWith('https') ? '_blank' : undefined} rel="noopener noreferrer">Abrir chat</a>}
-            {st === 'waiting_user' && <button className="dark" onClick={() => onApprove(selectedBot)}>Aprovar</button>}
           </div>
+          {st === 'waiting_user' && onDecide && <DecisionBox bot={selectedBot} onDecide={onDecide} />}
         </div>
       </div>
     )
@@ -284,6 +286,7 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
               <div className="lt">
                 <b>{n}{b.hidden && <em className="tag-hidden">oculto</em>}</b>
                 <span>{talking ? `Conversando com ${talk.to} · ${talk.step}` : `${STATUS_WORD[st]}${b.step && st !== 'resting' ? ' · ' + b.step : ''}`}</span>
+                {isStuck(b, now) && <em className="stuck" title="Trabalhando no mesmo passo há muito tempo">parado há {durationShort(now - b.ts).replace('há ', '')}</em>}
               </div>
             </button>
           )
@@ -302,16 +305,40 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
   )
 }
 
-export function Activity({ data, onPick }) {
-  const items = data.activity.slice(0, 7)
+const FILTERS = [
+  ['all', 'Tudo'],
+  ['errors', 'Erros'],
+  ['talks', 'Conversas'],
+  ['floor', 'Este andar'],
+]
+export function Activity({ data, onPick, floorBots = [] }) {
+  const [f, setF] = useState('all')
+  const keep = (a) =>
+    f === 'all' ||
+    (f === 'errors' && a.kind === 'status' && a.status === 'error') ||
+    (f === 'talks' && (a.kind === 'talk' || a.kind === 'mail')) ||
+    (f === 'floor' && (floorBots.includes(a.bot) || floorBots.includes(a.from) || floorBots.includes(a.to)))
+  const items = data.activity.filter(keep).slice(0, 7)
   return (
     <div className="card activity">
-      <div className="hd"><span>Atividade</span></div>
+      <div className="hd">
+        <span>Atividade</span>
+        <div className="chips">
+          {FILTERS.map(([k, l]) => (
+            <button key={k} className={`chip ${f === k ? 'on' : ''}`} aria-pressed={f === k} onClick={() => setF(k)}>{l}</button>
+          ))}
+        </div>
+      </div>
+      {items.length === 0 && data.activity.length > 0 && <p className="muted">Nada nesse filtro</p>}
       {items.length === 0 && <p className="muted">Aguardando a primeira mensagem…</p>}
       {items.map((a, i) => (
         <div key={`${a.t}|${a.kind}|${a.bot || a.from}|${a.to || ''}`} className="act" onClick={() => onPick(a.kind === 'talk' || a.kind === 'mail' ? a.from : a.bot)}>
           <time>{hhmm(a.t)}</time>
-          {a.kind === 'mail' ? (
+          {a.kind === 'decision' ? (
+            <span>
+              <b>Você {a.action === 'reject' ? 'recusou' : 'aprovou'} {a.bot}</b>{a.step ? `: ${a.step}` : ''}
+            </span>
+          ) : a.kind === 'mail' ? (
             <span>
               <b>{a.from} <Mail size={11} /> {a.to}</b>: {a.step}
             </span>
@@ -334,9 +361,34 @@ export function Activity({ data, onPick }) {
   )
 }
 
-export function Weekly({ usage, data }) {
-  const top = usage ? Object.entries(usage.bots).sort((a, b) => b[1] - a[1]).slice(0, 4) : []
+/** Usage grouped by team, and a "you'll hit 100% on…" forecast from this week's samples. */
+function usageInsights(usage, data) {
+  const teams = {}
+  for (const [n, v] of Object.entries(usage?.bots || {})) {
+    const t = data.bots[n]?.team || 'Outros'
+    teams[t] = (teams[t] || 0) + v
+  }
   const reset = usage?.resets_at ? Date.parse(usage.resets_at) : NaN
+  const weekStart = isFinite(reset) ? reset - 7 * 24 * 3600e3 : Date.now() - 7 * 24 * 3600e3
+  const hist = (data.usageHist || []).filter((h) => h.t >= weekStart)
+  let forecast = null
+  if (hist.length >= 2 && usage) {
+    const a = hist[0], b = hist[hist.length - 1]
+    const rate = (b.total - a.total) / Math.max(1, b.t - a.t) // % per ms
+    if (rate > 0) {
+      const eta = b.t + (100 - b.total) / rate
+      forecast = isFinite(reset) && eta > reset ? { ok: true } : { ok: false, eta }
+    } else forecast = { ok: true }
+  }
+  return { teams: Object.entries(teams).sort((x, y) => y[1] - x[1]), forecast, reset }
+}
+const WEEKDAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
+
+export function Weekly({ usage, data }) {
+  const [byTeam, setByTeam] = useState(false)
+  const ins = usageInsights(usage, data)
+  const top = usage ? (byTeam ? ins.teams.slice(0, 5) : Object.entries(usage.bots).sort((a, b) => b[1] - a[1]).slice(0, 4)) : []
+  const reset = ins.reset
   return (
     <div className="weekly-wrap">
       <div className="zoom card">
@@ -352,11 +404,23 @@ export function Weekly({ usage, data }) {
           <>
             <div className="pct"><b>{Math.round(usage.total)}%</b><span className="muted">usado</span></div>
             <div className="bar"><i style={{ width: `${Math.min(100, usage.total)}%`, background: usage.total > 85 ? '#E5484D' : usage.total > 65 ? '#F5A524' : '#16181d' }} /></div>
+            {usage.total >= 80 && <p className="warnline">Acima de 80% do limite semanal</p>}
+            {ins.forecast && (
+              <p className={`forecast ${ins.forecast.ok ? '' : 'bad'}`}>
+                {ins.forecast.ok
+                  ? 'Nesse ritmo, não estoura antes de renovar'
+                  : `Nesse ritmo, chega a 100% ${WEEKDAYS[new Date(ins.forecast.eta).getDay()]} ~${String(new Date(ins.forecast.eta).getHours()).padStart(2, '0')}h`}
+              </p>
+            )}
+            <div className="seg2">
+              <button className={!byTeam ? 'on' : ''} aria-pressed={!byTeam} onClick={() => setByTeam(false)}>Bots</button>
+              <button className={byTeam ? 'on' : ''} aria-pressed={byTeam} onClick={() => setByTeam(true)}>Times</button>
+            </div>
             {top.map(([n, v]) => (
               <div key={n} className="ub">
-                <i style={{ background: resolveColor(data.bots[n]?.color) }} />
+                <i style={{ background: byTeam ? '#8F59F9' : resolveColor(data.bots[n]?.color) }} />
                 <span>{n}</span>
-                <em>{v}%</em>
+                <em>{Math.round(v * 10) / 10}%</em>
               </div>
             ))}
           </>
@@ -410,4 +474,14 @@ function Metrics({ data, name, now }) {
       </div>
     </div>
   )
+}
+
+/** "em 12 min", or a red "atrasada há 8 min" when a routine's next run has passed without news. */
+function RoutineWhen({ next, now }) {
+  const t = Date.parse(next)
+  if (!isFinite(t)) return <>{next}</>
+  const d = t - now
+  if (d >= 0) return <>próxima em {durationShort(d)}</>
+  if (-d > 5 * 60e3) return <b className="late">atrasada {durationShort(d)}</b>
+  return <>rodando agora</>
 }
