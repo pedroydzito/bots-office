@@ -6,6 +6,9 @@ import Seasonal from './Seasonal'
 import { hash } from './sim'
 import Pet from './Pet'
 import Confetti from './Confetti'
+import StaticMerge from './StaticMerge'
+
+let mergeGen = 0
 import {
   Aquarium, Arcade, Armchair, BeanBag, Poster, WallShelf, Bookshelf, FloorLamp, Printer, Vending, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, GlassElevator, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
   StickyWall, TVScreen, WallTitle, WaterCooler, Workstation,
@@ -128,7 +131,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   // layout / light mode instead of on every re-render (big win on phones).
   const staticRoom = useMemo(
     () => (
-      <>
+      <StaticMerge key={++mergeGen}>
       <Shell layout={layout} title={floor.name} subtitle={`Andar ${floor.num}`} accent={floor.color} />
       <Clock position={[-W / 2 + 1.55, 2.45, -D / 2 + 0.28]} />
       <CoffeeCorner position={[-W / 2 + 3.0, 0, -D / 2 + 0.52]} />
@@ -167,9 +170,9 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       {layout.rows.map((r, i) => (
         <DeskRow key={i} row={r} />
       ))}
-      {petKind !== 'fish' && petKind !== 'none' && <Pet layout={layout} floorIdx={floorIdx} kind={petKind} />}
+      <group userData={{ dynamic: true }}>{petKind !== 'fish' && petKind !== 'none' && <Pet layout={layout} floorIdx={floorIdx} kind={petKind} />}</group>
       {petKind === 'fish' && <Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} />}
-      <Seasonal layout={layout} seed={floor.key} />
+      <group userData={{ dynamic: true }}><Seasonal layout={layout} seed={floor.key} /></group>
       {/* wall art keeps both walls lively: posters high above the left-wall furniture, art + shelf on the back wall */}
       {/* pictures sit in the gaps between the left-wall furniture, at one shared height */}
       {layout.wall.artZ.map((z, i) => (
@@ -181,7 +184,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
           <WallShelf position={[(-W / 2 + 7.0 + W / 2 - 3.8) / 2 + 0.75, 1.3, -D / 2 + 0.25]} w={1.0} />
         </group>
       )}
-      </>
+      </StaticMerge>
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [layout, night, floor.key, floor.name, floor.num, floor.color, floorY, petKind, home],

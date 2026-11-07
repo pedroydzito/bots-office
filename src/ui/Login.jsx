@@ -53,7 +53,7 @@ export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOff
   const [notify, setNotify] = useState(() => prefs.get('notify', false) && notificationsSupported() && Notification.permission === 'granted')
   const [sound, setSound] = useState(() => prefs.get('sound', true))
   const [amb, setAmb] = useState(() => prefs.get('ambience', true))
-  const [music, setMusic] = useState(() => prefs.get('music', true))
+  const [music, setMusic] = useState(() => prefs.get('music', false))
   const [ui, setUi] = useState(() => prefs.get('uisound', true))
   const names = useStore(prefStore, (p) => p.names)
   const [vib, setVib] = useState(() => prefs.get('vibrate', true))

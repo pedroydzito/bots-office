@@ -36,7 +36,7 @@ export function Chair({ x, z, owner }) {
       <mesh position={[0, 0.22, 0]} material={M.dark}>
         <cylinderGeometry args={[0.035, 0.035, 0.36, 10]} />
       </mesh>
-      <group ref={top}>
+      <group userData={{ dynamic: true }} ref={top}>
         <RoundedBox args={[0.62, 0.1, 0.58]} radius={0.04} smoothness={2} position={[0, 0.45, -0.02]} material={M.black} castShadow receiveShadow />
         <RoundedBox args={[0.6, 0.5, 0.07]} radius={0.03} smoothness={2} position={[0, 0.76, -0.44]} rotation={[-0.1, 0, 0]} material={M.black} castShadow />
         <mesh position={[0, 0.55, -0.4]} material={M.dark}>
@@ -127,8 +127,9 @@ export function Plant({ position, scale = 1, kind = 0 }) {
   const amp = useRef(0)
   useFrame(({ clock }, dt) => {
     if (!leaves.current) return
-    const near = nearestBot(position[0], position[2]) < 1.3 ? 1 : 0
-    amp.current += (near - amp.current) * Math.min(1, dt * 2)
+    // checking every bot's distance is the costly part: do it ~6x per second, not every frame
+    if ((leaves.k = (leaves.k || 0) + 1) % 10 === 0) leaves.near = nearestBot(position[0], position[2]) < 1.3 ? 1 : 0
+    amp.current += ((leaves.near || 0) - amp.current) * Math.min(1, dt * 2)
     const t = clock.elapsedTime
     leaves.current.rotation.z = Math.sin(t * 7) * 0.07 * amp.current + Math.sin(t * 0.8 + position[0]) * 0.012
     leaves.current.rotation.x = Math.cos(t * 6) * 0.05 * amp.current
@@ -139,7 +140,7 @@ export function Plant({ position, scale = 1, kind = 0 }) {
         <cylinderGeometry args={[0.24, 0.19, 0.44, 24]} />
       </mesh>
       {kind === 0 ? (
-        <group ref={leaves} position={[0, 0.44, 0]}>
+        <group userData={{ dynamic: true }} ref={leaves} position={[0, 0.44, 0]}>
           <mesh position={[0, 0.35, 0]} material={M.leaf} scale={[1, 1.15, 1]}>
             <sphereGeometry args={[0.38, 24, 18]} />
           </mesh>
@@ -151,7 +152,7 @@ export function Plant({ position, scale = 1, kind = 0 }) {
           </mesh>
         </group>
       ) : (
-        <group ref={leaves} position={[0, 0.44, 0]}>
+        <group userData={{ dynamic: true }} ref={leaves} position={[0, 0.44, 0]}>
           {[0, 1, 2, 3, 4].map((i) => (
             <mesh key={i} position={[Math.cos(i * 1.3) * 0.12, 0.35 + i * 0.12, Math.sin(i * 1.3) * 0.12]} rotation={[Math.cos(i) * 0.5, i, Math.sin(i) * 0.5]} material={i % 2 ? M.leaf : M.leaf2} scale={[1, 0.25, 0.5]}>
               <sphereGeometry args={[0.3, 16, 12]} />
@@ -192,12 +193,12 @@ export function Clock({ position, rotation }) {
         <circleGeometry args={[0.38, 40]} />
         <meshBasicMaterial map={face} toneMapped={false} />
       </mesh>
-      <group ref={h} position={[0, 0, 0.04]}>
+      <group userData={{ dynamic: true }} ref={h} position={[0, 0, 0.04]}>
         <mesh position={[0, 0.1, 0]} material={M.black}>
           <boxGeometry args={[0.03, 0.2, 0.01]} />
         </mesh>
       </group>
-      <group ref={m} position={[0, 0, 0.045]}>
+      <group userData={{ dynamic: true }} ref={m} position={[0, 0, 0.045]}>
         <mesh position={[0, 0.14, 0]} material={M.black}>
           <boxGeometry args={[0.02, 0.28, 0.01]} />
         </mesh>
@@ -228,7 +229,7 @@ export function CoffeeCorner({ position }) {
   return (
     <group position={position}>
       {[0, 1, 2].map((i) => (
-        <mesh key={'s' + i} ref={(m) => (puffs.current[i] = m)} geometry={steamGeo} material={mat} visible={false} />
+        <mesh userData={{ dynamic: true }} key={'s' + i} ref={(m) => (puffs.current[i] = m)} geometry={steamGeo} material={mat} visible={false} />
       ))}
       <RoundedBox args={[2.2, 0.08, 0.5]} radius={0.02} position={[0, 1.05, 0]} material={M.white} receiveShadow />
       <RoundedBox args={[2.2, 0.9, 0.5]} radius={0.02} position={[0, 0.45, 0]} material={M.white} receiveShadow />
@@ -335,7 +336,7 @@ export function Bookshelf({ position, rotation, width = 1.6, shelves = 4, seed =
           <boxGeometry args={[0.04, H, 0.36]} />
         </mesh>
       ))}
-      <instancedMesh ref={ref} args={[undefined, undefined, books.length]}>
+      <instancedMesh userData={{ dynamic: true }} ref={ref} args={[undefined, undefined, books.length]}>
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial roughness={0.7} />
       </instancedMesh>
@@ -366,7 +367,7 @@ function Cushion({ x, k }) {
     ref.current.position.y = 0.47 + 0.07 * ref.current.scale.y
   })
   return (
-    <RoundedBox ref={ref} args={[1.0, 0.14, 0.62]} radius={0.06} smoothness={2} position={[x, 0.54, 0.08]} receiveShadow>
+    <RoundedBox userData={{ dynamic: true }} ref={ref} args={[1.0, 0.14, 0.62]} radius={0.06} smoothness={2} position={[x, 0.54, 0.08]} receiveShadow>
       <meshStandardMaterial color="#dfe1e5" roughness={0.95} />
     </RoundedBox>
   )
@@ -486,10 +487,10 @@ export function Elevator({ layout, floorY, label, night }) {
         <meshStandardMaterial color={night ? '#ffe6b0' : '#2a2d33'} emissive={night ? '#ffcf8a' : '#000'} emissiveIntensity={night ? 0.6 : 0} />
       </mesh>
       <group position={[0.09, 1.08, 0]}>
-        <mesh ref={left} position={[0, 0, -0.3]} material={M.metal}>
+        <mesh userData={{ dynamic: true }} ref={left} position={[0, 0, -0.3]} material={M.metal}>
           <boxGeometry args={[0.03, 2.15, 0.6]} />
         </mesh>
-        <mesh ref={right} position={[0, 0, 0.3]} material={M.metal}>
+        <mesh userData={{ dynamic: true }} ref={right} position={[0, 0, 0.3]} material={M.metal}>
           <boxGeometry args={[0.03, 2.15, 0.6]} />
         </mesh>
       </group>
@@ -702,7 +703,7 @@ export function Cake({ seat }) {
       <mesh position={[0, 0.06, 0]}><cylinderGeometry args={[0.12, 0.12, 0.12, 24]} /><meshStandardMaterial color="#ffd6e7" /></mesh>
       <mesh position={[0, 0.125, 0]}><cylinderGeometry args={[0.122, 0.122, 0.02, 24]} /><meshStandardMaterial color="#ffffff" /></mesh>
       <mesh position={[0, 0.17, 0]}><cylinderGeometry args={[0.008, 0.008, 0.07, 6]} /><meshStandardMaterial color="#1E86FC" /></mesh>
-      <mesh ref={flame} position={[0, 0.215, 0]}><sphereGeometry args={[0.014, 8, 6]} /><meshBasicMaterial color="#ffb020" /></mesh>
+      <mesh userData={{ dynamic: true }} ref={flame} position={[0, 0.215, 0]}><sphereGeometry args={[0.014, 8, 6]} /><meshBasicMaterial color="#ffb020" /></mesh>
     </group>
   )
 }
@@ -738,8 +739,8 @@ export function GlassElevator({ layout, night, floorY = null }) {
       <mesh position={[0, 1.43, 0.7]} material={glass}><boxGeometry args={[1.0, 2.7, 0.02]} /></mesh>
       <mesh position={[-0.55, 1.43, 0]} material={glass}><boxGeometry args={[0.02, 2.7, 1.3]} /></mesh>
       <group position={[0.56, 1.15, 0]}>
-        <mesh ref={left} position={[0, 0, -0.27]} material={glass}><boxGeometry args={[0.02, 2.2, 0.54]} /></mesh>
-        <mesh ref={right} position={[0, 0, 0.27]} material={glass}><boxGeometry args={[0.02, 2.2, 0.54]} /></mesh>
+        <mesh userData={{ dynamic: true }} ref={left} position={[0, 0, -0.27]} material={glass}><boxGeometry args={[0.02, 2.2, 0.54]} /></mesh>
+        <mesh userData={{ dynamic: true }} ref={right} position={[0, 0, 0.27]} material={glass}><boxGeometry args={[0.02, 2.2, 0.54]} /></mesh>
       </group>
       <mesh position={[0.63, 2.55, 0]}>
         <boxGeometry args={[0.03, 0.12, 0.36]} />
@@ -801,7 +802,7 @@ export function Printer({ x, z }) {
         <circleGeometry args={[0.025, 12]} />
         <meshBasicMaterial color="#5cff9b" />
       </mesh>
-      <mesh ref={paper} position={[0, 0.72, 0.15]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+      <mesh userData={{ dynamic: true }} ref={paper} position={[0, 0.72, 0.15]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
         <planeGeometry args={[0.3, 0.4]} />
         <meshStandardMaterial color="#ffffff" />
       </mesh>
@@ -910,7 +911,7 @@ export function Aquarium({ x, z }) {
         </mesh>
       ))}
       {colors.map((c, i) => (
-        <group key={i} ref={(g) => (fish.current[i] = g)}>
+        <group userData={{ dynamic: true }} key={i} ref={(g) => (fish.current[i] = g)}>
           <mesh scale={[0.06, 0.035, 0.02]}>
             <sphereGeometry args={[1, 10, 8]} />
             <meshStandardMaterial color={c} />
@@ -922,7 +923,7 @@ export function Aquarium({ x, z }) {
         </group>
       ))}
       {[0, 1, 2, 3].map((i) => (
-        <mesh key={i} ref={(m) => (bub.current[i] = m)}>
+        <mesh userData={{ dynamic: true }} key={i} ref={(m) => (bub.current[i] = m)}>
           <sphereGeometry args={[0.012, 6, 6]} />
           <meshBasicMaterial color="#ffffff" transparent opacity={0.7} />
         </mesh>

@@ -266,6 +266,12 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     return () => clearTimeout(id)
   }, [sendStatus])
   const [quick, setQuick] = useState(null) // long-press menu on a bot
+  // opening animation: the office fades in, then the interface arrives piece by piece
+  const [intro, setIntro] = useState(true)
+  useEffect(() => {
+    const id = setTimeout(() => setIntro(false), 2600)
+    return () => clearTimeout(id)
+  }, [])
   const [welcome, setWelcome] = useState(false)
   useEffect(() => {
     let seen = prefs.get('welcomed', false)
@@ -363,7 +369,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     // browsers only allow audio after a gesture: resume saved choices on the first click
     const start = () => {
       if (prefs.get('ambience', true)) startAmbience()
-      if (prefs.get('music', true)) startMusic()
+      if (prefs.get('music', false)) startMusic()
     }
     window.addEventListener('pointerdown', start, { once: true })
     // quiet interface blips on every click (when enabled)
@@ -463,7 +469,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   }, [])
 
   return (
-    <div className={`app ${night ? 'night' : ''} ${tv ? 'tv' : ''}`}>
+    <div className={`app ${night ? 'night' : ''} ${tv ? 'tv' : ''} ${intro ? 'intro' : ''}`}>
       <Suspense fallback={null}>
       <Scene
         floors={floors}
