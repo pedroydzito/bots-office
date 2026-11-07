@@ -48,7 +48,8 @@ export function floorLayout(n) {
     if (cnt <= 0) break
     const z = z0 + r * SZ
     rows.push({ z, x1: x0 - 0.88, x2: x0 + (cols - 1) * SX + 0.88, aisle: z - 1.1 })
-    for (let c = 0; c < cnt; c++) seats.push({ x: x0 + c * SX, z, az: z - 1.1, row: r })
+    // ex: side lane between chairs, so bots step out sideways instead of walking through the chair back
+    for (let c = 0; c < cnt; c++) seats.push({ x: x0 + c * SX, z, az: z - 1.1, ex: x0 + c * SX + SX / 2, row: r })
   }
   const xL = -W / 2 + 3.05
   const lw = leftWall(W, D)
@@ -84,9 +85,13 @@ export function cortexLayout() {
 
 /** Polyline through the lanes: own lane -> left corridor -> target lane. */
 export function planPath(a, b, L) {
-  const pts = [[a.x, a.z], [a.x, a.az]]
+  const pts = [[a.x, a.z]]
+  if (a.ex != null) pts.push([a.ex, a.z], [a.ex, a.az])
+  else pts.push([a.x, a.az])
   if (Math.abs(a.az - b.az) > 0.01) pts.push([L.xL, a.az], [L.xL, b.az])
-  pts.push([b.x, b.az], [b.x, b.z])
+  if (b.ex != null) pts.push([b.ex, b.az], [b.ex, b.z])
+  else pts.push([b.x, b.az])
+  pts.push([b.x, b.z])
   const out = [pts[0]]
   for (const p of pts.slice(1)) {
     const q = out[out.length - 1]

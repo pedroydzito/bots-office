@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
 import { createTVCanvas, drawTV, getCodeTextures, makeClockFace, makeTitleTexture, makeRugTexture } from './textures'
-import { botPositions } from './registry'
+import { botPositions, seatYaw, tickCodeScroll } from './registry'
 
 const M = {
   white: new THREE.MeshStandardMaterial({ color: '#f7f7f8', roughness: 0.6 }),
@@ -20,7 +20,14 @@ const M = {
 }
 export { M as MATS }
 
-export function Chair({ x, z }) {
+/** Swivel chair: turns with the bot sitting on it, eases back when empty. */
+export function Chair({ x, z, owner }) {
+  const top = useRef()
+  useFrame((_, dt) => {
+    if (!top.current) return
+    const want = seatYaw.get(owner) ?? 0
+    top.current.rotation.y += (want - top.current.rotation.y) * Math.min(1, dt * 8)
+  })
   return (
     <group position={[x, 0, z]}>
       <mesh position={[0, 0.03, 0]} material={M.black} castShadow>
@@ -29,8 +36,13 @@ export function Chair({ x, z }) {
       <mesh position={[0, 0.22, 0]} material={M.dark}>
         <cylinderGeometry args={[0.035, 0.035, 0.36, 10]} />
       </mesh>
-      <RoundedBox args={[0.62, 0.1, 0.58]} radius={0.04} position={[0, 0.45, -0.02]} material={M.black} castShadow receiveShadow />
-      <RoundedBox args={[0.6, 0.52, 0.08]} radius={0.04} position={[0, 0.76, -0.33]} rotation={[-0.08, 0, 0]} material={M.black} castShadow />
+      <group ref={top}>
+        <RoundedBox args={[0.62, 0.1, 0.58]} radius={0.04} smoothness={2} position={[0, 0.45, -0.02]} material={M.black} castShadow receiveShadow />
+        <RoundedBox args={[0.6, 0.5, 0.07]} radius={0.03} smoothness={2} position={[0, 0.76, -0.44]} rotation={[-0.1, 0, 0]} material={M.black} castShadow />
+        <mesh position={[0, 0.55, -0.4]} material={M.dark}>
+          <boxGeometry args={[0.05, 0.16, 0.05]} />
+        </mesh>
+      </group>
     </group>
   )
 }
@@ -71,12 +83,12 @@ export function Workstation({ seat, status, idx, night }) {
   )
   const ref = useRef(screenMat)
   useEffect(() => () => screenMat.dispose(), [screenMat])
-  useFrame((_, dt) => {
+  useFrame(({ clock }, dt) => {
     const m = ref.current
     const on = status === 'working' || status === 'waiting_user' || status === 'error'
     const target = (on ? 1.1 : 0.25) * (night ? 1.6 : 1)
-    m.emissiveIntensity += (target - m.emissiveIntensity) * Math.min(1, dt * 3)
-    if (status === 'working') m.emissiveMap.offset.y = (m.emissiveMap.offset.y - dt * 0.05) % 1
+    if (Math.abs(target - m.emissiveIntensity) > 0.005) m.emissiveIntensity += (target - m.emissiveIntensity) * Math.min(1, dt * 3)
+    tickCodeScroll(clock.elapsedTime, codes)
   })
   const mug = MUG_COLORS[idx % MUG_COLORS.length]
   return (

@@ -10,3 +10,18 @@ export const sceneSignals = {
 }
 
 export const tmpV = new THREE.Vector3()
+
+/** Seated bots publish their swivel so their chair turns with them. */
+export const seatYaw = new Map()
+
+/** Points of interest currently claimed by a bot (one bot per spot). */
+export const poiTaken = new Set()
+export const poiKey = (p) => `${p.kind}:${p.x.toFixed(2)},${p.z.toFixed(2)}`
+
+let codeScroll = 0
+/** Advance the shared monitor "code" scroll once per frame (not once per desk). */
+export function tickCodeScroll(t, textures) {
+  if (codeScroll === t) return
+  codeScroll = t
+  for (const tex of textures) tex.offset.y = (-t * 0.05) % 1
+}

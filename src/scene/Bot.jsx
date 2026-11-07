@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { getBotAsset } from './shapes'
 import { isDark, resolveColor, STATUS } from '../lib/constants'
 import { planPath, SEAT_Y } from './layout'
-import { botPositions } from './registry'
+import { botPositions, poiKey, poiTaken, seatYaw } from './registry'
 import Confetti from './Confetti'
 
 const rand = (a, b) => a + Math.random() * (b - a)
@@ -256,7 +256,14 @@ function Bot({
     return () => clearInterval(id)
   }, [talking])
 
-  useEffect(() => () => botPositions.delete(bot.name), [bot.name])
+  useEffect(
+    () => () => {
+      botPositions.delete(bot.name)
+      seatYaw.delete(bot.name)
+      if (S.current?.wander) poiTaken.delete(poiKey(S.current.wander))
+    },
+    [bot.name],
+  )
 
   useFrame(({ clock, camera }, rawDt) => {
     const dt = Math.min(rawDt, 0.05)
@@ -277,12 +284,19 @@ function Bot({
     let g = p.goal
     if (!g) {
       const idleish = p.status === 'resting' || p.status === 'done'
-      if (s.wander && (!idleish || (s.wander.until && t > s.wander.until))) s.wander = null
-      if (!s.wander && idleish && p.seat && t > s.nextWander) {
-        s.wander = { ...pick(p.layout.pois), until: null }
-        s.nextWander = t + rand(30, 80)
+      if (s.wander && (!idleish || (s.wander.until && t > s.wander.until))) {
+        poiTaken.delete(poiKey(s.wander))
+        s.wander = null
       }
-      g = s.wander || (p.seat ? { kind: 'seat', x: p.seat.x, z: p.seat.z, az: p.seat.az, yaw: 0 } : p.layout.elevator)
+      if (!s.wander && idleish && p.seat && t > s.nextWander) {
+        s.nextWander = t + rand(30, 80)
+        const free = p.layout.pois.filter((q) => !poiTaken.has(poiKey(q)))
+        if (free.length) {
+          s.wander = { ...pick(free), until: null }
+          poiTaken.add(poiKey(s.wander))
+        }
+      }
+      g = s.wander || (p.seat ? { kind: 'seat', x: p.seat.x, z: p.seat.z, az: p.seat.az, ex: p.seat.ex, yaw: 0 } : p.layout.elevator)
     }
     const key = g.kind === 'seat' ? 'seat' : `${g.kind}:${g.x.toFixed(2)},${g.z.toFixed(2)}`
     if (key !== s.key) {
@@ -354,7 +368,31 @@ function Bot({
         } else s.targetYaw = s.lookYaw
       } else if (g.yaw != null) s.targetYaw = g.yaw
     }
+    // seated bots swivel less, and the chair turns with them
+    const seated = s.arrived && g.kind === 'seat'
+    if (seated) s.targetYaw = Math.max(-0.55, Math.min(0.55, s.targetYaw))
     s.yaw = lerpAngle(s.yaw, s.targetYaw, 1 - Math.exp(-dt * 7))
+    if (seated && s.y > 0.3) seatYaw.set(bot.name, s.yaw)
+    else seatYaw.delete(bot.name)
+
+    // soft collisions: standing/walking bots never overlap each other
+    if (!seated && !s.hiddenFlag) {
+      for (const [other, q] of botPositions) {
+        if (other === bot.name) continue
+        const dx = s.pos.x - q.x, dz = s.pos.z - q.z
+        const d = Math.hypot(dx, dz)
+        const minD = 0.82
+        if (d < minD) {
+          const k = ((minD - d) / minD) * Math.min(1, dt * 12) * 0.55
+          const nx = d > 1e-4 ? dx / d : Math.cos(phase), nz = d > 1e-4 ? dz / d : Math.sin(phase)
+          s.pos.x += nx * k * minD
+          s.pos.z += nz * k * minD
+        }
+      }
+      // stay inside the room
+      s.pos.x = Math.max(-p.layout.W / 2 + 0.45, Math.min(p.layout.W / 2 - 0.45, s.pos.x))
+      s.pos.z = Math.max(-p.layout.D / 2 + 0.45, Math.min(p.layout.D / 2 - 0.45, s.pos.z))
+    }
 
     const wantY = s.arrived && g.kind === 'seat' ? SEAT_Y : 0
     s.y += (wantY - s.y) * (1 - Math.exp(-dt * 9))
@@ -434,7 +472,7 @@ function Bot({
       // resting
       sy = 1 + Math.sin(t * 1.2 + phase) * 0.03
       if (s.atKind === 'seat') {
-        rx = -0.12
+        rx = -0.05
         eyeY = 0.12
       }
       rz = Math.sin(t * 0.6 + phase) * 0.04

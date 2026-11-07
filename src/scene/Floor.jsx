@@ -128,7 +128,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         if (!seat) return null
         return (
           <group key={n}>
-            <Chair x={seat.x} z={seat.z} />
+            <Chair x={seat.x} z={seat.z} owner={n} />
             <Workstation seat={seat} idx={i} status={effStatus(data.bots[n], now)} night={night} />
           </group>
         )
