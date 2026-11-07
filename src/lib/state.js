@@ -32,7 +32,7 @@ function blank() {
     // latest roster list (names in order) and the time of its last part
     rosterOrder: [], rosterT: 0,
     // status timeline (for replay + metrics) and outside weather
-    history: [], weather: null, talkLog: [],
+    history: [], weather: null, talkLog: [], reactions: [],
   }
 }
 
@@ -216,6 +216,14 @@ function applyPayload(d, p, t) {
     }
   }
 
+  // {"react":{"bot":"Closer","kind":"heart"}} — reactions from people watching, shown over the bot
+  if (p.react && typeof p.react === 'object' && typeof p.react.bot === 'string') {
+    const kind = clean(p.react.kind, 12).toLowerCase()
+    if (['like', 'heart', 'party', 'clap', 'laugh'].includes(kind) && d.bots[clean(p.react.bot, 48)]) {
+      d.reactions = [...d.reactions.filter((r) => t - r.t < 60000), { bot: clean(p.react.bot, 48), kind, t }].slice(-40)
+    }
+  }
+
   // {"weather":"rain"} — clear | cloudy | rain | storm | snow (sent by your own bots/scripts)
   if (typeof p.weather === 'string' && /^(clear|sun|sunny|cloudy|clouds|rain|storm|snow)$/i.test(p.weather.trim())) {
     const w = p.weather.trim().toLowerCase()
@@ -262,6 +270,7 @@ function draft(s) {
     activity: [...s.activity],
     history: [...(s.history || [])],
     talkLog: [...(s.talkLog || [])],
+    reactions: s.reactions || [],
   }
 }
 

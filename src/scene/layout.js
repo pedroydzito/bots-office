@@ -90,7 +90,35 @@ export function floorLayout(n, W, D) {
     decor.push({ type: 'plant', x: x0 + 3.3, z: cz - 0.8, k: 1 })
   }
   if (rx2 - rx1 >= 1.6) decor.push({ type: 'plant', x: W / 2 - 0.9, z: (deskFront + D / 2 - 4.6) / 2, k: 0 })
-  decor.push({ type: 'board', x: -W / 2 + 0.27, z: lw.stickyZ ?? lw.coolerZ + 1.6 }) // "waiting on me" cork board
+  // --- more furniture for the open space, each with something bots can do there
+  const extraPois = []
+  // snack machine against the left wall, near the front
+  decor.push({ type: 'vending', x: -W / 2 + 0.55, z: D / 2 - 2.6 })
+  extraPois.push({ kind: 'vending', x: -W / 2 + 1.6, z: D / 2 - 2.6, yaw: -Math.PI / 2 })
+  // printer under the TV
+  decor.push({ type: 'printer', x: W / 2 - 3.7, z: -D / 2 + 0.6 })
+  extraPois.push({ kind: 'printer', x: W / 2 - 3.7, z: -D / 2 + 1.5, yaw: Math.PI })
+  // arcade cabinet on the right, between the meeting corner and the lounge
+  const az1 = z0 + (rx2 - rx1 >= 3.4 ? 2.8 : 0.4), az2 = D / 2 - 4.9
+  if (W / 2 - blockEnd > 2.6 && az2 - az1 > 1.2) {
+    const z = (az1 + az2) / 2
+    decor.push({ type: 'arcade', x: W / 2 - 0.9, z })
+    decor.push({ type: 'lamp', x: W / 2 - 0.8, z: z + 1.3 })
+    extraPois.push({ kind: 'arcade', x: W / 2 - 1.9, z, yaw: Math.PI / 2 })
+  }
+  // armchairs by the windows, between the phone spot and the lounge
+  const ax = x0 + 4.6
+  if (W / 2 - 4.7 - ax > 1.8) {
+    decor.push({ type: 'rug', x: ax + 0.6, z: D / 2 - 1.9, w: 2.6, d: 1.6, color: '#e7eef6', round: true })
+    decor.push({ type: 'armchair', x: ax, z: D / 2 - 1.9, c: '#c9d4e3' })
+    decor.push({ type: 'armchair', x: ax + 1.25, z: D / 2 - 1.9, c: '#e8cfc4' })
+    decor.push({ type: 'lamp', x: ax + 2.2, z: D / 2 - 2.3 })
+    extraPois.push({ kind: 'armchair', x: ax, z: D / 2 - 1.9, az: D / 2 - 2.9, yaw: 0, sit: true })
+    extraPois.push({ kind: 'armchair', x: ax + 1.25, z: D / 2 - 1.9, az: D / 2 - 2.9, yaw: 0, sit: true })
+  }
+  // plants to soften corners
+  decor.push({ type: 'plant', x: -W / 2 + 0.7, z: D / 2 - 4.0, k: 0 })
+  decor.push({ type: 'plant', x: W / 2 - 0.8, z: D / 2 - 4.5, k: 1 })
   const pois = [
     { kind: 'coffee', x: -W / 2 + 3.0, z: -D / 2 + 1.25, yaw: Math.PI },
     { kind: 'cooler', x: -W / 2 + 1.45, z: lw.coolerZ, yaw: -Math.PI / 2 },
@@ -101,6 +129,9 @@ export function floorLayout(n, W, D) {
     { kind: 'sofa', x: W / 2 - 1.55, z: D / 2 - 3.05, az: D / 2 - 2.5, yaw: 0, sit: true },
     { kind: 'plant', x: W / 2 - 1.85, z: -D / 2 + 1.5, yaw: Math.PI / 2 },
     { kind: 'phone', x: x0 + 3.3, z: D / 2 - 1.6, yaw: 0.2 },
+    // a stroll along the windows with a few stops
+    { kind: 'stroll', x: x0 + 0.4, z: D / 2 - 1.5, yaw: 0, route: [[x0 + 2.4, D / 2 - 1.5], [x0 + 0.9, D / 2 - 1.3]] },
+    ...extraPois,
   ]
   if (lw.shelfZ != null) pois.push({ kind: 'books', x: -W / 2 + 1.45, z: lw.shelfZ, yaw: -Math.PI / 2 })
   const blockCx = x0 + ((cols - 1) * SX) / 2

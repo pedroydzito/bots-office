@@ -420,3 +420,18 @@ button.link:hover { color: var(--ink2); }
 .settings .menu .seg { gap: 2px; padding: 3px; background: rgba(127, 127, 127, 0.08); border-radius: 10px; margin-bottom: 4px; }
 .settings .menu .seg button { flex: 1; justify-content: center; padding: 6px; }
 .settings .menu .seg button.on { background: var(--card-solid); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+
+/* ---------- reactions */
+.reactbar { display: flex; gap: 6px; }
+.reactbar .rb { flex: 1; height: 36px; border-radius: 11px; display: grid; place-items: center; background: rgba(127, 127, 127, 0.08); color: var(--ink2); }
+.rb-like:hover { color: #1e86fc; } .rb-heart:hover { color: #f93498; } .rb-party:hover { color: #8f59f9; } .rb-clap:hover { color: #f5a524; } .rb-laugh:hover { color: #2fb36b; }
+@media (hover: hover) { .reactbar .rb:hover .ico { transform: scale(1.22) rotate(-8deg); } }
+.reactbar .rb:active { transform: scale(0.88) !important; }
+.reacts { position: relative; height: 0; width: 0; }
+.react { position: absolute; left: var(--dx); bottom: 0; width: 30px; height: 30px; border-radius: 50%; background: #fff; color: var(--c); display: grid; place-items: center; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15); animation: floatup 4s var(--curva) forwards; }
+@keyframes floatup { 0% { transform: translate(-50%, 10px) scale(0.4); opacity: 0; } 12% { transform: translate(-50%, -6px) scale(1.15); opacity: 1; } 25% { transform: translate(-50%, -14px) scale(1); } 85% { opacity: 1; } 100% { transform: translate(-50%, -70px) scale(0.9); opacity: 0; } }
+.tl-track { position: relative; flex: 1; display: flex; align-items: center; }
+.tl-track input[type='range'] { width: 100%; position: relative; z-index: 1; }
+.tl-marks { position: absolute; left: 7px; right: 7px; top: -9px; height: 8px; z-index: 2; pointer-events: none; }
+.tl-mark { position: absolute; top: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--c); transform: translateX(-50%); pointer-events: auto; padding: 0; box-shadow: 0 0 0 2px var(--card-solid); }
+@media (hover: hover) { .tl-mark:hover { transform: translateX(-50%) scale(1.6); } }

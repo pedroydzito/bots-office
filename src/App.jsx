@@ -6,7 +6,7 @@ import { world } from './scene/sim'
 import { dataStore, deriveFloors, forgetTopic, loadTopic, ingest } from './lib/state'
 import { useNow, useStore } from './lib/createStore'
 import { chatLink, CORTEX_KEY, effStatus, resolveColor, talkActive } from './lib/constants'
-import { connectNtfy } from './lib/ntfy'
+import { connectNtfy, publish } from './lib/ntfy'
 import { captureHash, clearCode, getCode, setCode } from './lib/auth'
 import { demoApprove, startDemo } from './lib/demo'
 import { Activity, Brand, ConnectBanner, Hints, LeftPanel, ModeToggles, Pills, RightPanel, Toast, Weekly } from './ui/Panels'
@@ -394,12 +394,17 @@ function Office({ topic, onSignOut, onSignIn }) {
           onClose={() => setSelectedBot(null)}
           chatOf={(n) => chatLink(data, n)}
           onApprove={approve}
+          onReact={(n, kind) => {
+            const msg = { react: { bot: n, kind } }
+            if (topic) publish(topic, msg)
+            else ingest([{ id: `local-${Date.now()}`, time: Date.now(), payload: msg }])
+          }}
         />
         <Activity data={data} onPick={pickBot} />
         <Weekly usage={data.usage} data={data} />
         <div className="bottom-center">
           {!topic && !replayT && <ConnectBanner onSignIn={onSignIn} />}
-          <Timeline history={live.history} value={replayT} onChange={setReplayT} />
+          <Timeline history={live.history} talkLog={live.talkLog} value={replayT} onChange={setReplayT} />
           <Hints />
         </div>
         <MobileFloors floors={floors} data={data} now={now} selectedKey={selKey} onFloor={goFloor} />

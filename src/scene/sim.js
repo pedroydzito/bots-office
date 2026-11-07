@@ -106,7 +106,7 @@ export function rideFor(s) {
 }
 
 // ------------------------------------------------------------------ wandering
-const KINDS = ['coffee', 'cooler', 'sofa', 'view', 'books', 'plant', 'phone', 'chat']
+const KINDS = ['coffee', 'cooler', 'sofa', 'view', 'books', 'plant', 'phone', 'chat', 'vending', 'printer', 'arcade', 'armchair', 'stroll']
 const tripCache = new Map()
 /** Who leaves their desk in this slot on this floor, where to, and until when (conflict-free). */
 function tripsFor(floorKey, names, layout, slot, data, all) {
@@ -126,7 +126,7 @@ function tripsFor(floorKey, names, layout, slot, data, all) {
     const h = statusAt(data.history || [], n, depart)
     if (!h || isBusy(h) || isSleepy(h, depart)) continue
     if (all.some((s) => (s.from === n || s.to === n) && s.t0 < depart + SLOT && s.endT > depart - 5000)) continue
-    const likes = [...KINDS].sort((a, b) => rnd(n, 'likes', a) - rnd(n, 'likes', b)).slice(0, 4)
+    const likes = [...KINDS].sort((a, b) => rnd(n, 'likes', a) - rnd(n, 'likes', b)).slice(0, 6)
     // a quick chat at a colleague's desk is also an option (if that colleague is free)
     const mates = names.filter((m) => m !== n && !trips[m] && !isBusy(statusAt(data.history || [], m, depart)))
     const extra = []
@@ -140,7 +140,7 @@ function tripsFor(floorKey, names, layout, slot, data, all) {
     if (!pick) continue
     taken.add(`${pick.kind}:${pick.x},${pick.z}`)
     const seat = layout.seats[names.indexOf(n)]
-    const go = walkMs(seat, pick, layout, true)
+    const go = walkMs(seat, pick, layout, true) + (pick.route ? pick.route.length * 6500 : 0)
     const stay = 12000 + rnd(n, slot, 's') * 26000
     const back = Math.min(depart + go + stay, slotStart + SLOT - 1500)
     if (back - depart < go + 4000) continue
@@ -210,7 +210,21 @@ function eventsFor(ctx, T) {
     for (let k = slot - 2; k <= slot; k++) {
       const trip = tripsFor(floorKey, names, layout, k, data, all)[name]
       if (!trip) continue
-      ev.push({ t: trip.depart, goal: { ...trip.poi, kind: trip.poi.kind, poi: true } })
+      const g0 = { ...trip.poi, kind: trip.poi.kind, poi: true }
+      ev.push({ t: trip.depart, goal: g0 })
+      if (trip.poi.route) {
+        // a stroll: walk on to the next stops, pausing a few seconds at each
+        let tcur = trip.depart + walkMs(seat, g0, layout, true)
+        let prev = g0
+        for (const [x, z] of trip.poi.route) {
+          const g = { kind: 'stroll', x, z, az: z, yaw: rnd(name, x, z) - 0.5, poi: true }
+          tcur += 3500
+          if (tcur > trip.back) break
+          ev.push({ t: tcur, goal: g })
+          tcur += walkMs({ x: prev.x, z: prev.z, az: prev.az ?? prev.z }, g, layout, false)
+          prev = g
+        }
+      }
       // back early if work comes in
       const h = (data.history || []).find((x) => x.bot === name && x.t > trip.depart && x.t < trip.back && isBusy(x))
       ev.push({ t: h ? h.t : trip.back, goal: seatGoal })

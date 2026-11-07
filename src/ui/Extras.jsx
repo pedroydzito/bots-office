@@ -4,7 +4,7 @@ import { Clock, Close, Layers, Party, Pause, Play, Search as SearchIco } from '.
 import { CORTEX_KEY, effStatus, hhmm, STATUS } from '../lib/constants'
 
 /** "Go back in time": scrub through the last hours of status changes; the office replays them. */
-export function Timeline({ history, value, onChange }) {
+export function Timeline({ history, talkLog = [], value, onChange }) {
   const [open, setOpen] = useState(false)
   const [playing, setPlaying] = useState(false)
   const now = Date.now()
@@ -35,7 +35,9 @@ export function Timeline({ history, value, onChange }) {
       <button className="tl-play" onClick={() => (playing ? setPlaying(false) : (value == null && onChange(min), setPlaying(true)))} aria-label={playing ? 'Pausar' : 'Reproduzir'}>
         {playing ? <Pause size={12} /> : <Play size={12} />}
       </button>
-      <input
+      <div className="tl-track">
+        <Markers history={history} talkLog={talkLog} min={min} max={now} onPick={onChange} />
+        <input
         type="range"
         min={min}
         max={now}
@@ -47,12 +49,39 @@ export function Timeline({ history, value, onChange }) {
         }}
         aria-label="Momento"
       />
+      </div>
       <span className="tl-time">{value == null ? 'Ao vivo' : hhmm(value)}</span>
       {value != null ? (
         <button className="dark sm" onClick={() => (setPlaying(false), onChange(null))}>Ao vivo</button>
       ) : (
         <button className="tl-x" onClick={() => setOpen(false)} aria-label="Fechar"><Close size={13} /></button>
       )}
+    </div>
+  )
+}
+
+/** Dots on the timeline: errors, approvals, finished work and meetings — click to jump there. */
+function Markers({ history, talkLog, min, max, onPick }) {
+  const span = Math.max(1, max - min)
+  const marks = []
+  for (const h of history) {
+    if (h.t < min) continue
+    if (h.status === 'error') marks.push({ t: h.t, c: '#E5484D', l: `${h.bot}: erro` })
+    else if (h.status === 'waiting_user') marks.push({ t: h.t, c: '#F5A524', l: `${h.bot} pediu aprovação` })
+  }
+  const byHost = {}
+  for (const s of talkLog) if (s.t0 >= min) (byHost[s.to] ||= []).push(s)
+  for (const [host, list] of Object.entries(byHost)) {
+    for (const s of list) {
+      const overlap = list.filter((o) => o.t0 < (s.end ?? s.lastT + 90000) && (o.end ?? o.lastT + 90000) > s.t0)
+      if (overlap.length >= 2 && overlap[0] === s) marks.push({ t: s.t0, c: '#8F59F9', l: `Reunião com ${host}` })
+    }
+  }
+  return (
+    <div className="tl-marks">
+      {marks.slice(-80).map((m, i) => (
+        <button key={i} className="tl-mark" style={{ left: `${((m.t - min) / span) * 100}%`, '--c': m.c }} title={`${hhmm(m.t)} · ${m.l}`} aria-label={m.l} onClick={() => onPick(m.t)} />
+      ))}
     </div>
   )
 }

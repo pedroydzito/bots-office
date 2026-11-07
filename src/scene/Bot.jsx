@@ -6,6 +6,9 @@ import { getBotAsset } from './shapes'
 import { isDark, resolveColor, STATUS } from '../lib/constants'
 import { botPositions, poiKey, seatYaw, sitting } from './registry'
 import { isSleepy, rnd, simBot, statusAt, syncNow } from './sim'
+import { Clap, Heart, Laugh, Party, ThumbUp } from '../ui/Icons'
+import { useStore } from '../lib/createStore'
+import { dataStore } from '../lib/state'
 import Confetti from './Confetti'
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)]
@@ -85,6 +88,65 @@ function Accessory({ kind, asset, color }) {
         </mesh>
       </group>
     )
+  if (kind === 'headphones') {
+    const w = asset.width / 2 + 0.02
+    const y = asset.eyeY + 0.02
+    return (
+      <group>
+        <mesh position={[0, y, -0.02]} rotation={[0, 0, 0]}>
+          <torusGeometry args={[w, 0.022, 8, 28, Math.PI]} />
+          <meshStandardMaterial color="#1c1c1f" roughness={0.4} />
+        </mesh>
+        {[-1, 1].map((sx) => (
+          <mesh key={sx} position={[sx * w, y - 0.02, -0.02]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.075, 0.075, 0.07, 18]} />
+            <meshStandardMaterial color={sx < 0 ? '#1c1c1f' : '#2b2d33'} roughness={0.4} />
+          </mesh>
+        ))}
+      </group>
+    )
+  }
+  if (kind === 'scarf')
+    return (
+      <group position={[0, Math.min(0.24, asset.top * 0.3), 0]}>
+        <mesh rotation={[Math.PI / 2, 0, 0]} scale={[1, 0.8, 1]}>
+          <torusGeometry args={[asset.width / 2 - 0.04, 0.05, 10, 28]} />
+          <meshStandardMaterial color="#E5484D" roughness={0.9} />
+        </mesh>
+        <mesh position={[0.14, -0.1, asset.depth / 2 - 0.02]} rotation={[0.2, 0, 0.15]}>
+          <boxGeometry args={[0.09, 0.2, 0.04]} />
+          <meshStandardMaterial color="#E5484D" roughness={0.9} />
+        </mesh>
+      </group>
+    )
+  if (kind === 'cap')
+    return (
+      <group position={[0, top - 0.06, 0]}>
+        <mesh scale={[1, 0.55, 1]}>
+          <sphereGeometry args={[asset.width * 0.3, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
+          <meshStandardMaterial color={color} roughness={0.6} />
+        </mesh>
+        <mesh position={[0, 0.01, asset.width * 0.3]} scale={[1, 0.15, 0.7]}>
+          <cylinderGeometry args={[asset.width * 0.22, asset.width * 0.22, 0.1, 20, 1, false, -Math.PI / 2, Math.PI]} />
+          <meshStandardMaterial color="#1c1c1f" />
+        </mesh>
+      </group>
+    )
+  if (kind === 'crown')
+    return (
+      <group position={[0, top - 0.02, 0]}>
+        <mesh position={[0, 0.05, 0]}>
+          <cylinderGeometry args={[0.13, 0.12, 0.1, 16, 1, true]} />
+          <meshStandardMaterial color="#f5b70a" metalness={0.6} roughness={0.3} side={THREE.DoubleSide} />
+        </mesh>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <mesh key={i} position={[Math.cos((i / 5) * Math.PI * 2) * 0.12, 0.13, Math.sin((i / 5) * Math.PI * 2) * 0.12]}>
+            <coneGeometry args={[0.03, 0.07, 8]} />
+            <meshStandardMaterial color="#f5b70a" metalness={0.6} roughness={0.3} />
+          </mesh>
+        ))}
+      </group>
+    )
   if (kind === 'glasses')
     return (
       <group>
@@ -117,6 +179,34 @@ function Accessory({ kind, asset, color }) {
       </group>
     )
   return null
+}
+
+const REACT_ICONS = { like: ThumbUp, heart: Heart, party: Party, clap: Clap, laugh: Laugh }
+const REACT_COLORS = { like: '#1E86FC', heart: '#F93498', party: '#8F59F9', clap: '#F5A524', laugh: '#2FB36B' }
+/** People's reactions float up over the bot for a few seconds (same on every screen). */
+function ReactionFloat({ name }) {
+  const all = useStore(dataStore, (s) => s.reactions)
+  const [, tick] = useState(0)
+  const now = syncNow()
+  const mine = (all || []).filter((r) => r.bot === name && now - r.t < 4000)
+  useEffect(() => {
+    if (!mine.length) return
+    const id = setTimeout(() => tick((x) => x + 1), 4100 - (now - mine[0].t))
+    return () => clearTimeout(id)
+  })
+  if (!mine.length) return null
+  return (
+    <div className="reacts">
+      {mine.slice(-5).map((r, i) => {
+        const Ico = REACT_ICONS[r.kind]
+        return (
+          <span key={r.t + r.kind} className="react" style={{ '--c': REACT_COLORS[r.kind], '--dx': `${(i % 3) * 14 - 14}px`, animationDelay: `${-(now - r.t)}ms` }}>
+            <Ico size={16} />
+          </span>
+        )
+      })}
+    </div>
+  )
 }
 
 function StatusIcon({ status, talking }) {
@@ -181,6 +271,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
   const [talkUi, setTalkUi] = useState(null) // { role, step, seed, turn, meeting }
   const [speech, setSpeech] = useState(false)
   const [confetti, setConfetti] = useState(0)
+  const [focused, setFocused] = useState(false)
 
   const P = useRef({})
   P.current = { status, seat, layout, role, names, data, floorKey, hover, ts: bot.ts, name: bot.name }
@@ -231,6 +322,11 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
       setTalkUi(sim.talk ? { ...sim.talk, turn } : null)
     }
     const st = p.status
+    const f = st === 'working' && T - (p.ts || 0) > 5 * 60e3
+    if (f !== v.focused) {
+      v.focused = f
+      setFocused(f)
+    }
     const moving = sim.moving
     const seated = sim.seated
     const sleeping = seated && st === 'resting' && isSleepy(statusAt(p.data.history || [], p.name, T), T)
@@ -381,6 +477,42 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
           by = Math.abs(Math.sin(t * 3 + phase)) * 0.02
           rx = Math.sin(t * 2.2) * 0.05
           break
+        case 'vending': {
+          // grab a snack, then nibble it
+          const bite = (t + phase) % 3 < 0.5 ? Math.sin((((t + phase) % 3) / 0.5) * Math.PI) : 0
+          hr = 0.24 + 0.1 * bite
+          hz = 0.14
+          by = bite * 0.02
+          break
+        }
+        case 'printer':
+          // waiting for the print, then reading the page
+          rx = 0.2
+          hl = hr = 0.1
+          hz = 0.2
+          ry = Math.sin(t * 0.6 + phase) * 0.1
+          break
+        case 'arcade':
+          // button mashing
+          rx = 0.1
+          hl = 0.08 + Math.abs(Math.sin(t * 16)) * 0.05
+          hr = 0.08 + Math.abs(Math.sin(t * 13 + 1)) * 0.05
+          hz = 0.22
+          by = Math.abs(Math.sin(t * 6 + phase)) * 0.03
+          rz = Math.sin(t * 2.2) * 0.08
+          break
+        case 'armchair':
+          rx = -0.2
+          hl = hr = 0.14
+          hz = 0.15
+          eyeY = Math.min(eyeY, 0.6)
+          sy *= 1 + Math.sin(t * 1.0 + phase) * 0.02
+          break
+        case 'stroll':
+          // looking around at each stop
+          ry = Math.sin(t * 0.9 + phase) * 0.45
+          rz = Math.sin(t * 1.4 + phase) * 0.03
+          break
         case 'chat':
           // dropped by a colleague's desk for a quick chat
           hl = 0.1 + Math.sin(t * 6) * 0.06
@@ -424,11 +556,11 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     if (hands.current[0]) hands.current[0].position.set(-hw, 0.22 + hl, 0.08 + hz)
     if (hands.current[1]) hands.current[1].position.set(hw, 0.22 + hr, 0.08 + hz)
     if (book.current) {
-      book.current.visible = act === 'books'
+      book.current.visible = act === 'books' || act === 'armchair' || act === 'printer'
       book.current.position.set(0, 0.3 + hl, 0.2 + hz)
     }
     if (mug.current) {
-      mug.current.visible = act === 'coffee' || act === 'cooler'
+      mug.current.visible = act === 'coffee' || act === 'cooler' || act === 'vending'
       mug.current.position.set(hw + 0.02, 0.3 + hr, 0.12 + hz)
     }
     if (st === 'error') mat.emissive.setRGB(0.6 * (0.5 + 0.5 * Math.sin(t * 6)), 0, 0)
@@ -446,6 +578,8 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     ringMat.color.set(statusColor)
   }, [statusColor, ringMat])
 
+  // after 5 minutes of continuous work a bot puts its headphones on; in the snow everyone wears a scarf
+  const snowy = data.weather === 'snow'
   const iconY = asset.top + 0.42
   const talking = !!talkUi && !hidden
   let speechText = null
@@ -498,6 +632,8 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
         <mesh ref={mug} geometry={mugGeo} material={mugMat} visible={false} />
         <mesh ref={book} geometry={bookGeo} material={bookMat} visible={false} rotation={[-0.5, 0, 0]} />
         <Accessory kind={bot.accessory} asset={asset} color={color} />
+        {focused && <Accessory kind="headphones" asset={asset} color={color} />}
+        {snowy && bot.accessory !== 'scarf' && <Accessory kind="scarf" asset={asset} color={color} />}
       </group>
       {!hidden && (
         <Html position={[0, iconY, 0]} center distanceFactor={10} zIndexRange={[30, 0]} pointerEvents="none">
@@ -508,6 +644,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
                 <span>{speechText}</span>
               </div>
             )}
+            <ReactionFloat name={bot.name} />
             <StatusIcon status={status} talking={talking} />
             {(hover || selected) && !speechText && <div className="name-chip">{bot.name}</div>}
           </div>

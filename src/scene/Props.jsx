@@ -740,3 +740,123 @@ export function GlassElevator({ layout, night, floorY = null }) {
     </group>
   )
 }
+
+// ---------------------------------------------------------------- more furniture
+
+/** Snack machine: glowing glass front with rows of snacks. */
+export function Vending({ x, z }) {
+  const snacks = ['#E5484D', '#F5B70A', '#1E86FC', '#2FB36B', '#F93498', '#FD690F']
+  return (
+    <group position={[x, 0, z]} rotation={[0, Math.PI / 2, 0]}>
+      <RoundedBox args={[0.8, 1.75, 0.6]} radius={0.05} smoothness={2} position={[0, 0.875, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color="#e5484d" roughness={0.45} />
+      </RoundedBox>
+      <mesh position={[-0.08, 1.05, 0.305]}>
+        <planeGeometry args={[0.5, 1.15]} />
+        <meshStandardMaterial color="#20242c" emissive="#9fd3ff" emissiveIntensity={0.25} />
+      </mesh>
+      {Array.from({ length: 12 }, (_, i) => (
+        <mesh key={i} position={[-0.25 + (i % 3) * 0.17, 0.62 + Math.floor(i / 3) * 0.27, 0.29]}>
+          <boxGeometry args={[0.1, 0.13, 0.04]} />
+          <meshStandardMaterial color={snacks[i % snacks.length]} />
+        </mesh>
+      ))}
+      <mesh position={[0.28, 1.15, 0.305]} material={M.dark}>
+        <boxGeometry args={[0.14, 0.4, 0.02]} />
+      </mesh>
+      <mesh position={[-0.08, 0.28, 0.305]} material={M.dark}>
+        <boxGeometry args={[0.45, 0.14, 0.02]} />
+      </mesh>
+    </group>
+  )
+}
+
+/** Office printer on a small cabinet; paper slides out when someone is waiting at it. */
+export function Printer({ x, z }) {
+  const paper = useRef()
+  useFrame(({ clock }) => {
+    if (!paper.current) return
+    let near = false
+    for (const p of botPositions.values()) if (Math.hypot(p.x - x, p.z - (z + 0.9)) < 0.7) near = true
+    const k = near ? (clock.elapsedTime * 0.5) % 1 : 0
+    paper.current.position.z = 0.15 + k * 0.22
+    paper.current.visible = near
+  })
+  return (
+    <group position={[x, 0, z]}>
+      <RoundedBox args={[0.9, 0.62, 0.55]} radius={0.03} smoothness={2} position={[0, 0.31, 0]} material={M.white} castShadow receiveShadow />
+      <RoundedBox args={[0.72, 0.32, 0.5]} radius={0.05} smoothness={2} position={[0, 0.78, 0]} material={M.grey} castShadow />
+      <mesh position={[0, 0.95, -0.05]} material={M.dark}>
+        <boxGeometry args={[0.6, 0.03, 0.32]} />
+      </mesh>
+      <mesh position={[0.26, 0.86, 0.26]}>
+        <circleGeometry args={[0.025, 12]} />
+        <meshBasicMaterial color="#5cff9b" />
+      </mesh>
+      <mesh ref={paper} position={[0, 0.72, 0.15]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+        <planeGeometry args={[0.3, 0.4]} />
+        <meshStandardMaterial color="#ffffff" />
+      </mesh>
+    </group>
+  )
+}
+
+/** Arcade cabinet with an animated screen. */
+export function Arcade({ x, z }) {
+  const scr = useRef()
+  useFrame(({ clock }) => {
+    if (scr.current) scr.current.emissive.setHSL((clock.elapsedTime * 0.15) % 1, 0.7, 0.45)
+  })
+  return (
+    <group position={[x, 0, z]} rotation={[0, -Math.PI / 2, 0]}>
+      <RoundedBox args={[0.75, 1.7, 0.7]} radius={0.05} smoothness={2} position={[0, 0.85, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color="#8F59F9" roughness={0.4} />
+      </RoundedBox>
+      <mesh position={[0, 1.25, 0.355]} rotation={[-0.15, 0, 0]}>
+        <planeGeometry args={[0.55, 0.42]} />
+        <meshStandardMaterial ref={scr} color="#111" emissive="#5cc8ff" emissiveIntensity={0.9} />
+      </mesh>
+      <RoundedBox args={[0.7, 0.08, 0.3]} radius={0.02} smoothness={2} position={[0, 0.92, 0.45]} material={M.dark} />
+      <mesh position={[-0.15, 0.99, 0.45]}><cylinderGeometry args={[0.02, 0.02, 0.1, 8]} /><meshStandardMaterial color="#E5484D" /></mesh>
+      {[0.05, 0.17].map((bx) => (
+        <mesh key={bx} position={[bx, 0.965, 0.47]}><cylinderGeometry args={[0.03, 0.03, 0.02, 12]} /><meshStandardMaterial color="#F5B70A" /></mesh>
+      ))}
+      <mesh position={[0, 1.62, 0.36]}>
+        <planeGeometry args={[0.6, 0.14]} />
+        <meshStandardMaterial color="#111" emissive="#F93498" emissiveIntensity={1.1} />
+      </mesh>
+    </group>
+  )
+}
+
+/** Soft armchair facing the windows. */
+export function Armchair({ x, z, c = '#c9d4e3' }) {
+  return (
+    <group position={[x, 0, z]}>
+      <RoundedBox args={[0.95, 0.4, 0.85]} radius={0.14} smoothness={3} position={[0, 0.3, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color={c} roughness={0.9} />
+      </RoundedBox>
+      <RoundedBox args={[0.95, 0.6, 0.22]} radius={0.1} smoothness={3} position={[0, 0.62, -0.34]} castShadow>
+        <meshStandardMaterial color={c} roughness={0.9} />
+      </RoundedBox>
+      {[-0.42, 0.42].map((ax) => (
+        <RoundedBox key={ax} args={[0.16, 0.42, 0.8]} radius={0.07} smoothness={2} position={[ax, 0.5, 0]} castShadow>
+          <meshStandardMaterial color={c} roughness={0.9} />
+        </RoundedBox>
+      ))}
+    </group>
+  )
+}
+
+export function FloorLamp({ x, z, night }) {
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, 0.02, 0]} material={M.dark}><cylinderGeometry args={[0.16, 0.18, 0.04, 18]} /></mesh>
+      <mesh position={[0, 0.8, 0]} material={M.dark}><cylinderGeometry args={[0.014, 0.014, 1.6, 8]} /></mesh>
+      <mesh position={[0, 1.62, 0]}>
+        <cylinderGeometry args={[0.16, 0.22, 0.26, 20, 1, true]} />
+        <meshStandardMaterial color="#fff6e0" emissive="#ffd28a" emissiveIntensity={night ? 1.8 : 0.15} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  )
+}

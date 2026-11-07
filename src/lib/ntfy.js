@@ -17,6 +17,16 @@ export function validTopic(t) {
   return typeof t === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(t)
 }
 
+/** Publish one JSON message to the topic (used for reactions, so every screen sees them). */
+export async function publish(topic, payload) {
+  try {
+    await fetch(`${BASE}/${encodeURIComponent(topic)}`, { method: 'POST', body: JSON.stringify(payload) })
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function connectNtfy(topic, { onMessages, onStatus }) {
   const base = `${BASE}/${encodeURIComponent(topic)}`
   let es = null

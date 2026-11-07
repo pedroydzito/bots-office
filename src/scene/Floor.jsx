@@ -4,7 +4,7 @@ import Bot from './Bot'
 import Pet from './Pet'
 import Confetti from './Confetti'
 import {
-  BeanBag, Bookshelf, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, GlassElevator, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
+  Arcade, Armchair, BeanBag, Bookshelf, FloorLamp, Printer, Vending, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, GlassElevator, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
   StickyWall, TVScreen, WallTitle, WaterCooler, Workstation,
 } from './Props'
 import { effStatus, STATUS, talkActive } from '../lib/constants'
@@ -70,7 +70,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
     return out
   }, [data.talkLog, data.bots, homeSet, Math.floor(now / 5000)])
   // the simulation reads statuses/conversations from `data`; give bots a stable object per change
-  const simData = useMemo(() => ({ history: data.history, talkLog: data.talkLog, rev: data.rev }), [data.history, data.talkLog, data.rev])
+  const simData = useMemo(() => ({ history: data.history, talkLog: data.talkLog, rev: data.rev, weather: data.weather?.kind || null }), [data.history, data.talkLog, data.rev, data.weather])
 
   // ---- room status (door sign), wall boards, achievements, sleep-lights
   const sts = home.map((n) => effStatus(data.bots[n], now))
@@ -107,7 +107,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       <Clock position={[-W / 2 + 1.55, 2.45, -D / 2 + 0.28]} />
       <CoffeeCorner position={[-W / 2 + 3.0, 0, -D / 2 + 0.52]} />
       <TVScreen
-        position={[W / 2 - 2.5, 1.4, -D / 2 + 0.3]}
+        position={[W / 2 - 2.5, 1.75, -D / 2 + 0.3]}
         label="EVENTOS / 24 MIN"
         getValue={() => eventsSeries().reduce((a, b) => a + b, 0)}
         getSeries={eventsSeries}
@@ -126,20 +126,17 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         d.type === 'meeting' ? <MeetingTable key={i} x={d.x} z={d.z} /> :
         d.type === 'whiteboard' ? <Whiteboard key={i} x={d.x} z={layout.meet.z - 1.75} /> :
         d.type === 'beanbag' ? <BeanBag key={i} x={d.x} z={d.z} c={d.c} /> :
-        d.type === 'plant' ? <Plant key={i} position={[d.x, 0, d.z]} kind={d.k} scale={1.1} /> : null,
+        d.type === 'plant' ? <Plant key={i} position={[d.x, 0, d.z]} kind={d.k} scale={1.1} /> :
+        d.type === 'vending' ? <Vending key={i} x={d.x} z={d.z} /> :
+        d.type === 'printer' ? <Printer key={i} x={d.x} z={d.z} /> :
+        d.type === 'arcade' ? <Arcade key={i} x={d.x} z={d.z} /> :
+        d.type === 'armchair' ? <Armchair key={i} x={d.x} z={d.z} c={d.c} /> :
+        d.type === 'lamp' ? <FloorLamp key={i} x={d.x} z={d.z} night={night} /> : null,
       )}
-      <StatusLamp position={[-W / 2 + 2.95, 2.3, -D / 2 + 0.3]} color={floorColor} />
-      <InfoBoard
-        position={[(-W / 2 + 6.9 + W / 2 - 3.7) / 2, 1.75, -D / 2 + 0.29]}
-        title="Esperando por mim"
-        cork
-        accent="#F5A524"
-        empty="Nada pendente"
-        lines={waitingLines}
-      />
+      <StatusLamp position={[-W / 2 + 2.95, 2.4, -D / 2 + 0.3]} color={floorColor} />
       {layout.wall.stickyZ != null && (
         <InfoBoard
-          position={[-W / 2 + 0.29, 1.6, layout.wall.stickyZ - 0.4]}
+          position={[-W / 2 + 0.29, 1.75, layout.wall.stickyZ - 0.4]}
           rotation={[0, Math.PI / 2, 0]}
           title="Destaques de hoje"
           accent="#8F59F9"

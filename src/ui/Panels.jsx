@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Avatar from './Avatar'
+import { Clap, Heart, Laugh, Party, ThumbUp } from './Icons'
 import { Arrow, Auto, Building2, Search as SearchIco, Brain, Chat, Check, Close, Doc, Down, Minus, Moon, Pause, Play, Plus, Sun, Up } from './Icons'
 import { CORTEX_KEY, durationShort, effStatus, hhmm, resolveColor, STATUS, talkActive } from '../lib/constants'
 import { sceneSignals } from '../scene/registry'
@@ -189,7 +190,7 @@ function headerColor(sts) {
   return '#8b9099'
 }
 
-export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, chatOf, onApprove }) {
+export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, chatOf, onApprove, onReact }) {
   if (selectedBot && data.bots[selectedBot]) {
     const b = data.bots[selectedBot]
     const st = effStatus(b, now)
@@ -215,6 +216,15 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
             <p key={f} className="talkline"><Chat size={13} /> <b>{f}</b> está visitando: {t.step}</p>
           ))}
           {usage != null && <div className="row"><span className="muted">Uso semanal</span><b>{usage}%</b></div>}
+          {onReact && (
+            <div className="reactbar" aria-label="Reagir">
+              {[['like', ThumbUp, 'Curtir'], ['heart', Heart, 'Amei'], ['party', Party, 'Comemorar'], ['clap', Clap, 'Aplaudir'], ['laugh', Laugh, 'Rir']].map(([k, I, l]) => (
+                <button key={k} className={`rb rb-${k}`} title={l} aria-label={l} onClick={() => onReact(selectedBot, k)}>
+                  <I size={17} />
+                </button>
+              ))}
+            </div>
+          )}
           <Metrics data={data} name={selectedBot} now={now} />
           {(data.routines[selectedBot] || []).length > 0 && (
             <div className="sub">

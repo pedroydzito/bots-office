@@ -35,7 +35,7 @@ export const SHAPES = [
   'cloud', 'wedge', 'pebble', 'heart', 'sphere', 'star4', 'star6', 'clover', 'bubble',
   'flower', 'drop', 'pill', 'triangle', 'pentagon', 'hexagon', 'cone', 'trio', 'rounded_square', 'circle', 'photo',
 ]
-export const ACCESSORIES = ['none', 'glasses', 'antenna', 'stem', 'bow']
+export const ACCESSORIES = ['none', 'glasses', 'antenna', 'stem', 'bow', 'headphones', 'cap', 'scarf', 'crown']
 
 export const STATUS = {
   working: { label: 'Trabalhando', color: '#2FB36B' },

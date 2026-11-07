@@ -9,7 +9,7 @@ import { CORTEX_KEY } from '../lib/constants'
 import { MATS, Railing } from './Props'
 import { RoundedBox } from '@react-three/drei'
 import { floorOffset, ridePositions } from './registry'
-import { rideFor, sessions, syncNow } from './sim'
+import { hash, rideFor, sessions, syncNow } from './sim'
 import { getBotAsset } from './shapes'
 import { effStatus, resolveColor, STATUS } from '../lib/constants'
 
@@ -75,7 +75,7 @@ function Plaza({ W, D, night }) {
 
 /** Glass elevator shaft on the outside of the left wall; cars carry riding bots between floors. */
 /** The elevator car inside the glass shaft of the open floor: it arrives from above/below during rides. */
-function ElevatorShaft({ W, D, floorIdx, night, data }) {
+function ElevatorShaft({ W, D, floorIdx, night, data, followed }) {
   const x = -W / 2 + 0.8, z = -D / 2 + 2.3
   const fy = floorIdx * FLOOR_H
   const cars = useRef([])
@@ -108,7 +108,8 @@ function ElevatorShaft({ W, D, floorIdx, night, data }) {
       const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
       const y = (r.from + (r.to - r.from) * e) * FLOOR_H
       // only visible while it is inside this floor's glass box
-      car.visible = y > fy - 2.4 && y < fy + 2.4
+      // (or anywhere, when the camera is riding along with this bot)
+      car.visible = r.name === followed || (y > fy - 2.4 && y < fy + 2.4)
       car.position.set(x, y, z)
       const rider = riders.current[i]
       if (rider) {
@@ -206,9 +207,9 @@ export default function Building({ floors, selectedIdx, size, layouts, data, now
       {floors.slice(0, selectedIdx).map((f, i) => (
         <Facade key={f.key} W={W} D={D} y={i * FLOOR_H} night={night} color={floorColor(f, data, now)} />
       ))}
-      <ElevatorShaft W={W} D={D} floorIdx={selectedIdx} night={night} data={data} />
+      <ElevatorShaft W={W} D={D} floorIdx={selectedIdx} night={night} data={data} followed={selectedBot} />
       <group ref={drop} position={[0, y, 0]}>
-        <Terrace W={W} D={D} night={night} />
+        <Terrace W={W} D={D} night={night} weather={data.weather} />
         <group position={[ox, 0, oz]}>
           {sel &&
             (sel.key === CORTEX_KEY ? (
@@ -235,10 +236,46 @@ export default function Building({ floors, selectedIdx, size, layouts, data, now
   )
 }
 
-/** Full-size storey slab around a smaller room, with the building's railing on the open edges. */
-function Terrace({ W, D, night }) {
+/** Snow piles up and puddles form on the open floor while the weather lasts (same clock on every screen). */
+function WeatherGround({ W, D, weather }) {
+  const snow = useRef(), puddles = useRef()
+  const spots = useMemo(() => Array.from({ length: 9 }, (_, i) => ({ x: ((hash(`p${i}x`) % 1000) / 1000 - 0.5) * (W - 3), z: ((hash(`p${i}z`) % 1000) / 1000 - 0.5) * (D - 3), r: 0.5 + ((hash(`p${i}r`) % 100) / 100) * 0.9 })), [W, D])
+  useFrame(() => {
+    const age = weather ? (syncNow() - weather.t) / 1000 : 0
+    const k = weather?.kind
+    if (snow.current) {
+      snow.current.material.opacity = k === 'snow' ? Math.min(0.8, age / 150) : 0
+      snow.current.visible = snow.current.material.opacity > 0.01
+    }
+    if (puddles.current) {
+      const o = k === 'rain' || k === 'storm' ? Math.min(0.55, age / 90) : 0
+      puddles.current.children.forEach((m) => (m.material.opacity = o))
+      puddles.current.visible = o > 0.01
+    }
+  })
   return (
     <group>
+      <mesh ref={snow} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} visible={false}>
+        <planeGeometry args={[W - 0.2, D - 0.2]} />
+        <meshStandardMaterial color="#ffffff" transparent opacity={0} roughness={0.9} depthWrite={false} />
+      </mesh>
+      <group ref={puddles} visible={false}>
+        {spots.map((p, i) => (
+          <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[p.x, 0.008, p.z]} scale={[p.r, p.r * 0.6, 1]}>
+            <circleGeometry args={[1, 28]} />
+            <meshStandardMaterial color="#7f9cc0" transparent opacity={0} roughness={0.05} metalness={0.3} depthWrite={false} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  )
+}
+
+/** Full-size storey slab around a smaller room, with the building's railing on the open edges. */
+function Terrace({ W, D, night, weather }) {
+  return (
+    <group>
+      <WeatherGround W={W} D={D} weather={weather} />
       <mesh position={[0, -0.18, 0]} receiveShadow>
         <boxGeometry args={[W, 0.34, D]} />
         <meshStandardMaterial color={night ? '#2a3142' : '#e4e6ea'} roughness={0.85} />
