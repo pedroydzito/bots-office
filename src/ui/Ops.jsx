@@ -94,6 +94,8 @@ export function HealthModal({ conn, data, now, onClose, topic }) {
     ['Atraso médio', avg == null ? '—' : `${(avg / 1000).toFixed(1)} s`, avg != null && avg > 5000 ? 'warn' : 'good'],
     ['Mensagens na última hora', String(health.received.length)],
     ['Bots', `${data.order.length}`],
+    ['Bots ocultos', (() => { const h = data.order.filter((n) => data.bots[n]?.hidden); return h.length ? `${h.length} · ${h.slice(0, 4).join(', ')}${h.length > 4 ? '…' : ''}` : '0' })()],
+    ['Último roster', data.rosterT ? `${durationShort(Date.now() - data.rosterT).replace('há ', '')} atrás` : 'nenhum recebido'],
     ['Sem sinal há 2h+', `${silent.length}`, silent.length ? 'warn' : 'good'],
     ['Dados salvos no navegador', `${(storage / 1024).toFixed(0)} KB`],
   ]
