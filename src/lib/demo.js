@@ -7,7 +7,6 @@ const STEPS = {
   Sales: ['Qualifying 12 new leads', 'Writing follow-up sequence', 'Prospecting on LinkedIn', 'Prepping call notes', 'Scoring inbound demo requests', 'Investigating a lost deal', 'Rewriting the pitch hook'],
   Design: ['Designing a banner for the launch', 'Critiquing the landing page', 'Exploring logo directions', 'Building a moodboard', 'Refining the color system', 'Exporting brand assets', 'Kerning the wordmark'],
   Marketing: ['Drafting tonight’s post', 'Collecting testimonials', 'Planning the campaign calendar', 'Writing newsletter copy', 'A/B testing headlines'],
-  YouTube: ['Scripting the next video', 'Brainstorming video topics', 'Editing the long essay cut', 'Writing thumbnails titles', 'Scanning comments for ideas', 'Researching sources'],
   default: ['Thinking it through', 'Reading the brief', 'Running checks'],
 }
 const DONE = ['Done: shipped it', 'Finished the draft', 'Done: killing the weak ones', 'All set', 'Published']
@@ -47,7 +46,7 @@ export function startDemo() {
   const usageBots = {}
   names.forEach((n) => (usageBots[n] = +(Math.random() * 5 + 0.3).toFixed(1)))
   seed.push({ type: 'usage', total_used_pct: 31, resets_at: new Date(now + (3 * 24 + 14) * 3600e3).toISOString(), bots: usageBots })
-  const routineBots = [names[3], names[7], names[13], names[25], names[28], names[0]].filter(Boolean)
+  const routineBots = [names[0], names[2], names[5], names[6], names[7], names[1]].filter(Boolean)
   const R = [
     [{ name: 'Inbox zero', schedule: 'Every day 08:00', next_run: new Date(now + 5 * 3600e3).toISOString() }],
     [{ name: 'Lead sweep', schedule: 'Weekdays 09:30', next_run: new Date(now + 7 * 3600e3).toISOString() }],
