@@ -106,6 +106,10 @@ curl -d '{"roster":[
 
 Every bot in a roster appears on its team's floor **right away** (resting), before it sends any status. The optional `id` is used to build an "Open chat" link (`grokbot://app/v1/agent?id=<id>`) when no explicit `chat` link has been sent.
 
+**The latest roster sets the order.** The order of floors and of bots on each floor always follows the most recent roster, replacing any older order (it does not keep "whoever showed up first"). Floors from top to bottom are: the **Cortex** on top, then the teams in roster order, so the first team in the roster gets the highest floor right under the Cortex. For example a roster listing Ops, Sales, Design, Marketing, YouTube bots gives: Cortex, Ops, Sales, Design, Marketing, YouTube. Bots that are not in the latest roster (for example ones that only sent a `status`) are listed after the roster's bots.
+
+**Long rosters can be split.** ntfy turns any message over 4 KB into an attachment, which the site does not read. Split a long list into several `{"roster":[…]}` messages sent back to back: roster messages that arrive within **15 seconds** of each other are treated as parts of the same list and joined in the order they arrived. A roster message that comes later than that starts a new list. `scripts/post.sh roster` does the splitting for you (parts of at most ~3,500 bytes).
+
 **Photo bots.** Some Grok bots use a round photo instead of a shape. Send a tiny thumbnail as a data URL and the bot becomes a round "coin" character with the photo on its face (and in the panels):
 
 ```json
@@ -166,7 +170,14 @@ curl -d '{"cortex":{"notes":123,"recent":[{"title":"Pricing notes","updated":"20
 
 ### Persistence
 
-On load, the app fetches the topic's recent history (`/json?poll=1&since=12h`) and then streams live updates over SSE (`/sse`). ntfy only keeps about 12 hours of messages, so the merged office state (roster, teams, looks, chat links, statuses, routines, usage, cortex) is saved in `localStorage` and survives reloads. If you clear the browser or log in somewhere new, re-send your `roster` (with teams/looks/ids) so the office is complete right away.
+On load, the app fetches the topic's recent history (`/json?poll=1&since=12h`) and then streams live updates over SSE (`/sse`). ntfy only keeps about 12 hours of messages, so the office is saved in this browser's `localStorage` (per access code) and shown **immediately** on the next visit, even if nothing new was published in the last 12 hours:
+
+- **Roster**: the bots, their order, teams, looks and chat links. Saved in its own key, so the last known office always comes back.
+- **Cortex**: the last note count and recent titles.
+- **Weekly limit (`usage`)**: the last percentage, reset time and per-bot numbers.
+- Statuses, routines and the activity feed are saved too.
+
+Each of these is saved separately and also when you close or hide the tab, so a full browser storage can't wipe the roster. Signing out deletes all of it for that code. If you clear the browser or open the site on another device, re-send your `roster` (and `cortex`/`usage`) so the office is complete right away.
 
 ### Posting from a shell
 
@@ -178,7 +189,7 @@ scripts/post.sh status "Lead Scout" working "Qualifying 12 new leads"
 scripts/post.sh talk "Lead Scout" "Closer" "Handing off 3 hot leads"
 scripts/post.sh talk-end "Lead Scout" "Closer"
 scripts/post.sh usage 37 2026-11-10T00:00:00Z '{"Lead Scout":4.1}'
-scripts/post.sh roster my-roster.json   # same format as src/roster.json (needs jq)
+scripts/post.sh roster my-roster.json   # same format as src/roster.json (needs jq); split into ≤3.5 KB parts
 scripts/post.sh raw '{"groups":{"Closer":"Sales"}}'
 ```
 
