@@ -23,7 +23,7 @@ export function Login({ onSubmit, onDemo }) {
         }}
       >
         <span className="logo lg">
-          <svg viewBox="0 0 24 24" width="22" height="22"><rect x="4" y="4" width="16" height="16" rx="5" fill="#fff" /></svg>
+          <svg viewBox="0 0 64 64" width="44" height="44" aria-hidden="true"><rect x="18.5" y="18.5" width="27" height="27" rx="7.5" fill="#fff" /><ellipse cx="31.4" cy="29.6" rx="1.9" ry="3.6" fill="#111" transform="rotate(24 31.4 29.6)" /><ellipse cx="37.3" cy="29.6" rx="1.9" ry="3.6" fill="#111" transform="rotate(24 37.3 29.6)" /></svg>
         </span>
         <h1>Escritório de Bots</h1>
         <p className="muted">Digite seu código de acesso</p>
