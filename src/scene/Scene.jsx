@@ -57,7 +57,19 @@ function SunWithTarget({ sunRef, low }) {
   useEffect(() => {
     if (sunRef.current && target.current) sunRef.current.target = target.current
   }, [sunRef])
-  useFrame(() => {
+  const gl = useThree((s) => s.gl)
+  const lastShadow = useRef(0)
+  useEffect(() => {
+    // shadows don't need the full frame rate: redraw the shadow map ~20 times per second
+    gl.shadowMap.autoUpdate = false
+    gl.shadowMap.needsUpdate = true
+    return () => (gl.shadowMap.autoUpdate = true)
+  }, [gl])
+  useFrame(({ clock }) => {
+    if (clock.elapsedTime - lastShadow.current > 0.05) {
+      lastShadow.current = clock.elapsedTime
+      gl.shadowMap.needsUpdate = true
+    }
     if (!controls || !sunRef.current || !target.current) return
     const t = controls.target
     target.current.position.set(t.x, t.y - 0.8, t.z)
@@ -238,7 +250,6 @@ export default function Scene(props) {
   return (
     <Canvas
       shadows={!MOBILE}
-      frameloop={MOBILE ? 'demand' : 'always'}
       dpr={dpr}
       gl={{ antialias: !MOBILE, powerPreference: 'high-performance', stencil: false }}
       camera={{ fov: 30, position: [12, 10 + floorIdx * FLOOR_H, 12], near: 0.5, far: 200 }}
@@ -251,7 +262,8 @@ export default function Scene(props) {
       <PerformanceMonitor
         flipflops={3}
         // phones are capped at 30 fps on purpose: judge them against that, not 60
-        bounds={(refresh) => (MOBILE ? [20, 28] : refresh > 90 ? [50, 90] : [40, 55])}
+        // aim at the screen's own refresh rate (120 Hz phone, 75 Hz monitor...)
+        bounds={(refresh) => [refresh * 0.72, refresh * 0.92]}
         onDecline={() => {
           setDpr((d) => Math.max(1, d - 0.25))
           setLow(true)
@@ -261,7 +273,6 @@ export default function Scene(props) {
           setDpr((d) => Math.min(MOBILE ? Math.min(1.25, window.devicePixelRatio || 1) : Math.min(2, window.devicePixelRatio || 1), d + 0.25))
         }}
       />
-      {MOBILE && <FrameLimiter fps={30} />}
       <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={low} />
       <Weather kind={weather} low={low} />
       <Environment resolution={64} frames={1}>

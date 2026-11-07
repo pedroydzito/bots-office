@@ -240,29 +240,48 @@ function eventsFor(ctx, T) {
  * Where the bot is and what it is doing at time T.
  * Returns { x, z, yaw, y, moving, hidden, gone, at: goal|null, seated, sitting, talk }
  */
+// Paths between events don't depend on the current time, so they are computed once per event list
+// and reused every frame (no planning or allocation in the render loop).
+const stateCache = new WeakMap()
+
 export function simBot(ctx, T) {
   const { role, seat, layout } = ctx
   const ev = eventsFor(ctx, T)
-  let pos = seat ? { x: seat.x, z: seat.z } : { x: layout.elevator.x, z: layout.elevator.z }
-  let atSeat = role === 'home'
-  let hidden = role === 'visit'
-  let gone = false
-  let path = null, pathT0 = 0, goal = atSeat ? { kind: 'seat', x: seat.x, z: seat.z, az: seat.az, ex: seat.ex, yaw: 0 } : null
-  let talk = null, arrivedT = -Infinity, departT = -Infinity
-  const evalPath = (t) => {
-    if (!path) return { ...pos, done: true, yaw: null }
-    const d = ((t - pathT0) / 1000) * SPEED
-    const L = path.len
-    if (d >= L) return { x: goal.x, z: goal.z, done: true, yaw: null, arrivedAt: pathT0 + (L / SPEED) * 1000 }
-    if (d < 0) return { ...pos, done: false, yaw: null, rising: true }
-    return { ...pointAt(path.pts, d), done: false }
+  let cache = stateCache.get(ev)
+  if (!cache || cache.seat !== seat || cache.layout !== layout) {
+    cache = {
+      seat, layout, states: [{
+        pos: seat ? { x: seat.x, z: seat.z } : { x: layout.elevator.x, z: layout.elevator.z },
+        atSeat: role === 'home', hidden: role === 'visit', path: null, pathT0: 0,
+        goal: role === 'home' && seat ? { kind: 'seat', x: seat.x, z: seat.z, az: seat.az, ex: seat.ex, yaw: 0 } : null,
+        talk: null, departT: -Infinity,
+      }],
+    }
+    stateCache.set(ev, cache)
   }
-  for (const e of ev) {
-    if (e.t > T) break
-    if (!e.goal) continue
-    const cur = evalPath(e.t)
-    pos = { x: cur.x, z: cur.z }
-    if (cur.done && goal && goal.kind === 'seat') atSeat = true
+  const evalAt = (st, t) => {
+    if (!st.path) return { ...st.pos, done: true, yaw: null }
+    const d = ((t - st.pathT0) / 1000) * SPEED
+    const L = st.path.len
+    if (d >= L) return { x: st.goal.x, z: st.goal.z, done: true, yaw: null, arrivedAt: st.pathT0 + (L / SPEED) * 1000 }
+    if (d < 0) return { ...st.pos, done: false, yaw: null, rising: true }
+    return { ...pointAt(st.path.pts, d), done: false }
+  }
+  // how many events have happened by now
+  let k = 0
+  while (k < ev.length && ev[k].t <= T) k++
+  // extend the cached states up to event k
+  for (let i = cache.states.length - 1; i < k; i++) {
+    const prev = cache.states[i]
+    const e = ev[i]
+    if (!e.goal) {
+      cache.states.push(prev)
+      continue
+    }
+    const cur = evalAt(prev, e.t)
+    let pos = { x: cur.x, z: cur.z }
+    let atSeat = prev.atSeat || (cur.done && prev.goal && prev.goal.kind === 'seat')
+    let hidden = prev.hidden
     if (e.teleport) {
       pos = { x: e.teleport.x, z: e.teleport.z }
       hidden = false
@@ -270,14 +289,17 @@ export function simBot(ctx, T) {
     }
     const from = atSeat && seat ? seat : { x: pos.x, z: pos.z, az: pos.z }
     const pts = planPath(from, e.goal, layout)
-    path = { pts, len: pathLen(pts) }
-    pathT0 = e.t + (atSeat ? RISE * 1000 : 0)
-    departT = e.t
-    atSeat = false
-    goal = e.goal
-    talk = e.talk || null
-    if (!e.teleport && goal.kind !== 'elevator') hidden = hidden && false
+    cache.states.push({
+      pos, atSeat: false, hidden: e.teleport || e.goal.kind !== 'elevator' ? (e.teleport ? false : false) || hidden && e.goal.kind === 'elevator' : hidden,
+      path: { pts, len: pathLen(pts) }, pathT0: e.t + (atSeat ? RISE * 1000 : 0), goal: e.goal, talk: e.talk || null, departT: e.t,
+    })
   }
+  const st = cache.states[k]
+  let hidden = st.hidden
+  let gone = false
+  const goal = st.goal, talk = st.talk, departT = st.departT
+  let arrivedT = -Infinity
+  const evalPath = (t) => evalAt(st, t)
   const cur = evalPath(T)
   const arrived = cur.done
   if (arrived && cur.arrivedAt) arrivedT = cur.arrivedAt
