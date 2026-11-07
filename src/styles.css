@@ -573,3 +573,21 @@ b.late { color: #e5484d; font-weight: 600; }
 }
 @media (max-width: 1599px) { .searchfield { display: none; } }
 .minimap { bottom: calc(262px + env(safe-area-inset-bottom)); }
+
+/* ---------- phones: compact brand, aligned left edge, search in the middle when there is room */
+@media (max-width: 860px), (max-height: 520px) {
+  .brand { flex: 0 1 auto; }
+  .toggles { margin-left: auto; }
+  .top-center { left: calc(12px + env(safe-area-inset-left)); }
+  .bottom-center { right: calc(14px + env(safe-area-inset-right)); }
+}
+/* phone held sideways: wide but short — brand left, search in the middle, buttons right */
+@media (orientation: landscape) and (max-height: 520px) {
+  .top-left { left: calc(12px + env(safe-area-inset-left)); right: calc(12px + env(safe-area-inset-right)); top: calc(10px + env(safe-area-inset-top)); }
+  .searchfield { display: flex; flex: 1 1 auto; min-width: 0; max-width: 420px; margin: 0 auto; }
+  .searchfield span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .searchfield kbd { display: none; }
+  .toggles { margin-left: 0; }
+  .top-center { top: calc(58px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left)); transform: none; align-items: flex-start; }
+  .mfloors { left: calc(12px + env(safe-area-inset-left)); }
+}
