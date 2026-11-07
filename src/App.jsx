@@ -102,7 +102,8 @@ function Office({ topic, onSignOut, onSignIn }) {
     const ls = Object.values(layouts)
     return { W: Math.max(...ls.map((l) => l.W)), D: Math.max(...ls.map((l) => l.D)) }
   }, [layouts])
-  const selKey = floors.some((f) => f.key === floorKey) ? floorKey : floors[0]?.key
+  // default: the top team floor (first team of the roster), right under the Cortex
+  const selKey = floors.some((f) => f.key === floorKey) ? floorKey : (floors[floors.length - 2] || floors[0])?.key
   const floorIdx = Math.max(0, floors.findIndex((f) => f.key === selKey))
   const floor = floors[floorIdx]
   const lay = layouts[floor?.key]

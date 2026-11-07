@@ -16,6 +16,7 @@
 #
 # Requires curl. `roster` also needs jq. Every message body is a single JSON object.
 set -euo pipefail
+export LC_ALL=C # byte lengths for the 4 KB ntfy limit
 
 TOPIC="${BOT_OFFICE_TOPIC:-${TOPIC:-}}"
 SERVER="${NTFY_SERVER:-https://ntfy.sh}"
@@ -64,7 +65,28 @@ case "$cmd" in
   roster)
     command -v jq >/dev/null || { echo "roster needs jq" >&2; exit 1; }
     here="$(cd "$(dirname "$0")/.." && pwd)"
-    send "$(jq -c '{roster: [.[] | {name, id, shape, color, accessory, team}]}' "${1:-$here/src/roster.json}")"
+    # ntfy turns bodies over 4 KB into attachments (the site can't read those), so long rosters
+    # are split into several {"roster":[...]} messages of at most ~3500 bytes, sent back to back.
+    # The site joins parts that arrive within a few seconds into one list, in order.
+    max=3500
+    chunk=""
+    parts=0
+    flush() {
+      [[ -z "$chunk" ]] && return
+      send "{\"roster\":[$chunk]}"
+      parts=$((parts + 1))
+      chunk=""
+    }
+    while IFS= read -r item; do
+      if (( ${#item} + 16 > max )); then
+        echo "skipping a roster entry over $max bytes (drop the photo or shorten it)" >&2
+        continue
+      fi
+      if [[ -n "$chunk" ]] && (( ${#chunk} + ${#item} + 16 > max )); then flush; fi
+      chunk="${chunk:+$chunk,}$item"
+    done < <(jq -c '.[] | {name, id, shape, color, accessory, team, photo} | with_entries(select(.value != null))' "${1:-$here/src/roster.json}")
+    flush
+    echo "roster sent in $parts message(s)"
     ;;
   photo)
     [[ $# -ge 2 ]] || { echo "usage: photo <bot> <image-file>" >&2; exit 1; }

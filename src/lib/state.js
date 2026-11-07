@@ -10,6 +10,9 @@ import { SHAPES, ACCESSORIES } from './constants'
 const MAX_BOTS = 150
 const MAX_ACTIVITY = 80
 const MAX_SEEN = 500
+// Roster messages this close together are parts of one list (ntfy caps a message at 4 KB,
+// so long rosters arrive split across several messages sent back to back).
+const ROSTER_GAP_MS = 15000
 const STATUSES = {
   working: 'working', busy: 'working', running: 'working',
   done: 'done', finished: 'done', success: 'done',
@@ -26,6 +29,8 @@ function blank() {
   return {
     bots: {}, order: [], routines: {}, usage: null, cortex: null,
     activity: [], chat: {}, talks: {}, lastTime: 0, rev: 0,
+    // latest roster list (names in order) and the time of its last part
+    rosterOrder: [], rosterT: 0,
   }
 }
 
@@ -109,12 +114,27 @@ function applyPayload(d, p, t) {
   }
 
   if (Array.isArray(p.roster)) {
+    const names = []
     for (const item of p.roster.slice(0, MAX_BOTS)) {
-      if (typeof item === 'string') ensureBot(d, item)
-      else if (item && typeof item === 'object') {
+      if (typeof item === 'string') {
+        const name = ensureBot(d, item)
+        if (name) names.push(name)
+      } else if (item && typeof item === 'object') {
         const name = ensureBot(d, item.name)
-        if (name) setLook(d, name, item)
+        if (name) {
+          setLook(d, name, item)
+          names.push(name)
+        }
       }
+    }
+    // The most recent roster decides the order of floors and bots. Parts that arrive within a
+    // few seconds of each other belong to the same list and are joined in arrival order.
+    if (names.length && t >= d.rosterT - ROSTER_GAP_MS) {
+      const continuing = d.rosterT && t - d.rosterT <= ROSTER_GAP_MS && t >= d.rosterT
+      const list = continuing ? [...d.rosterOrder] : []
+      for (const n of names) if (!list.includes(n)) list.push(n)
+      d.rosterOrder = list
+      d.rosterT = Math.max(d.rosterT, t)
     }
   }
 
@@ -191,9 +211,17 @@ function withRoster(s) {
   return d
 }
 
+/** Bots in the latest roster's order first, then anyone else (e.g. seen only in a status). */
+function applyRosterOrder(d) {
+  if (!d.rosterOrder.length) return
+  const inRoster = new Set(d.rosterOrder)
+  d.order = [...d.rosterOrder.filter((n) => d.bots[n]), ...d.order.filter((n) => !inRoster.has(n))]
+}
+
 function draft(s) {
   return {
     ...s,
+    rosterOrder: [...(s.rosterOrder || [])],
     bots: { ...s.bots },
     order: [...s.order],
     routines: { ...s.routines },
@@ -210,27 +238,64 @@ let seen = new Set()
 let persistTimer = null
 
 const keyFor = (topic) => `bot-office:v1:${topic}`
+// Roster, Cortex and usage live in their own keys so they survive even if the main
+// snapshot (activity, history ids) ever fails to save (quota, private mode).
+const PARTS = ['roster', 'cortex', 'usage']
+const partKey = (topic, part) => `${keyFor(topic)}:${part}`
+let currentTopic = null
+
+function readJSON(key) {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+function writeJSON(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+    return true
+  } catch {
+    return false
+  }
+}
 
 /** topic = live mode (empty office + cached state); null = demo mode (example roster). */
 export function loadTopic(topic) {
   clearTimeout(persistTimer)
   storageKey = topic ? keyFor(topic) : null
+  currentTopic = topic || null
   seen = new Set()
   let s = topic ? blank() : withRoster(blank())
+  if (storageKey) {
+    // 1) the saved roster: show the last known office immediately, even with no new messages
+    const r = readJSON(partKey(topic, 'roster'))
+    if (r && r.bots && typeof r.bots === 'object') {
+      s = { ...s, bots: { ...r.bots }, order: Array.isArray(r.order) ? r.order.filter((n) => r.bots[n]) : Object.keys(r.bots), chat: r.chat || {}, rosterOrder: r.rosterOrder || [], rosterT: r.rosterT || 0 }
+    }
+    const c = readJSON(partKey(topic, 'cortex'))
+    if (c) s.cortex = c
+    const u = readJSON(partKey(topic, 'usage'))
+    if (u) s.usage = u
+  }
   if (storageKey) {
     try {
       const raw = localStorage.getItem(storageKey)
       if (raw) {
         const p = JSON.parse(raw)
+        const bots = { ...(p.bots || {}), ...s.bots }
+        // keep live status fields from the main snapshot, looks/team from the roster part
+        for (const n of Object.keys(p.bots || {})) if (s.bots[n]) bots[n] = { ...p.bots[n], ...s.bots[n], status: p.bots[n].status, step: p.bots[n].step, ts: p.bots[n].ts }
         s = {
           ...s,
-          bots: { ...s.bots, ...(p.bots || {}) },
-          order: [...new Set([...s.order, ...(p.order || [])])].filter((n) => (p.bots || {})[n] || s.bots[n]),
+          bots,
+          order: [...new Set([...s.order, ...(p.order || [])])].filter((n) => bots[n]),
           routines: p.routines || {},
-          usage: p.usage || null,
-          cortex: p.cortex || null,
+          usage: s.usage || p.usage || null,
+          cortex: s.cortex || p.cortex || null,
           activity: p.activity || [],
-          chat: p.chat || {},
+          chat: { ...(p.chat || {}), ...s.chat },
           talks: p.talks || {},
           lastTime: p.lastTime || 0,
         }
@@ -249,26 +314,38 @@ export function forgetTopic(topic) {
   if (storageKey === keyFor(topic)) storageKey = null
   try {
     localStorage.removeItem(keyFor(topic))
+    for (const part of PARTS) localStorage.removeItem(partKey(topic, part))
   } catch {
     /* ignore */
   }
 }
 
+function saveNow() {
+  clearTimeout(persistTimer)
+  if (!storageKey || !currentTopic) return
+  const s = dataStore.get()
+  // small, important parts first and separately
+  writeJSON(partKey(currentTopic, 'roster'), { bots: s.bots, order: s.order, chat: s.chat, rosterOrder: s.rosterOrder, rosterT: s.rosterT })
+  if (s.cortex) writeJSON(partKey(currentTopic, 'cortex'), s.cortex)
+  if (s.usage) writeJSON(partKey(currentTopic, 'usage'), s.usage)
+  const main = {
+    bots: s.bots, order: s.order, routines: s.routines, usage: s.usage, cortex: s.cortex,
+    activity: s.activity, chat: s.chat, talks: s.talks, lastTime: s.lastTime,
+    seen: [...seen].slice(-MAX_SEEN),
+  }
+  if (!writeJSON(storageKey, main)) writeJSON(storageKey, { ...main, activity: s.activity.slice(0, 20), seen: [...seen].slice(-100) })
+}
+
 function persist() {
   if (!storageKey) return
   clearTimeout(persistTimer)
-  persistTimer = setTimeout(() => {
-    const s = dataStore.get()
-    try {
-      localStorage.setItem(storageKey, JSON.stringify({
-        bots: s.bots, order: s.order, routines: s.routines, usage: s.usage, cortex: s.cortex,
-        activity: s.activity, chat: s.chat, talks: s.talks, lastTime: s.lastTime,
-        seen: [...seen].slice(-MAX_SEEN),
-      }))
-    } catch {
-      /* quota / private mode */
-    }
-  }, 600)
+  persistTimer = setTimeout(saveNow, 600)
+}
+
+// don't lose the last updates when the tab is closed or hidden
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', saveNow)
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && saveNow())
 }
 
 /** msgs: [{ id?, time (ms), payload }] */
@@ -291,6 +368,7 @@ export function ingest(msgs) {
     d.lastTime = Math.max(d.lastTime, m.time)
   }
   if (!changed) return
+  applyRosterOrder(d)
   if (seen.size > MAX_SEEN * 2) seen = new Set([...seen].slice(-MAX_SEEN))
   d.activity.sort((a, b) => b.t - a.t)
   d.activity = d.activity.slice(0, MAX_ACTIVITY)
@@ -299,7 +377,10 @@ export function ingest(msgs) {
   persist()
 }
 
-/** Derive floors (one per team, in roster order) + the Cortex room on top. */
+/**
+ * Derive floors, one per team. floors[0] is the ground floor. The first team of the latest
+ * roster gets the highest floor (right under the Cortex, which the app adds on top).
+ */
 export function deriveFloors(s) {
   const teams = []
   const byTeam = {}
@@ -312,5 +393,5 @@ export function deriveFloors(s) {
     }
     byTeam[b.team].push(n)
   }
-  return teams.map((t, i) => ({ key: t, name: t, num: i + 1, bots: byTeam[t] }))
+  return teams.reverse().map((t, i) => ({ key: t, name: t, num: i + 1, bots: byTeam[t] }))
 }
