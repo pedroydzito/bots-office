@@ -9,9 +9,10 @@ export const STYLES = {
 }
 export const FLOORS = { light: ['Claro', '#eceef1'], wood: ['Madeira', '#c9a27c'], concrete: ['Concreto', '#c3c6cb'], dark: ['Grafite', '#4a4e57'] }
 export const WALLS = { white: ['Branco', '#f3f3f5'], sand: ['Areia', '#efe5d6'], grey: ['Cinza', '#d7dbe1'], sage: ['Sálvia', '#d5e0d0'] }
+export const ACCENTS = { roxo: ['Roxo', '#8F59F9'], azul: ['Azul', '#1E86FC'], verde: ['Verde', '#18A957'], laranja: ['Laranja', '#F26B1D'], rosa: ['Rosa', '#E83E8C'], grafite: ['Grafite', '#4B5563'] }
 const BOOLS = ['plants', 'art', 'rugs', 'furniture', 'accent', 'pet', 'seasonal']
 
-export const DEFAULT_LOOK = { style: 'decorado', ...STYLES.decorado, pet: true, seasonal: true }
+export const DEFAULT_LOOK = { style: 'decorado', ...STYLES.decorado, pet: true, seasonal: true, accentColor: 'roxo' }
 delete DEFAULT_LOOK.label
 delete DEFAULT_LOOK.sub
 
@@ -22,6 +23,7 @@ export function cleanLook(l) {
   if (STYLES[l.style]) out.style = l.style
   if (FLOORS[l.floor]) out.floor = l.floor
   if (WALLS[l.wall]) out.wall = l.wall
+  if (ACCENTS[l.accentColor]) out.accentColor = l.accentColor
   for (const k of BOOLS) if (typeof l[k] === 'boolean') out[k] = l[k]
   return out
 }

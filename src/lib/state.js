@@ -189,13 +189,20 @@ function applyPayload(d, p, t) {
         pushActivity(d, { t, kind: 'talk', from, to, step: step || 'papo rápido' })
       }
     }
+  } else if (typeof p.bot === 'string' && !p.status && p.progress != null && d.bots[p.bot]) {
+    // progress-only update: {"bot":"A","progress":60}
+    const pr = parseFloat(p.progress)
+    if (isFinite(pr) && d.bots[p.bot].status === 'working') d.bots[p.bot] = { ...d.bots[p.bot], progress: Math.max(0, Math.min(100, pr)), ts: Math.max(d.bots[p.bot].ts || 0, t) }
   } else if (typeof p.bot === 'string' && p.status) {
     // Status update
     const name = ensureBot(d, p.bot)
     const status = STATUSES[String(p.status).toLowerCase()]
     if (name && status && t >= (d.bots[name].ts || 0)) {
       const step = clean(p.step, 80)
-      d.bots[name] = { ...d.bots[name], status, step, ts: t }
+      // optional progress 0-100 ("progress": 40 or "40%"); cleared when the task ends
+      const pr = typeof p.progress === 'number' ? p.progress : typeof p.progress === 'string' ? parseFloat(p.progress) : NaN
+      const progress = status === 'working' && isFinite(pr) ? Math.max(0, Math.min(100, pr)) : status === 'working' && d.bots[name].status === 'working' && d.bots[name].step === step ? d.bots[name].progress : undefined
+      d.bots[name] = { ...d.bots[name], status, step, ts: t, progress }
       pushActivity(d, { t, kind: 'status', bot: name, status, step })
       d.history.push({ t, bot: name, status, step })
       countStatus(d, name, status, t)
@@ -294,6 +301,8 @@ function applyPayload(d, p, t) {
     d.office = { ...(d.office || {}), ...(name ? { name } : {}), ...(look ? { look: { ...(d.office?.look || {}), ...look } } : {}) }
   }
 
+  // {"handoff":{"from":"A","to":"B","what":"Roteiro"}} — same as mail: A passes work to B
+  if (p.handoff && typeof p.handoff === 'object') p = { type: 'mail', from: p.handoff.from, to: p.handoff.to, step: p.handoff.what || p.handoff.step }
   // {"type":"mail","from":"A","to":"B","step":"Relatório"} — an envelope travels to B's desk
   if (p.type === 'mail' && typeof p.from === 'string' && typeof p.to === 'string') {
     const from = ensureBot(d, p.from), to = ensureBot(d, p.to)

@@ -214,7 +214,22 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
         </div>
         <div className="bb">
           <div className="row"><span className="badge" style={{ '--c': STATUS[st].color }}>{STATUS_WORD[st]}</span><span className="muted">{b.ts ? `${durationShort(b.ts - now)}` : 'sem atualizações'}</span></div>
-          <p className="step">{b.step || '—'}</p>
+          <p className="step">{st === 'resting' && b.step ? `Última: ${b.step}` : b.step || '—'}</p>
+          {st === 'working' && b.progress != null && (
+            <div className="progress" role="progressbar" aria-valuenow={Math.round(b.progress)} aria-valuemin={0} aria-valuemax={100}>
+              <i style={{ width: `${b.progress}%` }} />
+              <span>{Math.round(b.progress)}%</span>
+            </div>
+          )}
+          {(() => {
+            // work handed over between bots (mail / handoff) in the last 30 min
+            const ms = (data.mail || []).filter((m) => (m.to === selectedBot || m.from === selectedBot) && now - m.t < 30 * 60e3).slice(-2)
+            return ms.map((m) => (
+              <p key={m.t + m.from} className="handoff">
+                {m.to === selectedBot ? <>Recebeu de <b>{m.from}</b></> : <>Passou para <b>{m.to}</b></>}: {m.subject} · {durationShort(m.t - now)}
+              </p>
+            ))
+          })()}
           {isStuck(b, now) && <em className="stuck">parado no mesmo passo há {durationShort(now - b.ts)}</em>}
           {st === 'waiting_user' && onDecide && <DecisionBox bot={selectedBot} onDecide={onDecide} />}
           {talk && talkActive(talk, now) && <p className="talkline"><Chat size={13} /> Conversando com <b>{talk.to}</b>: {talk.step}</p>}
@@ -255,7 +270,7 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
     const c = data.cortex
     return (
       <div className="right card">
-        <div className="fh" style={{ background: '#8F59F9' }}>
+        <div className="fh" style={{ background: 'var(--accent)' }}>
           <div className="r1"><b>Cortex</b><span>Andar {floor.num} · Biblioteca</span></div>
           <div className="big"><b>{c ? c.notes.toLocaleString('pt-BR') : 0}</b> notas</div>
         </div>
@@ -426,7 +441,7 @@ export const Weekly = memo(function Weekly({ usage, data, onPickBot, onPickTeam 
             </div>
             {top.map(([n, v]) => (
               <button key={n} className="ub" onClick={() => (byTeam ? onPickTeam?.(n) : onPickBot?.(n))} title={byTeam ? `Ir para o andar ${n}` : `Ver ${n}`}>
-                <i style={{ background: byTeam ? '#8F59F9' : resolveColor(data.bots[n]?.color) }} />
+                <i style={{ background: byTeam ? 'var(--accent)' : resolveColor(data.bots[n]?.color) }} />
                 <span>{n}</span>
                 <em>{Math.round(v * 10) / 10}%</em>
               </button>

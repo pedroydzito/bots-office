@@ -4,7 +4,7 @@ import { Check, Close } from './Icons'
 import { durationShort, effStatus, hhmm } from '../lib/constants'
 import { health } from '../lib/health'
 import { forgetOffice, listOffices, renameOffice, viewOnlyLink } from '../lib/auth'
-import { FLOORS, STYLES, WALLS } from '../lib/look'
+import { ACCENTS, FLOORS, STYLES, WALLS } from '../lib/look'
 import { useStore } from '../lib/createStore'
 import { prefStore, setPref } from '../lib/notify'
 
@@ -332,6 +332,14 @@ export function LookModal({ look, onPreview, onSave, onClose, shared }) {
           <div className="swatches">
             {Object.entries(WALLS).map(([k, [lab, c]]) => (
               <button key={k} className={`sw ${l.wall === k ? 'on' : ''}`} style={{ '--c': c }} onClick={() => set({ wall: k })} title={lab} aria-label={`Paredes ${lab}`} aria-pressed={l.wall === k} />
+            ))}
+          </div>
+        </div>
+        <div className="look-row">
+          <span>Cor da interface</span>
+          <div className="swatches">
+            {Object.entries(ACCENTS).map(([k, [lab, c]]) => (
+              <button key={k} className={`sw ${(l.accentColor || 'roxo') === k ? 'on' : ''}`} style={{ '--c': c }} onClick={() => set({ accentColor: k })} title={lab} aria-label={`Cor ${lab}`} aria-pressed={l.accentColor === k} />
             ))}
           </div>
         </div>

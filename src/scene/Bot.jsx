@@ -5,6 +5,24 @@ import * as THREE from 'three'
 import { getBotAsset } from './shapes'
 import { screenKind } from './textures'
 const kindCache = new Map()
+// phones render without shadow maps: a soft blob under each bot keeps them grounded
+const BLOB = typeof window !== 'undefined' && (window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth < 820)
+let blobTex = null
+function blobTexture() {
+  if (blobTex) return blobTex
+  const c = document.createElement('canvas')
+  c.width = c.height = 64
+  const g = c.getContext('2d')
+  const gr = g.createRadialGradient(32, 32, 2, 32, 32, 31)
+  gr.addColorStop(0, 'rgba(0,0,0,0.38)')
+  gr.addColorStop(1, 'rgba(0,0,0,0)')
+  g.fillStyle = gr
+  g.fillRect(0, 0, 64, 64)
+  blobTex = new THREE.CanvasTexture(c)
+  return blobTex
+}
+const blobGeo = new THREE.PlaneGeometry(1, 1)
+let blobMat = null
 const WORK_KIND = (step) => {
   if (!kindCache.has(step)) kindCache.set(step, screenKind(step))
   return kindCache.get(step)
@@ -262,6 +280,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
   const phase = useMemo(() => rnd(bot.name, 'phase') * 10, [bot.name])
 
   const [hover, setHover] = useState(false)
+  const blob = useRef()
   // body and hit area are two meshes: moving between them must not flicker the hover state
   const hoverT = useRef(0)
   const hoverIn = useCallback((e) => {
@@ -664,6 +683,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     }
     if (st === 'error') mat.emissive.setRGB(0.6 * (0.5 + 0.5 * Math.sin(t * 6)), 0, 0)
     else mat.emissive.setRGB(0, 0, 0)
+    if (blob.current) blob.current.position.y = -sim.y + 0.03
     if (ring.current) {
       ring.current.position.y = -sim.y + 0.045
       const pulse = st === 'waiting_user' || st === 'error' ? 0.5 + 0.5 * Math.sin(t * 5) : 0.6
@@ -697,6 +717,9 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
   return (
     <group ref={root} scale={bot.hidden ? 0.88 : 1}>
       <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} geometry={ringGeo} material={ringMat} visible={!hidden} />
+      {BLOB && !hidden && (
+        <mesh ref={blob} rotation={[-Math.PI / 2, 0, 0]} geometry={blobGeo} material={(blobMat ||= new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false }))} scale={asset.width * 1.5} />
+      )}
       <group ref={body} visible={!hidden}>
         <mesh
           geometry={asset.geometry}
@@ -791,6 +814,9 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
             )}
             <ReactionFloat name={bot.name} />
             <StatusIcon status={status} talking={talking} />
+            {status === 'working' && bot.progress != null && !talking && (
+              <div className="bot-prog"><i style={{ width: `${bot.progress}%` }} /></div>
+            )}
             {bot.hidden && <div className="hidden-tag">oculto</div>}
             {showNames && !speechText && !(hover || selected) && !view.crowded && <div className="name-mini">{bot.name}</div>}
             {(hover || selected) && !speechText && <div className="name-chip">{bot.name}</div>}

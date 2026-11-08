@@ -310,3 +310,8 @@ MIT
 - A bot whose name contains *Diretor, Gestor, Gerente, Head, Chefe, Lead, Coordenador, CEO/CMO/CTO…* gets its own desk next to the "Destaques de hoje" board (floors with 3+ bots).
 - Bots with `"hidden": true` are not drawn: their seat stays empty and hovering the chair shows whose place it is. The full list is in **Painel do sistema → Ocultos no Grok**.
 - **Personalizar escritório** (settings) picks a style (Decorado, Aconchegante, Minimalista), floor and wall finish and which decor is shown. It is published as `{"office":{"look":{...}}}`, so every screen shows the same office.
+
+### Progress and hand-offs
+
+- `{"bot":"A","status":"working","step":"Editando vídeo","progress":40}` shows a progress bar over the bot and in its card. A progress-only update also works: `{"bot":"A","progress":70}`.
+- `{"handoff":{"from":"A","to":"B","what":"Roteiro pronto"}}` (same as `{"type":"mail",...}`) flies an envelope with a trail from A's desk to B's (across floors via the elevator) and shows "Recebeu de / Passou para" in both cards.

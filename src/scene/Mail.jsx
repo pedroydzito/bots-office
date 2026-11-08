@@ -11,6 +11,10 @@ const seal = new THREE.MeshStandardMaterial({ color: '#E5484D', roughness: 0.5 }
 const env = new THREE.BoxGeometry(0.26, 0.02, 0.18)
 const flap = new THREE.BoxGeometry(0.26, 0.012, 0.1)
 const dot = new THREE.CylinderGeometry(0.025, 0.025, 0.012, 14)
+// sparkle trail behind a flying envelope (where the work is going)
+const trailGeo = new THREE.SphereGeometry(0.035, 8, 6)
+const trailMat = new THREE.MeshBasicMaterial({ color: '#8F59F9', transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false })
+const TRAIL = 7
 
 const FLY = 3000 // ms desk -> desk or desk -> elevator
 const KEEP = 25000 // envelope stays on the desk this long
@@ -56,19 +60,30 @@ function envelopeAt(m, floorIdx, layout, T) {
 }
 
 function Envelope({ m, floorIdx, layout }) {
-  const ref = useRef(), fl = useRef()
+  const ref = useRef(), fl = useRef(), trail = useRef([])
   useFrame(() => {
     const T = syncNow()
     const p = envelopeAt(m, floorIdx, layout, T)
     const g = ref.current
     if (!g) return
     g.visible = !!p
+    // trail: the same flight a little earlier in time
+    trail.current.forEach((d, i) => {
+      if (!d) return
+      const q = p && p.flying ? envelopeAt(m, floorIdx, layout, T - (i + 1) * 70) : null
+      d.visible = !!(q && q.flying)
+      if (d.visible) (d.position.set(q.x, q.y, q.z), d.scale.setScalar(1 - i / TRAIL))
+    })
     if (!p) return
     g.position.set(p.x, p.y, p.z)
     g.rotation.set(p.flying ? Math.sin(T / 120) * 0.15 : 0, p.rot, p.flying ? Math.sin(T / 160) * 0.2 : 0)
     if (fl.current) fl.current.rotation.x = p.flying ? -0.4 - Math.abs(Math.sin(T / 90)) * 0.6 : 0
   })
   return (
+    <>
+    {Array.from({ length: TRAIL }, (_, i) => (
+      <mesh key={i} ref={(d) => (trail.current[i] = d)} geometry={trailGeo} material={trailMat} visible={false} />
+    ))}
     <group ref={ref} visible={false}>
       <mesh geometry={env} material={paper} castShadow />
       <group position={[0, 0.012, -0.09]}>
@@ -76,6 +91,7 @@ function Envelope({ m, floorIdx, layout }) {
       </group>
       <mesh geometry={dot} material={seal} position={[0, 0.016, 0]} />
     </group>
+    </>
   )
 }
 

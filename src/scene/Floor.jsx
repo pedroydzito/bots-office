@@ -17,10 +17,18 @@ import { durationShort, effStatus, STATUS, talkActive } from '../lib/constants'
 import { botMetrics } from '../lib/metrics'
 import { dataStore } from '../lib/state'
 import { useStore } from '../lib/createStore'
-import { lookStore } from '../lib/look'
+import { FLOORS, lookStore, WALLS } from '../lib/look'
 
 export const wallMat = new THREE.MeshStandardMaterial({ color: '#f3f3f5', roughness: 0.9 })
 export const floorMat = new THREE.MeshStandardMaterial({ color: '#eceef1', roughness: 0.75 })
+// floor & wall finish follow the office look (personalisation)
+function applyFinish() {
+  const l = lookStore.get()
+  floorMat.color.set((FLOORS[l.floor] || FLOORS.light)[1])
+  wallMat.color.set((WALLS[l.wall] || WALLS.white)[1])
+}
+applyFinish()
+lookStore.subscribe(applyFinish)
 const slabMat = new THREE.MeshStandardMaterial({ color: '#e2e4e8', roughness: 0.8 })
 
 export function Shell({ layout, title, subtitle, accent }) {

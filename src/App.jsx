@@ -18,8 +18,7 @@ import { Celebration, MobileFloors, Search, Timeline, TvExit } from './ui/Extras
 import { EmptyOffice, HealthModal, LookModal, OfficesModal, QueueModal, SendStatus, ShortcutsModal } from './ui/Ops'
 import { buzz, HoverTip, MiniMap, QuickMenu, SearchField, Welcome } from './ui/Interact'
 import { FLOOR_H, OVERVIEW_GAP } from './scene/layout'
-import { DEFAULT_LOOK, FLOORS, lookStore, WALLS } from './lib/look'
-import { floorMat, wallMat } from './scene/Floor'
+import { ACCENTS, DEFAULT_LOOK, lookStore } from './lib/look'
 import { botsAt } from './lib/metrics'
 import { notifyWaiting, prefs } from './lib/notify'
 import { resumeAudio, startAmbience, startMusic, uiSound, updateAmbience } from './lib/ambience'
@@ -111,8 +110,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   }, [live.office?.look, lookPreview])
   useEffect(() => {
     lookStore.set(look)
-    floorMat.color.set(FLOORS[look.floor][1])
-    wallMat.color.set(WALLS[look.wall][1])
+    document.documentElement.style.setProperty('--accent', (ACCENTS[look.accentColor] || ACCENTS.roxo)[1])
   }, [look])
   const now = useNow(2000)
   // replaying the timeline shows the office as it was at that moment

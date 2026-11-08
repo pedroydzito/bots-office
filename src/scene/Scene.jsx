@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, Lightformer, OrbitControls, PerformanceMonitor } from '@react-three/drei'
+import { Bloom, EffectComposer, N8AO, ToneMapping, Vignette } from '@react-three/postprocessing'
+import { ToneMappingMode } from 'postprocessing'
 import * as THREE from 'three'
 import Building from './Building'
 import Weather from './Weather'
@@ -73,7 +75,12 @@ function SunWithTarget({ sunRef, low }) {
     if (!controls || !sunRef.current || !target.current) return
     const t = controls.target
     target.current.position.set(t.x, t.y - 0.8, t.z)
-    sunRef.current.position.set(t.x + 7, t.y + 14, t.z + 5)
+    // the sun travels with the real hour: low from the left in the morning, high at noon, low from the right at dusk
+    const d = new Date()
+    const h = d.getHours() + d.getMinutes() / 60
+    const day = Math.min(1, Math.max(0, (h - 6) / 13)) // 6h..19h
+    const ang = (day - 0.5) * 2.2
+    sunRef.current.position.set(t.x + Math.sin(ang) * 12 + 2, t.y + 8 + Math.cos(ang) * 8, t.z + 6)
   })
   return (
     <>
@@ -299,6 +306,26 @@ function IdleSaver() {
 
 export const perfFlags = { idle: false }
 
+// Desktop "high" look: soft ambient occlusion in corners/under furniture, a gentle glow on screens and
+// lamps, and a light vignette. Skipped on phones and as soon as the device struggles.
+function Effects({ night }) {
+  const gl = useThree((st) => st.gl)
+  useEffect(() => {
+    // the composer's ToneMapping effect replaces the renderer's (avoid applying it twice)
+    const prev = gl.toneMapping
+    gl.toneMapping = THREE.NoToneMapping
+    return () => (gl.toneMapping = prev)
+  }, [gl])
+  return (
+    <EffectComposer multisampling={4} disableNormalPass>
+      <N8AO halfRes aoRadius={1.1} intensity={night ? 1.6 : 2.2} distanceFalloff={0.8} quality="performance" />
+      <Bloom mipmapBlur luminanceThreshold={night ? 0.75 : 0.95} luminanceSmoothing={0.2} intensity={night ? 0.7 : 0.25} />
+      <Vignette offset={0.35} darkness={night ? 0.45 : 0.28} />
+      <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+    </EffectComposer>
+  )
+}
+
 export default function Scene(props) {
   const { night, nightness, weather, tour, floorIdx, focus, selectedBot, onPointerMissed, onUserMove } = props
   // Adaptive quality: phones start light; any device drops resolution and shadows if FPS falls.
@@ -324,7 +351,7 @@ export default function Scene(props) {
   return (
     <Canvas
       key={glKey}
-      shadows={!MOBILE}
+      shadows={MOBILE ? false : 'soft'}
       dpr={dpr}
       gl={{ antialias: true, powerPreference: 'high-performance', stencil: false }}
       camera={{ fov: 30, position: [12, 10 + floorIdx * FLOOR_H, 12], near: 1, far: 160 }}
@@ -338,6 +365,7 @@ export default function Scene(props) {
       }}
     >
       <IdleSaver />
+      {!MOBILE && !low && <Effects night={!!props.night} />}
       <PerformanceMonitor
         flipflops={3}
         onFallback={() => {
