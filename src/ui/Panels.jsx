@@ -19,7 +19,7 @@ export function Brand({ conn, now, name, onClick }) {
       </span>
       <b>{name || 'Escritório de Bots'}</b>
       <span className={`conn conn-${conn}`}>
-        <i /> {label} · {hhmm(now)}
+        <i title={label} /> {conn === 'live' ? '' : `${label} · `}{hhmm(now)}
       </span>
     </button>
   )
@@ -32,7 +32,7 @@ export function ModeToggles({ mode, setMode, tour, setTour, overview, setOvervie
       <button className={`light-btn ${mode === 'night' ? 'on' : ''}`} aria-pressed={mode === 'night'} onClick={() => setMode('night')} title="Noite"><Moon /> <span className="lbl">Noite</span></button>
       <button className={`light-btn ${mode === 'auto' ? 'on' : ''}`} aria-pressed={mode === 'auto'} onClick={() => setMode('auto')} title="Automático (hora real)"><Auto /> <span className="lbl">Auto</span></button>
       <button className={overview ? 'on' : ''} aria-pressed={overview} onClick={() => setOverview(!overview)} title="Prédio inteiro (B)"><Building2 /> <span className="lbl">Prédio</span></button>
-      <button onClick={onSearch} title="Buscar bot (Ctrl+K)"><SearchIco /></button>
+      <button className="search-ico" onClick={onSearch} title="Buscar bot (Ctrl+K)"><SearchIco /></button>
     </div>
   )
 }
