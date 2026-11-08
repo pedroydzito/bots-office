@@ -983,3 +983,10 @@ html[data-transicao='onda']::view-transition-new(root) { z-index: 1; }
 }
 .ask-note { margin: 4px 0 6px; font-size: 12px; color: #b45309; background: rgba(245,158,11,.12); padding: 6px 9px; border-radius: 9px; }
 .night .ask-note { color: #f5c463; }
+
+/* phone on its side: the 3D view is short, so labels and the interface scale down to match */
+@media (orientation: landscape) and (max-height: 520px) {
+  .bot-tag { scale: 0.68; transform-origin: center bottom; }
+  .hud { zoom: 0.86; }
+  .mtabs { zoom: 0.9; }
+}
