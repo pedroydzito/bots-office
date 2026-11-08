@@ -253,12 +253,13 @@ function WeatherGround({ W, D, weather }) {
     const k = weather?.kind
     if (snow.current) {
       snow.current.material.opacity = k === 'snow' ? Math.min(0.8, age / 150) : 0
-      snow.current.visible = snow.current.material.opacity > 0.01
+      // the room now fills the storey: no snow/puddles on the office floor
+      snow.current.visible = false
     }
     if (puddles.current) {
       const o = k === 'rain' || k === 'storm' ? Math.min(0.55, age / 90) : 0
       puddles.current.children.forEach((m) => (m.material.opacity = o))
-      puddles.current.visible = o > 0.01
+      puddles.current.visible = false
     }
   })
   return (

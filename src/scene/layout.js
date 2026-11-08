@@ -79,7 +79,6 @@ const KITS = [
   { w: 3.2, d: 2.4, items: (x, z, c) => [{ type: 'rug', x, z, w: 3.0, d: 2.2, color: c, round: true }, { type: 'armchair', x: x - 0.7, z, c: '#d9c7b0' }, { type: 'armchair', x: x + 0.7, z, c: '#b9cbe0' }], pois: (x, z) => [{ kind: 'armchair', x: x - 0.7, z, az: z - 1.0, yaw: 0, sit: true }] },
   { w: 2.2, d: 1.6, items: (x, z) => [{ type: 'plant', x: x - 0.6, z, k: 0 }, { type: 'plant', x: x + 0.1, z: z + 0.3, k: 1 }, { type: 'plant', x: x + 0.7, z: z - 0.2, k: 0 }], pois: () => [] },
   { w: 2.8, d: 2.2, items: (x, z, c) => [{ type: 'rug', x, z, w: 2.8, d: 2.0, color: c, round: true }, { type: 'beanbag', x: x - 0.6, z, c: '#F93498' }, { type: 'beanbag', x: x + 0.6, z: z + 0.2, c: '#1E86FC' }], pois: () => [] },
-  { w: 2.4, d: 1.4, items: (x, z) => [{ type: 'bookcase', x, z }, { type: 'plant', x: x + 1.2, z, k: 1 }], pois: (x, z) => [{ kind: 'books', x, z: z + 0.9, yaw: Math.PI }] },
 ]
 
 function fillEmpty({ W, D, v, decor, pois, rows, seats, xL, furniture, lounge, game }) {
@@ -104,12 +103,15 @@ function fillEmpty({ W, D, v, decor, pois, rows, seats, xL, furniture, lounge, g
   mark(-W / 2, D / 2 - 1.7, W / 2, D / 2)
   for (const r of rows) mark(r.x1 - 0.9, r.z - 1.6, r.x2 + 0.9, r.z + 1.6)
   for (const st of seats) if (st.lead) mark(st.x - 1.2, st.z - 2.0, st.x + 2.4, st.z + 2.0)
+  const FOOT = { meeting: [1.3, 1.0], vending: [0.5, 0.6], printer: [0.5, 0.45], pool: [1.5, 0.95], pingpong: [1.55, 0.95], foosball: [0.6, 0.9], arcade: [0.6, 0.6], bench: [1.0, 0.5], armchair: [0.6, 0.6], beanbag: [0.6, 0.6], plant: [0.4, 0.4], lamp: [0.3, 0.3] }
   for (const d of decor) {
-    const h = d.w ? d.w / 2 + 0.5 : d.type === 'pingpong' || d.type === 'pool' ? 2 : 1.0
-    const hz = d.d ? d.d / 2 + 0.5 : d.type === 'pingpong' || d.type === 'pool' ? 1.4 : 1.0
+    if (d.type === 'rug' && !d.kit) continue // the big rug under the desks is covered by the desk marks
+    const f = FOOT[d.type] || [0.6, 0.6]
+    const h = d.w ? d.w / 2 + 0.3 : f[0] + 0.35
+    const hz = d.d ? d.d / 2 + 0.3 : f[1] + 0.35
     mark(d.x - h, d.z - hz, d.x + h, d.z + hz)
   }
-  for (const p of pois) mark(p.x - 0.8, (p.az ?? p.z) - 0.8, p.x + 0.8, p.z + 0.8)
+  for (const p of pois) mark(p.x - 0.5, Math.min(p.z, p.az ?? p.z) - 0.5, p.x + 0.5, Math.max(p.z, p.az ?? p.z) + 0.5)
   mark(lounge.x - 2.0, lounge.z - 1.8, lounge.x + 2.0, D / 2) // lounge
   // try kits in a per-floor order, at candidate points scanned in a per-floor order
   let seed = v || 1
@@ -118,18 +120,37 @@ function fillEmpty({ W, D, v, decor, pois, rows, seats, xL, furniture, lounge, g
   // the floor's one game, if it didn't fit in its usual spot: wherever it fits, else a compact arcade
   const GAME_SIZE = { pool: [3.0, 2.0], pingpong: [3.1, 2.0], foosball: [1.4, 1.9], arcade: [1.2, 1.2] }
   if (game && !decor.some((d) => GAME_SIZE[d.type])) {
-    for (const g of [game, 'arcade']) {
+    // free-standing tables only; an arcade cabinet belongs against a wall
+    const tries = [...new Set([game, 'foosball'])].filter((g) => g !== 'arcade')
+    for (const g of tries) {
       const [gw, gd] = GAME_SIZE[g]
       let done = false
       for (let x = -W / 2 + 2; x < W / 2 - 1 && !done; x += 0.5)
         for (let z = -D / 2 + 2.5; z < D / 2 - 1.8 && !done; z += 0.5) {
-          if (!free(x - gw / 2 - 1.0, z - gd / 2 - 0.3, x + gw / 2 + 0.3, z + gd / 2 + 0.3)) continue
+          // a clear meter all around: bots stand on every side to play
+          if (!free(x - gw / 2 - 0.7, z - gd / 2 - 0.55, x + gw / 2 + 0.7, z + gd / 2 + 0.55)) continue
           decor.push({ type: g, x, z })
-          pois.push({ kind: 'arcade', x: x - gw / 2 - 0.5, z, az: z, yaw: Math.PI / 2 })
-          mark(x - gw / 2 - 1.0, z - gd / 2 - 0.4, x + gw / 2 + 0.4, z + gd / 2 + 0.4)
+          // players on both ends, facing the table
+          if (g === 'arcade') pois.push({ kind: 'arcade', x: x - gw / 2 - 0.5, z, az: z, yaw: Math.PI / 2 })
+          else {
+            pois.push({ kind: g, x: x - gw / 2 - 0.45, z: z + (g === 'pool' ? 0.2 : 0), az: z, yaw: Math.PI / 2 })
+            pois.push({ kind: g, x: x + gw / 2 + 0.45, z: z - (g === 'pool' ? 0.2 : 0), az: z, yaw: -Math.PI / 2 })
+          }
+          mark(x - gw / 2 - 1.2, z - gd / 2 - 1.1, x + gw / 2 + 1.2, z + gd / 2 + 1.1)
           done = true
         }
       if (done) break
+    }
+    if (!decor.some((d) => GAME_SIZE[d.type]) && game === 'arcade') {
+      // cabinet against the right wall, wherever there is a free stretch
+      for (let z = -D / 2 + 2.5; z < D / 2 - 2; z += 0.5) {
+        const x = W / 2 - 0.9
+        if (!free(x - 0.6, z - 0.9, x + 0.5, z + 0.9) || !free(x - 1.8, z - 0.5, x - 0.6, z + 0.5)) continue
+        decor.push({ type: 'arcade', x, z })
+        pois.push({ kind: 'arcade', x: x - 1.0, z, az: z, yaw: Math.PI / 2 })
+        mark(x - 1.9, z - 1.0, x + 0.6, z + 1.0)
+        break
+      }
     }
   }
   let placed = 0
@@ -228,8 +249,7 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true, seed =
       decor.push({ type: 'beanbag', x: x0 + 0.4, z: cz - 0.3, c: '#8F59F9' })
       decor.push({ type: 'beanbag', x: x0 + 2.0, z: cz + 0.3, c: '#F5B70A' })
       decor.push({ type: 'plant', x: x0 + 3.3, z: cz - 0.8, k: 1 })
-    } else if (kind === 1 && (theGame === 'pingpong' || theGame === 'pool')) {
-      gamePlaced = true
+    } else if (false) {
       // the floor's table game
       decor.push({ type: theGame, x: x0 + 1.4, z: cz })
       extraPois.push({ kind: 'arcade', x: x0 + 1.4 - 1.75, z: cz, yaw: Math.PI / 2 })
@@ -245,7 +265,7 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true, seed =
       // little indoor garden with a bench
       decor.push({ type: 'bench', x: x0 + 1.4, z: cz + 0.2 })
       for (let i = 0; i < 4; i++) decor.push({ type: 'plant', x: x0 - 0.2 + i * 1.1, z: cz - 0.9 + (i % 2) * 0.25, k: (i + v) % 2 })
-      extraPois.push({ kind: 'sofa', x: x0 + 1.4, z: cz + 0.2, az: cz + 1.0, yaw: Math.PI, sit: true })
+      extraPois.push({ kind: 'armchair', x: x0 + 1.4, z: cz + 0.2, az: cz + 1.0, yaw: Math.PI, sit: true })
     }
   }
   if (rx2 - rx1 >= 1.6) decor.push({ type: 'plant', x: W / 2 - 0.9, z: (deskFront + D / 2 - 4.6) / 2, k: 0 })
@@ -294,11 +314,11 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true, seed =
   const az1 = z0 + (rx2 - rx1 >= 3.4 ? 2.8 : 0.4), az2 = D / 2 - 4.9
   if (furniture && W / 2 - blockEnd > 2.6 && az2 - az1 > 1.2) {
     const z = (az1 + az2) / 2
-    const game = gamePlaced ? null : theGame
+    const game = gamePlaced || theGame === 'pool' || theGame === 'pingpong' ? null : theGame
     if (game) decor.push({ type: game, x: game === 'pool' || game === 'pingpong' ? W / 2 - 2.0 : W / 2 - 0.9, z })
     gamePlaced = gamePlaced || !!game
     decor.push({ type: 'lamp', x: W / 2 - 0.8, z: z + 1.3 })
-    if (game) extraPois.push({ kind: 'arcade', x: game === 'pool' || game === 'pingpong' ? W / 2 - 3.6 : W / 2 - 1.9, z, yaw: Math.PI / 2 })
+    if (game) extraPois.push({ kind: game === 'foosball' ? 'foosball' : 'arcade', x: W / 2 - 1.9, z, yaw: Math.PI / 2 })
   }
   // armchairs by the windows, between the phone spot and the lounge
   const ax = x0 + 4.6

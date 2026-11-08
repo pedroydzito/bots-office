@@ -162,7 +162,7 @@ export default function Cortex({ layout, cortex, floorNum, floorY, night }) {
       <Plant position={[W / 2 - 0.9, 0, 0.6]} scale={1.15} />
       <Plant position={[-W / 2 + 0.8, 0, -0.9]} scale={0.85} kind={1} />
       {/* walls: clock, the latest notes as a readable board, art and a shelf on the right wall */}
-      <Clock position={[-W / 2 + 3.6, 2.45, -D / 2 + 0.28]} />
+      <Clock position={[-W / 2 + 0.28, 2.5, 1.6]} rotation={[0, Math.PI / 2, 0]} />
       <InfoBoard
         position={[-W / 2 + 0.29, 1.75, 0.2]}
         rotation={[0, Math.PI / 2, 0]}

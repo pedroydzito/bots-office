@@ -619,6 +619,40 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
           ry = Math.sin(t * 0.9 + phase) * 0.45
           rz = Math.sin(t * 1.4 + phase) * 0.03
           break
+        case 'pingpong': {
+          // ready stance, paddle hand swinging forehand/backhand, little hops
+          const sw = Math.sin(t * 4.2 + phase)
+          hr = 0.18 + Math.abs(sw) * 0.1
+          hz = 0.12 + sw * 0.12
+          ry = sw * 0.35
+          by = Math.abs(Math.sin(t * 8.4 + phase)) * 0.05
+          rx = 0.12
+          break
+        }
+        case 'pool': {
+          // lean over the table, draw the cue back and strike; then straighten to watch
+          const c = (t + phase) % 5
+          if (c < 2.4) {
+            rx = 0.42
+            sy *= 0.92
+            hl = hr = 0.12
+            hz = 0.18 + (c < 2 ? Math.sin(c * 3.2) * 0.12 : 0.32)
+          } else {
+            ry = Math.sin(t * 1.2) * 0.3
+            eyeY = Math.min(eyeY, 0.9)
+          }
+          break
+        }
+        case 'foosball': {
+          // both hands on the rods, twisting fast, leaning in
+          rx = 0.2
+          hz = 0.2
+          hl = 0.1 + Math.sin(t * 13 + phase) * 0.05
+          hr = 0.1 + Math.sin(t * 11 + phase + 1) * 0.05
+          rz = Math.sin(t * 3 + phase) * 0.06
+          by = Math.abs(Math.sin(t * 6.5)) * 0.02
+          break
+        }
         case 'pet': {
           // crouch next to the pet and pat it, with a happy little wiggle now and then
           sy *= 0.86

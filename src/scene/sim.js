@@ -113,7 +113,7 @@ export function rideFor(s) {
 }
 
 // ------------------------------------------------------------------ wandering
-const KINDS = ['pet', 'coffee', 'cooler', 'sofa', 'view', 'books', 'plant', 'phone', 'chat', 'vending', 'printer', 'arcade', 'armchair', 'stroll']
+const KINDS = ['pingpong', 'pool', 'foosball', 'pet', 'coffee', 'cooler', 'sofa', 'view', 'books', 'plant', 'phone', 'chat', 'vending', 'printer', 'arcade', 'armchair', 'stroll']
 const tripCache = new Map()
 /** Who leaves their desk in this slot on this floor, where to, and until when (conflict-free). */
 function tripsFor(floorKey, names, layout, slot, data, all) {
