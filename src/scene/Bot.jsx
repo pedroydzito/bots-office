@@ -3,6 +3,12 @@ import { useFrame } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { getBotAsset } from './shapes'
+import { screenKind } from './textures'
+const kindCache = new Map()
+const WORK_KIND = (step) => {
+  if (!kindCache.has(step)) kindCache.set(step, screenKind(step))
+  return kindCache.get(step)
+}
 import { isDark, resolveColor, STATUS } from '../lib/constants'
 import { botPositions, labelSpots, poiKey, seatYaw, sitting } from './registry'
 import { isSleepy, rnd, simBot, statusAt, syncNow } from './sim'
@@ -281,7 +287,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
   const [focused, setFocused] = useState(false)
 
   const P = useRef({})
-  P.current = { status, seat, layout, role, names, data, floorKey, hover, ts: bot.ts, name: bot.name }
+  P.current = { status, seat, layout, role, names, data, floorKey, hover, ts: bot.ts, name: bot.name, step: bot.step }
   const V = useRef({ yaw: 0, ui: '', hidden: true, gone: false })
 
   // speech bubble + confetti follow the status change time, so every screen shows them together
@@ -416,15 +422,50 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
         rx = Math.sin(t * 2.4) * 0.07
         sy = 1 + Math.sin(t * 2) * 0.02
       }
+    } else if (st === 'working' && seated && WORK_KIND(p.step) && WORK_KIND(p.step) !== 'doc' && WORK_KIND(p.step) !== 'mail') {
+      // the work itself shows: drawing, reading charts, watching a cut, scrolling a page
+      const k = WORK_KIND(p.step)
+      if (k === 'design') {
+        // one hand draws loops on the tablet/mouse, head follows the stroke
+        rx = 0.15
+        hz = 0.14
+        hr = 0.06 + Math.sin(t * 3.2 + phase) * 0.04
+        hl = 0.01
+        ry = Math.sin(t * 1.6 + phase) * 0.12
+        rz = Math.cos(t * 3.2 + phase) * 0.03
+      } else if (k === 'chart') {
+        // hand on the chin, studying numbers, an approving nod now and then
+        rx = 0.1 + ((t + phase) % 6 < 0.8 ? Math.sin(t * 9) * 0.06 : 0)
+        hr = 0.26
+        hz = 0.12
+        hl = 0.02
+        rz = Math.sin(t * 0.7 + phase) * 0.04
+      } else if (k === 'video') {
+        // leaning back watching the cut, tapping play/pause
+        rx = -0.08
+        sy *= 1 + Math.sin(t * 1.1 + phase) * 0.015
+        const tap = (t + phase) % 3.5 < 0.25
+        hr = tap ? 0.12 : 0.04
+        hz = 0.1
+        ry = Math.sin(t * 0.5 + phase) * 0.06
+      } else {
+        // web / research: scrolling with flicks, head tracking the page
+        rx = 0.14 + Math.sin(t * 0.8 + phase) * 0.03
+        hz = 0.12
+        hr = 0.05 + Math.max(0, Math.sin(t * 5 + phase)) * 0.04
+        hl = 0.01
+        by = (t + phase) % 7 < 0.5 ? 0.02 : 0
+      }
     } else if (st === 'working' && seated) {
       // at the computer: bursts of typing, then reading the screen
+      const fast = WORK_KIND(p.step) === 'mail' ? 1.35 : 1
       const typing = Math.sin(t * 0.45 + phase) + Math.sin(t * 0.17 + phase * 2) * 0.6 > -0.35
       rx = 0.13
       hz = 0.1
       if (typing) {
-        by = Math.abs(Math.sin(t * 9 + phase)) * 0.018
-        hl = Math.max(0, Math.sin(t * 17 + phase)) * 0.05
-        hr = Math.max(0, Math.sin(t * 17 + phase + Math.PI)) * 0.05
+        by = Math.abs(Math.sin(t * 9 * fast + phase)) * 0.018
+        hl = Math.max(0, Math.sin(t * 17 * fast + phase)) * 0.05
+        hr = Math.max(0, Math.sin(t * 17 * fast + phase + Math.PI)) * 0.05
       } else {
         rx = 0.16 + Math.sin(t * 1.3 + phase) * 0.02
         rz = Math.sin(t * 0.9 + phase) * 0.03
