@@ -358,6 +358,8 @@ export default function Scene(props) {
       onCreated={({ gl }) => {
         glRef.current = gl
         gl.domElement.addEventListener('webglcontextlost', (e) => e.preventDefault())
+        // long-press opens our quick menu, not the browser's (no selection / blue flash on phones)
+        gl.domElement.addEventListener('contextmenu', (e) => e.preventDefault())
         gl.domElement.addEventListener('webglcontextrestored', () => setGlKey((k) => k + 1))
         gl.toneMapping = THREE.ACESFilmicToneMapping
         gl.toneMappingExposure = 1.05

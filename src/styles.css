@@ -773,3 +773,16 @@ button, summary, [role='button'] { border-radius: 10px; }
 .handoff { margin: 0 0 4px; font-size: 12px; color: var(--ink2); }
 
 .hovertip { will-change: transform; }
+
+/* phones: the bot card is a bottom sheet (the safe-area rule above must not pin it to the top) */
+@media (max-width: 860px) {
+  .right { top: auto; }
+  .right.botcard { bottom: calc(76px + env(safe-area-inset-bottom)); max-height: min(52%, 460px); overflow: auto; }
+}
+/* long-press on the office: no blue tap flash, no text selection, no system menu */
+.app, .app canvas { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+.app :not(input, textarea, [contenteditable], pre, pre *) { -webkit-user-select: none; user-select: none; }
+@media (max-width: 600px) {
+  .celebration { left: 12px; right: 12px; transform: none; max-width: none; }
+  .celebration b, .celebration span { white-space: normal; }
+}
