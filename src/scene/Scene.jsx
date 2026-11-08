@@ -313,8 +313,7 @@ function IdleSaver({ cap = false }) {
         // floating window open: browsers pause animation frames in hidden tabs, so drive frames ourselves
         clearInterval(tick)
         setFrameloop('never')
-        // ~24 fps to match the PiP stream
-        tick = setInterval(() => advance(performance.now()), 1000 / 24)
+        tick = setInterval(() => advance(performance.now()), 100)
       } else if (document.hidden) (clearInterval(tick), setFrameloop('never'))
       else (clearInterval(tick), (idle = false), wake())
       if (!document.hidden) setFrameloop('always')
@@ -361,13 +360,27 @@ function Precompile() {
   return null
 }
 
-/** After each drawn frame, feed the PiP stream (needs preserveDrawingBuffer on the GL context). */
+/**
+ * Feed PiP after each real WebGL present.
+ * Must NOT use useFrame with priority > 0: that puts R3F into manual render mode, and when
+ * Effects aren't mounted (Leve / Auto on weak GPU) nothing calls gl.render — the office goes
+ * white while Html labels keep floating. Wrapping gl.render avoids that and still copies the
+ * buffer in the same turn (no preserveDrawingBuffer, which stalls the GPU).
+ */
 function PipFeed() {
   const { gl } = useThree()
   const on = useStore(pipStore, (p) => p.on)
-  useFrame(() => {
-    if (on) pipGrabFrame(gl.domElement)
-  }, 1000)
+  useEffect(() => {
+    if (!on) return
+    const orig = gl.render.bind(gl)
+    gl.render = (scene, camera) => {
+      orig(scene, camera)
+      pipGrabFrame(gl.domElement)
+    }
+    return () => {
+      gl.render = orig
+    }
+  }, [gl, on])
   return null
 }
 
@@ -407,8 +420,7 @@ export default function Scene(props) {
       key={glKey}
       shadows={q === 'alta' && !MOBILE ? 'soft' : false}
       dpr={effDpr}
-      // preserveDrawingBuffer: PiP copies the canvas each frame; without it the buffer is cleared and the window goes black
-      gl={{ antialias: true, powerPreference: 'high-performance', stencil: false, preserveDrawingBuffer: true }}
+      gl={{ antialias: true, powerPreference: 'high-performance', stencil: false }}
       camera={{ fov: 30, position: [12, 10 + floorIdx * FLOOR_H, 12], near: 1, far: 160 }}
       onPointerMissed={onPointerMissed}
       onCreated={({ gl }) => {
