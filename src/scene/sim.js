@@ -130,7 +130,33 @@ function tripsFor(floorKey, names, layout, slot, data, all) {
   const taken = new Set()
   const trips = {}
   const order = [...names].sort((a, b) => rnd(a, slot, 'o') - rnd(b, slot, 'o'))
+  const freeAt = (n, t) => {
+    const h = statusAt(data.history || [], n, t)
+    return !isBusy(h) && !isSleepy(h, t) && !all.some((s) => (s.from === n || s.to === n) && s.t0 < t + SLOT && s.endT > t - 5000)
+  }
+  const GAME = new Set(['pingpong', 'pool', 'foosball'])
+  const gameSpots = layout.pois.filter((p) => GAME.has(p.kind))
+  if (gameSpots.length >= 2 && names.length >= 2 && rnd(floorKey, slot, 'game') < 0.4) {
+    const depart = slotStart + 2500 + rnd(floorKey, slot, 'gd') * 9000
+    const pair = order.filter((n) => freeAt(n, depart)).slice(0, 2)
+    if (pair.length === 2) {
+      const play = 30000 + rnd(floorKey, slot, 'gp') * 22000
+      pair.forEach((n, k) => {
+        const spot = gameSpots[k]
+        const seat = layout.seats[names.indexOf(n)]
+        const go = walkMs(seat, spot, layout, true)
+        // both start playing when the slower one arrives
+        const start = depart + Math.max(...pair.map((m, j) => walkMs(layout.seats[names.indexOf(m)], gameSpots[j], layout, true)))
+        const back = Math.min(start + play, slotStart + SLOT - 1500)
+        if (back - depart > go + 6000) {
+          trips[n] = { depart, back, poi: { ...spot, playFrom: start, variant: rnd(n, slot, 'v') } }
+          taken.add(`${spot.kind}:${spot.x},${spot.z}`)
+        }
+      })
+    }
+  }
   for (const n of order) {
+    if (trips[n]) continue
     if (Object.keys(trips).length >= cap) break
     const personality = 0.22 + 0.5 * rnd(n, 'personality')
     if (rnd(n, slot, 'go') > personality) continue
@@ -154,8 +180,10 @@ function tripsFor(floorKey, names, layout, slot, data, all) {
       const pp = simPet(depart + 9000, fi, layout, petKind)
       if (pp && pp.mode !== 'walk') extra.push({ kind: 'pet', x: pp.x + 0.6, z: pp.z, az: pp.z, yaw: -Math.PI / 2 })
     }
-    const pois = [...layout.pois, ...extra].filter((p) => !taken.has(`${p.kind}:${p.x},${p.z}`))
-    const pick = [...pois].sort((a, b) => (likes.indexOf(b.kind) >= 0) - (likes.indexOf(a.kind) >= 0) || rnd(n, slot, a.kind, a.x) - rnd(n, slot, b.kind, b.x))[0]
+    const pois = [...layout.pois, ...extra].filter((p) => !GAME.has(p.kind) && !taken.has(`${p.kind}:${p.x},${p.z}`))
+    // favourites weigh more, but any spot can win (so it isn't always the same thing)
+    const score = (p) => (likes.indexOf(p.kind) >= 0 ? 0.55 : 0) + rnd(n, slot, p.kind, p.x)
+    const pick = [...pois].sort((a, b) => score(b) - score(a))[0]
     if (!pick) continue
     taken.add(`${pick.kind}:${pick.x},${pick.z}`)
     const seat = layout.seats[names.indexOf(n)]
@@ -163,7 +191,7 @@ function tripsFor(floorKey, names, layout, slot, data, all) {
     const stay = 12000 + rnd(n, slot, 's') * 26000
     const back = Math.min(depart + go + stay, slotStart + SLOT - 1500)
     if (back - depart < go + 4000) continue
-    trips[n] = { depart, back, poi: pick }
+    trips[n] = { depart, back, poi: { ...pick, variant: rnd(n, slot, 'v', pick.kind) } }
   }
   tripCache.set(key, trips)
   return trips

@@ -540,40 +540,86 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     if ((t + phase) % 4.3 < 0.12) eyeY = Math.min(eyeY, 0.1)
 
     // ---- activities at points of interest
-    if (act) {
+    // each visit has its own variant (sim picks it per trip), so the same spot isn't always the same scene
+    const av = sim.at?.variant ?? 0.5
+    const waitingToPlay = sim.at?.playFrom && T < sim.at.playFrom
+    if (act && !waitingToPlay) {
       const cyc = (t + phase) % 4
       const sip = cyc < 1.1 ? Math.sin((cyc / 1.1) * Math.PI) : 0
       switch (act) {
         case 'coffee':
         case 'cooler':
-          hr = 0.32 * sip + 0.06
-          hz = 0.14 * sip + 0.04
-          rx -= 0.08 * sip
-          eyeY = Math.min(eyeY, 1 - 0.8 * sip)
+          if (av < 0.45) {
+            // sipping
+            hr = 0.32 * sip + 0.06
+            hz = 0.14 * sip + 0.04
+            rx -= 0.08 * sip
+            eyeY = Math.min(eyeY, 1 - 0.8 * sip)
+          } else if (av < 0.75) {
+            // scrolling the phone while the coffee cools
+            hr = 0.24
+            hz = 0.22
+            hl = 0.04 + Math.max(0, Math.sin(t * 5 + phase)) * 0.02
+            rx = 0.22
+            eyeY = Math.min(eyeY, 0.6)
+            if ((t + phase) % 7 < 0.4) by = 0.03 // a little laugh
+          } else {
+            // chatting by the machine: looks around, sips now and then
+            ry = Math.sin(t * 0.9 + phase) * 0.45
+            hr = 0.08 + 0.26 * sip
+            hz = 0.06 + 0.12 * sip
+            rz = Math.sin(t * 2.2 + phase) * 0.04
+          }
           break
         case 'books':
-          hl = hr = 0.16
-          hz = 0.16
-          rx = 0.12 + Math.sin(t * 0.7) * 0.03
-          ry = Math.sin(t * 0.4 + phase) * 0.15
+          if (av < 0.55) {
+            hl = hr = 0.16
+            hz = 0.16
+            rx = 0.12 + Math.sin(t * 0.7) * 0.03
+            ry = Math.sin(t * 0.4 + phase) * 0.15
+          } else {
+            // browsing the shelf: scanning, reaching up for a book
+            ry = Math.sin(t * 0.6 + phase) * 0.5
+            hr = (t + phase) % 5 < 1.2 ? 0.45 : 0.08
+            hz = 0.18
+            rx = -0.1
+          }
           break
         case 'sofa':
           rx = -0.18
           sy *= 1 + Math.sin(t * 1.1 + phase) * 0.025
           hl = hr = -0.04
-          eyeY = Math.min(eyeY, 0.45)
+          eyeY = Math.min(eyeY, av < 0.4 ? 0.12 : 0.45) // some nap, some just lounge
+          if (av > 0.7) (hr = 0.2, hz = 0.18, rx = -0.1) // or read the phone
           break
         case 'view':
-          if (cyc < 1.6) {
-            const k = Math.sin((cyc / 1.6) * Math.PI)
-            hl = hr = 0.45 * k
-            sy *= 1 + 0.07 * k
-          } else rz = Math.sin(t * 1.3 + phase) * 0.05
+          if (av < 0.5) {
+            if (cyc < 1.6) {
+              const k = Math.sin((cyc / 1.6) * Math.PI)
+              hl = hr = 0.45 * k
+              sy *= 1 + 0.07 * k
+            } else rz = Math.sin(t * 1.3 + phase) * 0.05
+          } else {
+            // hands behind the back, slowly taking in the view
+            hl = hr = -0.06
+            hz = -0.12
+            ry = Math.sin(t * 0.35 + phase) * 0.6
+            sy *= 1 + Math.sin(t * 0.9) * 0.015
+          }
           break
         case 'plant':
-          hr = 0.18
-          hz = 0.2
-          rx = 0.12
+          if (av < 0.5) {
+            // watering
+            hr = 0.26
+            hz = 0.22
+            rx = 0.16
+            rz = Math.sin(t * 2 + phase) * 0.03
+          } else {
+            // leaning in to smell it
+            rx = 0.3 + Math.sin(t * 1.2) * 0.04
+            hl = hr = 0.06
+            eyeY = Math.min(eyeY, 0.2)
+          }
           break
         case 'phone':
           // on a call: hand at the ear, pacing and nodding
@@ -683,6 +729,12 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
           break
       }
     }
+    if (waitingToPlay) {
+      // at the table, waiting for the other player: bouncing on the spot, looking around
+      by = Math.abs(Math.sin(t * 5 + phase)) * 0.03
+      ry = Math.sin(t * 1.4 + phase) * 0.3
+      hl = hr = 0.08
+    }
     // ---- quirks: short gestures, picked from a shared clock
     const qslot = Math.floor(T / 13000)
     const qStart = qslot * 13000 + rnd(p.name, qslot, 'qs') * 6000
@@ -711,6 +763,19 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     const lt = (T - sim.arrivedT) / 1000
     if (seated && lt >= 0 && lt < 0.45) sy *= 1 - Math.sin((lt / 0.45) * Math.PI) * 0.12
 
+    {
+      const sm = (v.sm ||= { by: 0, rx: 0, ry: 0, rz: 0, sy: 1, hl: 0, hr: 0, hz: 0 })
+      const k = 1 - Math.exp(-dt * 22)
+      sm.by += (by - sm.by) * k
+      sm.rx += (rx - sm.rx) * k
+      sm.ry += (ry - sm.ry) * k
+      sm.rz += (rz - sm.rz) * k
+      sm.sy += (sy - sm.sy) * k
+      sm.hl += (hl - sm.hl) * k
+      sm.hr += (hr - sm.hr) * k
+      sm.hz += (hz - sm.hz) * k
+      ;({ by, rx, ry, rz, sy, hl, hr, hz } = sm)
+    }
     const b = body.current
     b.position.set(jx, by, 0)
     b.rotation.set(rx, ry, rz)

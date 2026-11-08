@@ -314,7 +314,7 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true, seed =
   const az1 = z0 + (rx2 - rx1 >= 3.4 ? 2.8 : 0.4), az2 = D / 2 - 4.9
   if (furniture && W / 2 - blockEnd > 2.6 && az2 - az1 > 1.2) {
     const z = (az1 + az2) / 2
-    const game = gamePlaced || theGame === 'pool' || theGame === 'pingpong' ? null : theGame
+    const game = gamePlaced || theGame !== 'arcade' ? null : theGame
     if (game) decor.push({ type: game, x: game === 'pool' || game === 'pingpong' ? W / 2 - 2.0 : W / 2 - 0.9, z })
     gamePlaced = gamePlaced || !!game
     decor.push({ type: 'lamp', x: W / 2 - 0.8, z: z + 1.3 })
