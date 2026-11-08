@@ -990,3 +990,23 @@ html[data-transicao='onda']::view-transition-new(root) { z-index: 1; }
   .hud { zoom: 0.86; }
   .mtabs { zoom: 0.9; }
 }
+
+/* phone held sideways: phone layout (tab bar, no side panels), not the desktop one */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  .bot-tag { scale: 0.56; }
+  .hud { zoom: 0.8; }
+  .left, .activity, .weekly-wrap, .minimap, .hints, .connect, .leftopen, .panel-ico, .top-left .searchfield { display: none !important; }
+  .right:not(.botcard) { display: none !important; }
+  .right.botcard { top: auto !important; right: 12px !important; left: auto !important; bottom: calc(66px + env(safe-area-inset-bottom)) !important; width: min(380px, 46vw) !important; max-height: 72vh !important; overflow: auto; }
+  .top-center { left: auto !important; right: 12px !important; transform: none !important; width: min(420px, 50vw) !important; }
+  .mtabs { display: grid !important; grid-template-columns: 1.4fr 1fr 1fr 1fr 1fr; position: fixed; left: 50%; right: auto; transform: translateX(-50%); width: min(560px, 70vw); bottom: calc(8px + env(safe-area-inset-bottom)); zoom: 0.85; z-index: 20; padding: 5px; gap: 2px; border-radius: 18px !important; }
+  .mtabs button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 5px 4px; border-radius: 12px; color: var(--ink2); position: relative; }
+  .mtabs button small { font-size: 10.5px; }
+  .mtabs .mt-floor { flex-direction: row; gap: 8px; font-weight: 600; font-size: 13px; color: var(--ink); justify-content: flex-start; padding-left: 10px; }
+  .mtabs .num { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; font-size: 11px; font-weight: 800; background: var(--team); color: #fff; }
+  .mt-badge { position: absolute; top: 2px; right: calc(50% - 20px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #f5a524; color: #fff; font-size: 10px; font-style: normal; font-weight: 700; display: grid; place-items: center; }
+  .timeline-btn { display: none !important; }
+  .mfloors { display: flex !important; flex-direction: column; position: absolute; left: 12px; bottom: 70px; }
+  .mf-btn { display: none !important; }
+  .mf-list { max-height: 60vh; overflow: auto; }
+}
