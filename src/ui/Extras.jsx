@@ -4,8 +4,10 @@ import { Bell, Clock, Close, Doc, Layers, Party, Pause, Play, Pulse, Search as S
 import { CORTEX_KEY, effStatus, hhmm, STATUS } from '../lib/constants'
 
 /** "Go back in time": scrub through the last hours of status changes; the office replays them. */
-export function Timeline({ history, talkLog = [], value, onChange }) {
-  const [open, setOpen] = useState(false)
+export function Timeline({ history, talkLog = [], value, onChange, open: openP, setOpen: setOpenP }) {
+  const [openS, setOpenS] = useState(false)
+  const open = openP ?? openS
+  const setOpen = setOpenP ?? setOpenS
   const [playing, setPlaying] = useState(false)
   const now = Date.now()
   const min = Math.max(now - 12 * 3600e3, history.length ? history[0].t : now - 3600e3)
@@ -257,7 +259,7 @@ export function Search({ data, now, onPick, onClose }) {
 
 
 /** Phones: a bottom tab bar (floors, approvals, activity, dashboard). Swipe sideways on it to change floor. */
-export function MobileTabs({ cur, waiting, onFloors, onQueue, onActivity, onPanel, onPrevFloor, onNextFloor }) {
+export function MobileTabs({ cur, waiting, onFloors, onQueue, onActivity, onPanel, onHistory, historyOn, onPrevFloor, onNextFloor }) {
   const sx = useRef(null)
   return (
     <nav
@@ -287,6 +289,10 @@ export function MobileTabs({ cur, waiting, onFloors, onQueue, onActivity, onPane
       <button onClick={onPanel} aria-label="Painel do sistema">
         <Pulse size={17} />
         <small>Painel</small>
+      </button>
+      <button onClick={onHistory} className={historyOn ? 'on' : ''} aria-pressed={!!historyOn} aria-label="Histórico (linha do tempo)">
+        <Clock size={17} />
+        <small>Histórico</small>
       </button>
     </nav>
   )

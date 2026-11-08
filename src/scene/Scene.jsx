@@ -113,6 +113,7 @@ const VIEW_DIR = new THREE.Vector3(1, 0.78, 1).normalize()
 
 function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove, bounds }) {
   const { camera, controls, gl, size } = useThree()
+  const pendingZoom = useRef(0)
   const desired = useRef(new THREE.Vector3(0, 0.6, 0))
   const zoomGoal = useRef(null)
   const placed = useRef(false)
@@ -238,7 +239,7 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove, bounds }) {
       desired.current.x = THREE.MathUtils.clamp(desired.current.x, -mx, mx)
       desired.current.z = THREE.MathUtils.clamp(desired.current.z, -mz, mz)
     }
-    delta.copy(desired.current).sub(target).multiplyScalar(Math.min(1, dt * 4))
+    delta.copy(desired.current).sub(target).multiplyScalar(Math.min(1, dt * (pendingZoom.current ? 7 : 4)))
     if (delta.lengthSq() > 1e-8) {
       target.add(delta)
       camera.position.add(delta)
@@ -251,8 +252,13 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove, bounds }) {
       zoomGoal.current = THREE.MathUtils.clamp(cur * f, controls.minDistance, controls.maxDistance)
     }
     // focus request zooms in on the bot
+    // (the zoom waits until the camera has travelled to the bot, so it never zooms into the wrong spot)
     if (sceneSignals.focusRequest) {
       sceneSignals.focusRequest = null
+      pendingZoom.current = performance.now()
+    }
+    if (pendingZoom.current && (desired.current.distanceTo(target) < 0.8 || performance.now() - pendingZoom.current > 1500)) {
+      pendingZoom.current = 0
       zoomGoal.current = 11.5
     }
     if (zoomGoal.current != null) {

@@ -730,7 +730,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     }
     if (st === 'error') mat.emissive.setRGB(0.6 * (0.5 + 0.5 * Math.sin(t * 6)), 0, 0)
     else mat.emissive.setRGB(0, 0, 0)
-    if (blob.current) blob.current.position.y = -sim.y + 0.06
+    if (blob.current) blob.current.position.y = -sim.y + 0.03
     if (ring.current) {
       ring.current.position.y = -sim.y + 0.045
       const pulse = st === 'waiting_user' || st === 'error' ? 0.5 + 0.5 * Math.sin(t * 5) : 0.6
@@ -766,7 +766,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     <group ref={root} scale={bot.hidden ? 0.88 : /^(ceo|principal|founder|fundador|dono|owner)$/i.test(bot.role || '') ? 1.15 : 1}>
       <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} geometry={ringGeo} material={ringMat} visible={!hidden} />
       {BLOB && !hidden && (
-        <mesh ref={blob} rotation={[-Math.PI / 2, 0, 0]} geometry={blobGeo} material={(blobMat ||= new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }))} scale={asset.width * 1.5} renderOrder={2} />
+        <mesh ref={blob} rotation={[-Math.PI / 2, 0, 0]} geometry={blobGeo} material={(blobMat ||= new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false }))} scale={asset.width * 1.5} renderOrder={2} />
       )}
       <group ref={body} visible={!hidden}>
         <mesh

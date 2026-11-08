@@ -49,8 +49,8 @@ export const Chair = memo(function Chair({ x, z, owner, hiddenOwner, yawBase = 0
     : {}
   return (
     <group position={[x, 0, z]} {...tipProps}>
-      <mesh position={[0, 0.03, 0]} material={M.black} castShadow>
-        <cylinderGeometry args={[0.28, 0.3, 0.05, 20]} />
+      <mesh position={[0, 0.055, 0]} material={M.black} castShadow>
+        <cylinderGeometry args={[0.28, 0.3, 0.06, 20]} />
       </mesh>
       <mesh position={[0, 0.22, 0]} material={M.dark}>
         <cylinderGeometry args={[0.035, 0.035, 0.36, 10]} />
@@ -603,9 +603,11 @@ export function Elevator({ layout, floorY, label, night }) {
 
 export function Rug({ x, z, w, d, color = '#ece7f6', round = false }) {
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[x, round ? 0.024 : 0.018, z]} receiveShadow scale={round ? [w / 2, d / 2, 1] : [1, 1, 1]}>
+    // a real height above the floor instead of a depth offset: the offset made rugs draw over
+    // low things standing on them (chair bases, legs) at grazing camera angles
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[x, round ? 0.022 : 0.016, z]} receiveShadow scale={round ? [w / 2, d / 2, 1] : [1, 1, 1]}>
       {round ? <circleGeometry args={[1, 48]} /> : <planeGeometry args={[w, d]} />}
-      <meshStandardMaterial color={color} roughness={0.95} polygonOffset polygonOffsetFactor={-2} polygonOffsetUnits={-2} />
+      <meshStandardMaterial color={color} roughness={0.95} />
     </mesh>
   )
 }
@@ -721,7 +723,7 @@ export function StatusLamp({ position, color }) {
   )
 }
 
-const DECOR_ITEMS = ['plant', 'photo', 'lamp', 'cactus', 'books']
+const DECOR_ITEMS = ['plant', 'lamp', 'cactus', 'books']
 /** Personal desk items: from looks.desk, or a stable pick from the bot's name. */
 const starGeo = (() => {
   const sh = new THREE.Shape()
@@ -763,7 +765,7 @@ export const DeskDecor = memo(function DeskDecor({ seat, items, name, trophies =
   }
   return (
     <group position={[seat.x - 0.55, 0.75, seat.z + 0.95]}>
-      {/* personal touches: a name plaque on the front edge and a small framed photo in the bot's colour */}
+      {/* personal touch: a name plaque on the front edge (the mug is in the bot's colour) */}
       <group position={[0.55, 0, -0.5]}>
         <mesh position={[0, 0.035, 0]} rotation={[-0.5, Math.PI, 0]} material={M.dark}><boxGeometry args={[0.34, 0.07, 0.02]} /></mesh>
         <mesh position={[0, 0.036, -0.012]} rotation={[-0.5, Math.PI, 0]}>
@@ -771,14 +773,6 @@ export const DeskDecor = memo(function DeskDecor({ seat, items, name, trophies =
           <meshBasicMaterial map={namePlate(name)} transparent toneMapped={false} />
         </mesh>
       </group>
-      <group position={[1.05, 0, -0.05]} rotation={[0, Math.PI - 0.5, 0]}>
-        <mesh position={[0, 0.07, 0]} material={M.white}><boxGeometry args={[0.13, 0.15, 0.02]} /></mesh>
-        <mesh position={[0, 0.07, -0.011]} rotation={[0, Math.PI, 0]} material={sharedMat(color, 0.6)}><planeGeometry args={[0.1, 0.12]} /></mesh>
-      </group>
-      {/* achievements: little gold stars stuck on top of the monitor (not trophies cluttering the desk) */}
-      {Array.from({ length: Math.min(5, trophies) }, (_, i) => (
-        <mesh key={'st' + i} geometry={starGeo} material={starMat} position={[0.65 + (i - (Math.min(5, trophies) - 1) / 2) * 0.09, 0.56, 0.04]} rotation={[0, (i % 2 ? 0.12 : -0.12), 0]} />
-      ))}
       {list.slice(0, 2).map((it, i) => (
         <group key={i} position={[i * -0.0, 0, i * -0.32]}>
           {it === 'plant' && (

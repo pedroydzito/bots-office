@@ -86,15 +86,37 @@ function Collapse({ title, count, open, setOpen, children, accent }) {
   )
 }
 
-export function LeftPanel({ floors, data, now, selectedKey, onFloor, waiting, onApprove, onPickBot, talks, onQueue }) {
+export function LeftPanel({ floors, data, now, selectedKey, onFloor, waiting, onApprove, onPickBot, talks, onQueue, loading, onCollapse }) {
   const [open, setOpen] = useState({ waiting: true, talks: true, finished: false, routines: false })
   const tog = (k) => (v) => setOpen((o) => ({ ...o, [k]: v }))
   const finished = data.order.filter((n) => effStatus(data.bots[n], now) === 'done')
   const routines = Object.entries(data.routines).flatMap(([b, items]) => items.map((it) => ({ bot: b, ...it })))
+  if (loading)
+    return (
+      <div className="left">
+        <div className="card floors">
+          <div className="esqueleto" style={{ height: 12, width: 70, borderRadius: 6, margin: '4px 6px 10px' }} />
+          {[0, 1, 2, 3].map((k) => (
+            <div key={k} className="sk-row">
+              <span className="esqueleto" style={{ width: 24, height: 24, borderRadius: 8 }} />
+              <span className="esqueleto" style={{ height: 11, width: `${60 - k * 8}%`, borderRadius: 5 }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   return (
     <div className="left">
       <div className="card floors">
-        <div className="hd"><span>Andares</span><em>{floors.length}</em></div>
+        <div className="hd">
+          <span>Andares</span>
+          <em>{floors.length}</em>
+          {onCollapse && (
+            <button className="panel-ico" onClick={onCollapse} title="Esconder painel ( [ )" aria-label="Esconder painel lateral">
+              <PanelIcon />
+            </button>
+          )}
+        </div>
         {[...floors].reverse().map((f) => {
           const isC = f.key === CORTEX_KEY
           const st = isC ? [] : f.bots.map((n) => effStatus(data.bots[n], now))
@@ -604,5 +626,16 @@ function Empty({ icon, title, sub }) {
         {sub && <span>{sub}</span>}
       </div>
     </div>
+  )
+}
+
+
+/** Sidebar icon (panel on the left). */
+export function PanelIcon({ size = 15 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <path d="M9 4v16" />
+    </svg>
   )
 }

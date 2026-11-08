@@ -437,7 +437,7 @@ export function SendStatus({ s, onRetry }) {
       {s.state === 'sending' && 'Enviando…'}
       {s.state === 'ok' && (
         <>
-          <Check size={13} /> Enviado
+          <span className="tique"><Check size={13} /></span> Enviado
         </>
       )}
       {s.state === 'fail' && (

@@ -892,3 +892,61 @@ html[data-transicao='onda']::view-transition-new(root) { z-index: 1; }
   .quick { animation: brotaDoBotao 200ms var(--curva) both; transform-origin: top center; }
 }
 @media (max-width: 860px) { .app:has(.right.botcard) .timeline-btn, .app:has(.right.botcard) .timeline { display: none; } }
+
+@media (max-width: 860px) {
+  .mtabs { grid-template-columns: 1.4fr 1fr 1fr 1fr 1fr; }
+  .mtabs button.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .timeline-btn { display: none !important; }
+  .bottom-center { margin-bottom: 70px; }
+}
+
+/* ---------- more from the appdocs design system */
+/* esqueleto: mirrors the shape of what is coming */
+.esqueleto { display: block; background-color: rgba(127,127,127,.14); position: relative; overflow: hidden; }
+.esqueleto::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 7%, transparent), transparent); animation: brilho 1.6s infinite; transform: translateX(-100%); }
+@keyframes brilho { to { transform: translateX(100%); } }
+.sk-row { display: flex; align-items: center; gap: 10px; padding: 8px 6px; }
+/* tique: the check draws itself */
+.tique svg path, .tique svg polyline { stroke-dasharray: 24; stroke-dashoffset: 24; animation: tique 320ms var(--curva) 60ms forwards; }
+@keyframes tique { to { stroke-dashoffset: 0; } }
+.sendstatus.ok { animation: salvo 420ms var(--curva-mola); }
+@keyframes salvo { 0% { transform: translateX(-50%) scale(0.86); } 60% { transform: translateX(-50%) scale(1.1); } 100% { transform: translateX(-50%) scale(1); } }
+/* nota: warnings look like warnings, errors like errors */
+.stuck { border-radius: 8px; padding: 3px 8px; font-size: 11px; }
+.stuck.slow { color: #b45309; background: rgba(245, 158, 11, .14); }
+.night .stuck { color: #f5c463; }
+/* the switch: spring thumb (passes a hair and settles) */
+:is(.settings .menu, .look-toggles) .toggle i::after { transition: transform var(--tempo-rapido) var(--curva-mola) !important; }
+:is(.settings .menu, .look-toggles) .toggle:active i::after { transform: scaleX(1.15); }
+:is(.settings .menu, .look-toggles) .toggle:active i.on::after { transform: translateX(11px) scaleX(1.15); }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  /* interativo: list rows and cards lift 2px */
+  .li, .look-style, .dash-list .dl-h, .ub, .act { transition: transform var(--tempo-rapido) var(--curva), background-color var(--tempo-rapido); }
+  .li:hover, .look-style:hover { transform: translateY(-2px); }
+  .li:active, .look-style:active { transform: translateY(0) scale(0.995) !important; transition-duration: 80ms; }
+  /* icon floor: a lone icon grows on hover, shrinks on press */
+  :is(button, a[href]):not(:disabled) > svg:only-child { transition: transform var(--tempo-rapido) var(--curva); }
+  :is(button, a[href]):not(:disabled):hover > svg:only-child { transform: scale(1.12); }
+  /* named gestures from the accessible label */
+  :is([aria-label*='aprova' i], [aria-label*='notifica' i], [aria-label*='Fila' i]):hover svg { animation: balancarSino 620ms var(--curva); transform-origin: 50% 10%; }
+  :is([aria-label^='Enviar' i], [aria-label^='Abrir chat' i], [aria-label^='Compartilhar' i]):hover svg { transform: translate(2px, -2px) scale(1.06); }
+  :is([aria-label^='Editar' i], [aria-label^='Renomear' i]):hover svg { animation: rabiscar 460ms var(--curva); }
+  :is([aria-label^='Voltar' i]):hover svg { transform: translateX(-2px); }
+  [aria-label*='Histórico' i]:hover svg { transform: rotate(-20deg) scale(1.06); }
+}
+:is(button, a[href]):not(:disabled):active > svg:only-child { transform: scale(0.9); }
+@keyframes balancarSino { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(14deg); } 40% { transform: rotate(-12deg); } 60% { transform: rotate(8deg); } 80% { transform: rotate(-4deg); } }
+@keyframes rabiscar { 0%, 100% { transform: none; } 25% { transform: translate(1.5px, -1px) rotate(-8deg); } 50% { transform: translate(-1.5px, 1px) rotate(8deg); } 75% { transform: translate(1px, 0) rotate(-4deg); } }
+/* entering lists: chained by index (48 ms each, capped) */
+.search-list .li, .dl-b .li { animation: entrar 280ms var(--curva) both; }
+.search-list .li:nth-child(2) { animation-delay: 48ms; } .search-list .li:nth-child(3) { animation-delay: 96ms; } .search-list .li:nth-child(4) { animation-delay: 144ms; } .search-list .li:nth-child(n+5) { animation-delay: 192ms; }
+@media (prefers-reduced-motion: reduce) { .esqueleto::after { animation: none; } }
+
+/* side panel toggle: a quiet icon in the "Andares" header; when hidden, a small pill in its place */
+.leftcollapse { display: none !important; }
+.floors .hd { display: flex; align-items: center; gap: 6px; }
+.floors .hd em { margin-left: auto; }
+.panel-ico { width: 24px; height: 24px; display: grid; place-items: center; color: var(--muted); border-radius: 7px; margin-right: -4px; }
+.panel-ico:hover { color: var(--ink); }
+.leftopen { position: absolute; top: calc(64px + env(safe-area-inset-top)); left: calc(14px + env(safe-area-inset-left)); display: flex; align-items: center; gap: 7px; padding: 8px 12px; font-size: 12.5px; font-weight: 600; color: var(--ink2); z-index: 3; animation: brotaDoBotao 200ms var(--curva) both; }
+@media (max-width: 860px) { .leftopen, .panel-ico { display: none !important; } }

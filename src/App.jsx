@@ -13,7 +13,7 @@ import { chatLink, CORTEX_KEY, effStatus, resolveColor, talkActive } from './lib
 import { connectNtfy, publish } from './lib/ntfy'
 import { captureHash, clearCode, getCode, isReadonly, rememberOffice, setCode } from './lib/auth'
 import { demoApprove, startDemo } from './lib/demo'
-import { Activity, Brand, ConnectBanner, Hints, LeftPanel, ModeToggles, Pills, RightPanel, Toast, Weekly } from './ui/Panels'
+import { Activity, Brand, PanelIcon, ConnectBanner, Hints, LeftPanel, ModeToggles, Pills, RightPanel, Toast, Weekly } from './ui/Panels'
 import { Login, Settings } from './ui/Login'
 import { Celebration, MobileFloors, MobileTabs, Search, Timeline, TvExit } from './ui/Extras'
 import { EmptyOffice, HealthModal, LookModal, Modal, OfficesModal, QueueModal, SendStatus, ShortcutsModal } from './ui/Ops'
@@ -333,6 +333,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const compactUi = useStore(prefStore, (p) => p.compact)
   useEffect(() => document.documentElement.classList.toggle('compact-ui', !!compactUi), [compactUi])
   const [mfOpen, setMfOpen] = useState(false)
+  const [tlOpen, setTlOpen] = useState(false)
   const [activityOpen, setActivityOpen] = useState(false)
   const [leftHidden, setLeftHiddenRaw] = useState(() => prefs.get('leftHidden', false))
   const setLeftHidden = useCallback((f) => setLeftHiddenRaw((x) => {
@@ -620,9 +621,11 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         <div className="top-center">
           <Toast bot={toastBot} onView={() => view(toastBot.name)} onApprove={() => approve(toastBot.name)} />
         </div>
-        <button className={`card leftcollapse ${leftHidden ? 'closed' : ''}`} onClick={() => setLeftHidden((x) => !x)} title={leftHidden ? 'Mostrar painel ( [ )' : 'Esconder painel ( [ )'} aria-label={leftHidden ? 'Mostrar painel lateral' : 'Esconder painel lateral'} aria-expanded={!leftHidden}>
-          <span aria-hidden="true">{leftHidden ? '›' : '‹'}</span>
-        </button>
+        {leftHidden && (
+          <button className="card leftopen" onClick={() => setLeftHidden(false)} title="Mostrar painel ( [ )" aria-label="Mostrar painel lateral">
+            <PanelIcon /> <span>Andares</span>
+          </button>
+        )}
         {!leftHidden && <LeftPanel
           floors={floors}
           data={data}
@@ -634,6 +637,8 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
           onPickBot={pickBot}
           talks={talks}
           onQueue={() => setQueueOpen(true)}
+          loading={!!topic && conn === 'syncing' && live.order.length === 0}
+          onCollapse={() => setLeftHidden(true)}
         />}
         <RightPanel
           floor={floor}
@@ -651,7 +656,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         <Weekly usage={data.usage} data={data} onPickBot={pickBot} onPickTeam={goFloor} />
         <div className="bottom-center">
           {!topic && !replayT && <ConnectBanner onSignIn={onSignIn} />}
-          <Timeline history={live.history} talkLog={live.talkLog} value={replayT} onChange={setReplayT} />
+          <Timeline history={live.history} talkLog={live.talkLog} value={replayT} onChange={setReplayT} open={tlOpen} setOpen={setTlOpen} />
           <Hints />
         </div>
         <MobileFloors floors={floors} data={data} now={now} selectedKey={selKey} onFloor={goFloor} open={mfOpen} setOpen={setMfOpen} />
@@ -662,6 +667,8 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
           onQueue={() => setQueueOpen(true)}
           onActivity={() => setActivityOpen(true)}
           onPanel={() => setHealthOpen(true)}
+          onHistory={() => (tlOpen || replayT != null ? (setTlOpen(false), setReplayT(null)) : setTlOpen(true))}
+          historyOn={tlOpen || replayT != null}
           onPrevFloor={() => floorIdx > 0 && (buzz(8), goFloor(floors[floorIdx - 1].key))}
           onNextFloor={() => floorIdx < floors.length - 1 && (buzz(8), goFloor(floors[floorIdx + 1].key))}
         />
