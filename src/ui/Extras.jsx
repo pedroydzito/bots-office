@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Avatar from './Avatar'
-import { Clock, Close, Layers, Party, Pause, Play, Search as SearchIco } from './Icons'
+import { Bell, Clock, Close, Doc, Layers, Party, Pause, Play, Pulse, Search as SearchIco } from './Icons'
 import { CORTEX_KEY, effStatus, hhmm, STATUS } from '../lib/constants'
 
 /** "Go back in time": scrub through the last hours of status changes; the office replays them. */
@@ -107,8 +107,10 @@ export function Celebration({ c }) {
 }
 
 /** Phones: one button that opens the floor list. */
-export function MobileFloors({ floors, data, now, selectedKey, onFloor }) {
-  const [open, setOpen] = useState(false)
+export function MobileFloors({ floors, data, now, selectedKey, onFloor, open: openP, setOpen: setOpenP }) {
+  const [openS, setOpenS] = useState(false)
+  const open = openP ?? openS
+  const setOpen = setOpenP ?? setOpenS
   const cur = floors.find((f) => f.key === selectedKey)
   return (
     <div className="mfloors">
@@ -150,6 +152,7 @@ export { STATUS }
 export function Search({ data, now, onPick, onClose }) {
   const [q, setQ] = useState('')
   const [i, setI] = useState(0)
+  const [flt, setFlt] = useState('all')
   const ref = useRef(null)
   useEffect(() => ref.current?.focus(), [])
   const norm = (x) => (x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -188,14 +191,16 @@ export function Search({ data, now, onPick, onClose }) {
     const st = effStatus(b, now)
     return sc + (st === 'waiting_user' ? 2 : st === 'error' ? 1.5 : st === 'working' ? 0.4 : 0)
   }
+  const FLT = { working: (b) => effStatus(b, now) === 'working', waiting: (b) => effStatus(b, now) === 'waiting_user', error: (b) => effStatus(b, now) === 'error', hidden: (b) => !!b.hidden }
   const list = data.order
     .map((n) => data.bots[n])
     .filter(Boolean)
+    .filter((b) => flt === 'all' || FLT[flt](b))
     .map((b) => [b, scoreOf(b)])
     .filter(([, sc]) => sc > 0)
     .sort((a, b) => b[1] - a[1])
     .map(([b]) => b)
-    .slice(0, 8)
+    .slice(0, flt === 'all' && !nq ? 8 : 30)
   const go = (b) => {
     if (!b) return
     onPick(b.name)
@@ -220,6 +225,16 @@ export function Search({ data, now, onPick, onClose }) {
           />
           <kbd>Esc</kbd>
         </div>
+        <div className="search-chips">
+          {[['all', 'Todos'], ['working', 'Trabalhando'], ['waiting', 'Esperando você'], ['error', 'Com erro'], ['hidden', 'Ocultos']].map(([k, l]) => {
+            const n = k === 'all' ? null : data.order.filter((x) => data.bots[x] && FLT[k](data.bots[x])).length
+            return (
+              <button key={k} className={`chip ${flt === k ? 'on' : ''}`} aria-pressed={flt === k} onClick={() => (setFlt(k), setI(0), ref.current?.focus())}>
+                {l}{n != null ? <em>{n}</em> : null}
+              </button>
+            )
+          })}
+        </div>
         <div className="search-list">
           {list.length === 0 && <p className="muted pad">Nenhum bot encontrado</p>}
           {list.map((b, k) => {
@@ -237,5 +252,42 @@ export function Search({ data, now, onPick, onClose }) {
         </div>
       </div>
     </div>
+  )
+}
+
+
+/** Phones: a bottom tab bar (floors, approvals, activity, dashboard). Swipe sideways on it to change floor. */
+export function MobileTabs({ cur, waiting, onFloors, onQueue, onActivity, onPanel, onPrevFloor, onNextFloor }) {
+  const sx = useRef(null)
+  return (
+    <nav
+      className="card mtabs"
+      onTouchStart={(e) => (sx.current = e.touches[0].clientX)}
+      onTouchEnd={(e) => {
+        if (sx.current == null) return
+        const dx = e.changedTouches[0].clientX - sx.current
+        sx.current = null
+        if (dx > 60) onPrevFloor()
+        else if (dx < -60) onNextFloor()
+      }}
+    >
+      <button onClick={onFloors} className="mt-floor">
+        {cur && <span className="num" style={{ '--team': cur.color }}>{cur.num}</span>}
+        <span>{cur?.name || 'Andares'}</span>
+      </button>
+      <button onClick={onQueue} aria-label="Fila de aprovações">
+        <Bell size={17} />
+        <small>Fila</small>
+        {waiting > 0 && <em className="mt-badge">{waiting}</em>}
+      </button>
+      <button onClick={onActivity} aria-label="Atividade">
+        <Doc size={17} />
+        <small>Atividade</small>
+      </button>
+      <button onClick={onPanel} aria-label="Painel do sistema">
+        <Pulse size={17} />
+        <small>Painel</small>
+      </button>
+    </nav>
   )
 }

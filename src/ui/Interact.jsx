@@ -16,18 +16,21 @@ export function buzz(pattern = 15) {
 }
 
 /** Swipe a sheet down to close it (phones). Returns props for the drag handle element. */
-export function useSwipeDown(onClose) {
+export function useSwipeDown(onClose, onUp) {
   const st = useRef(null)
   const [dy, setDy] = useState(0)
   return {
-    dy,
+    dy: Math.max(0, dy),
     handlers: {
       onTouchStart: (e) => (st.current = e.touches[0].clientY),
-      onTouchMove: (e) => st.current != null && setDy(Math.max(0, e.touches[0].clientY - st.current)),
+      onTouchMove: (e) => st.current != null && setDy(e.touches[0].clientY - st.current),
       onTouchEnd: () => {
         if (dy > 80) {
           buzz(10)
           onClose()
+        } else if (dy < -50 && onUp) {
+          buzz(8)
+          onUp()
         }
         st.current = null
         setDy(0)

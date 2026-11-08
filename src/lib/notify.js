@@ -72,7 +72,7 @@ export function notifyWaiting(bot, onClick) {
 }
 
 /** Reactive view prefs (re-render the scene when they change). */
-export const prefStore = createStore({ names: prefs.get('names', true), gfx: prefs.get('gfx', 'auto') })
+export const prefStore = createStore({ names: prefs.get('names', true), gfx: prefs.get('gfx', 'auto'), compact: prefs.get('compact', false) })
 export function setPref(k, v) {
   prefs.set(k, v)
   prefStore.set({ [k]: v })

@@ -16,7 +16,7 @@ export function isStuck(bot, now) {
   return !!bot && effStatus(bot, now) === 'working' && now - (bot.ts || 0) > STUCK_MS
 }
 
-function Modal({ title, onClose, children, wide }) {
+export function Modal({ title, onClose, children, wide }) {
   useEffect(() => {
     const k = (e) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', k)
@@ -288,6 +288,7 @@ export { hhmm }
 export function LookModal({ look, onPreview, onSave, onClose, shared }) {
   const [l, setL] = useState(look)
   const names = useStore(prefStore, (p) => p.names)
+  const compact = useStore(prefStore, (p) => p.compact)
   const set = (patch) => {
     const n = { ...l, ...patch }
     setL(n)
@@ -354,6 +355,9 @@ export function LookModal({ look, onPreview, onSave, onClose, shared }) {
               {lab} <i className={l[k] ? 'on' : ''} />
             </button>
           ))}
+          <button className="toggle" onClick={() => setPref('compact', !compact)} aria-pressed={compact}>
+            Interface compacta (cards menores) <i className={compact ? 'on' : ''} />
+          </button>
           <button className="toggle" onClick={() => setPref('names', !names)} aria-pressed={names}>
             Nomes dos bots sempre visíveis <i className={names ? 'on' : ''} />
           </button>
@@ -369,28 +373,56 @@ export function LookModal({ look, onPreview, onSave, onClose, shared }) {
 }
 
 /** "Your office is empty": what to send, with a copyable example. */
-export function EmptyOffice() {
-  const [copied, setCopied] = useState(false)
-  const example = `curl -d '{"roster":[{"name":"Meu Bot","shape":"blob","color":"green","team":"Ops"}]}' https://ntfy.sh/SEU_CODIGO`
+/** First steps for a new office: send the roster, send a status, see it show up (checks itself off). */
+export function EmptyOffice({ topic, hasRoster, hasStatus, onClose }) {
+  const [copied, setCopied] = useState(null)
+  const code = topic || 'SEU_CODIGO'
+  const steps = [
+    {
+      title: 'Envie a lista de bots (roster)',
+      sub: 'Cada time vira um andar.',
+      cmd: `curl -d '{"roster":[{"name":"Meu Bot","shape":"blob","color":"green","team":"Ops"}]}' https://ntfy.sh/${code}`,
+      done: hasRoster,
+    },
+    {
+      title: 'Mande um status de teste',
+      sub: 'O bot começa a digitar na mesa.',
+      cmd: `curl -d '{"bot":"Meu Bot","status":"working","step":"Testando o escritório"}' https://ntfy.sh/${code}`,
+      done: hasStatus,
+    },
+    { title: 'Pronto: cada bot avisa quando começa e termina', sub: 'Passe as regras para o Grok em Configurações → Painel do sistema.', done: hasRoster && hasStatus },
+  ]
+  const cur = steps.findIndex((x) => !x.done)
+  const copy = async (k, t) => {
+    try {
+      await navigator.clipboard.writeText(t)
+      setCopied(k)
+      setTimeout(() => setCopied(null), 1600)
+    } catch {
+      /* clipboard blocked */
+    }
+  }
   return (
-    <div className="card emptyoffice">
-      <b>Seu escritório ainda está vazio</b>
-      <p>Envie a lista de bots (roster) para o seu código no ntfy. Cada time vira um andar. Depois, cada bot só precisa mandar o status.</p>
-      <pre>{example}</pre>
-      <button
-        className="dark sm"
-        onClick={async () => {
-          try {
-            await navigator.clipboard.writeText(example)
-            setCopied(true)
-            setTimeout(() => setCopied(false), 1800)
-          } catch {
-            /* clipboard blocked */
-          }
-        }}
-      >
-        {copied ? 'Copiado!' : 'Copiar exemplo'}
-      </button>
+    <div className="card emptyoffice guide">
+      <div className="g-h">
+        <b>Primeiros passos</b>
+        {onClose && <button className="x2" aria-label="Fechar" onClick={onClose}><Close size={14} /></button>}
+      </div>
+      {steps.map((st, k) => (
+        <div key={k} className={`g-step ${st.done ? 'done' : ''} ${k === cur ? 'cur' : ''}`} style={{ '--i': k }}>
+          <span className="g-n">{st.done ? <Check size={13} /> : k + 1}</span>
+          <div className="g-b">
+            <b>{st.title}</b>
+            <span>{st.sub}</span>
+            {st.cmd && k === cur && (
+              <>
+                <pre>{st.cmd}</pre>
+                <button className="dark sm" onClick={() => copy(k, st.cmd)}>{copied === k ? 'Copiado!' : 'Copiar comando'}</button>
+              </>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

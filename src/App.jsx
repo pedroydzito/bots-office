@@ -1,3 +1,4 @@
+import { flushSync } from 'react-dom'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 // the 3D bundle loads after the interface shell
 const loadScene = () => import('./scene/Scene')
@@ -14,13 +15,13 @@ import { captureHash, clearCode, getCode, isReadonly, rememberOffice, setCode } 
 import { demoApprove, startDemo } from './lib/demo'
 import { Activity, Brand, ConnectBanner, Hints, LeftPanel, ModeToggles, Pills, RightPanel, Toast, Weekly } from './ui/Panels'
 import { Login, Settings } from './ui/Login'
-import { Celebration, MobileFloors, Search, Timeline, TvExit } from './ui/Extras'
-import { EmptyOffice, HealthModal, LookModal, OfficesModal, QueueModal, SendStatus, ShortcutsModal } from './ui/Ops'
+import { Celebration, MobileFloors, MobileTabs, Search, Timeline, TvExit } from './ui/Extras'
+import { EmptyOffice, HealthModal, LookModal, Modal, OfficesModal, QueueModal, SendStatus, ShortcutsModal } from './ui/Ops'
 import { buzz, HoverTip, MiniMap, QuickMenu, SearchField, Welcome } from './ui/Interact'
 import { FLOOR_H, OVERVIEW_GAP } from './scene/layout'
 import { ACCENTS, DEFAULT_LOOK, lookStore } from './lib/look'
 import { botsAt } from './lib/metrics'
-import { notifyWaiting, prefs } from './lib/notify'
+import { notifyWaiting, prefs, prefStore } from './lib/notify'
 import { resumeAudio, startAmbience, startMusic, uiSound, updateAmbience } from './lib/ambience'
 
 function openLink(link) {
@@ -79,14 +80,44 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const readonly = !!topic && isReadonly(topic)
   const [conn, setConn] = useState(topic ? 'syncing' : 'demo')
   // light: 'auto' follows the real local time (dawn/dusk tones), or forced day/night
-  const [lightMode, setLightMode] = useState(() => prefs.get('light', 'auto'))
+  const [lightMode, setLightModeRaw] = useState(() => prefs.get('light', 'auto'))
+  // theme change as a "wave": the new look spreads in a circle from the button (design system §6.3)
+  const setLightMode = useCallback((m, ev) => {
+    const x = ev?.clientX, y = ev?.clientY
+    if (!ev || !document.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return setLightModeRaw(m)
+    const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))
+    document.documentElement.dataset.transicao = 'onda'
+    const t = document.startViewTransition(() => flushSync(() => setLightModeRaw(m)))
+    t.ready
+      .then(() => document.documentElement.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`] }, { duration: 520, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', pseudoElement: '::view-transition-new(root)' }))
+      .catch(() => {})
+    t.finished.finally(() => delete document.documentElement.dataset.transicao)
+  }, [])
   useEffect(() => prefs.set('light', lightMode), [lightMode])
   const [replayT, setReplayT] = useState(null) // timeline replay (ms) or null = live
   const [tv, setTv] = useState(() => new URLSearchParams(window.location.search).has('tv'))
   const [celebration, setCelebration] = useState(null)
   // one notice at a time: a request waiting on you always wins; the rest wait their turn
   const [notices, setNotices] = useState([])
-  const pushNotice = useCallback((n) => setNotices((l) => [...l.filter((x) => x.t !== n.t || x.title !== n.title), n].slice(-6)), [])
+  const waitingRef = useRef([])
+  const selectedBotRef = useRef(null)
+  // notices of the same kind arriving together are merged ("3 bots desbloquearam conquistas")
+  const pushNotice = useCallback(
+    (n) =>
+      setNotices((l) => {
+        if (n.group) {
+          const i = l.findIndex((x) => x.group === n.group)
+          if (i >= 0) {
+            const g = l[i]
+            const names = [...new Set([...(g.names || []), ...(n.names || [])])]
+            const merged = { ...g, names, count: (g.count || 1) + 1, title: n.groupTitle(names), sub: n.groupSub ? n.groupSub(names) : g.sub }
+            return l.map((x, k) => (k === i ? merged : x))
+          }
+        }
+        return [...l.filter((x) => x.t !== n.t || x.title !== n.title), n].slice(-6)
+      }),
+    [],
+  )
   useEffect(() => {
     const on = () => pushNotice({ t: Date.now(), title: 'Atualizado agora', sub: 'Recuperamos o que aconteceu enquanto você estava fora' })
     window.addEventListener('botoffice:resynced', on)
@@ -233,6 +264,19 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const talks = Object.entries(data.talks).filter(([f, t]) => talkActive(t, now) && data.bots[f] && data.bots[t.to])
   counts.talks = talks.length
   const waiting = data.order.map((n) => data.bots[n]).filter((b) => effStatus(b, now) === 'waiting_user').sort((a, b) => b.ts - a.ts)
+  waitingRef.current = waiting
+  selectedBotRef.current = selectedBot
+  // 6 + 7: the tab title and the installed app's icon show how many need you
+  useEffect(() => {
+    const n = waiting.length
+    document.title = n ? `(${n}) ${data.office?.name || 'Escritório de Bots'}` : data.office?.name || 'Escritório de Bots'
+    try {
+      if (n) navigator.setAppBadge?.(n)
+      else navigator.clearAppBadge?.()
+    } catch {
+      /* not supported */
+    }
+  }, [waiting.length, data.office?.name])
   const toastBot = waiting.find((b) => dismissed[b.name] !== b.ts) || null
   useEffect(() => {
     if (toastBot || !notices.length) return
@@ -285,6 +329,17 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   )
   const approve = useCallback((n) => decide(n, 'approve', ''), [decide])
   const [queueOpen, setQueueOpen] = useState(false)
+  const [guideClosed, setGuideClosed] = useState(false)
+  const compactUi = useStore(prefStore, (p) => p.compact)
+  useEffect(() => document.documentElement.classList.toggle('compact-ui', !!compactUi), [compactUi])
+  const [mfOpen, setMfOpen] = useState(false)
+  const [activityOpen, setActivityOpen] = useState(false)
+  const [leftHidden, setLeftHiddenRaw] = useState(() => prefs.get('leftHidden', false))
+  const setLeftHidden = useCallback((f) => setLeftHiddenRaw((x) => {
+    const v = typeof f === 'function' ? f(x) : f
+    prefs.set('leftHidden', v)
+    return v
+  }), [])
   const [healthOpen, setHealthOpen] = useState(false)
   const [keysOpen, setKeysOpen] = useState(false)
   const [officesOpen, setOfficesOpen] = useState(false)
@@ -335,6 +390,15 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
       else if (e.key === 'f' || e.key === 'F') setTv((x) => !x)
       else if (e.key === 'b' || e.key === 'B') setOverview((x) => !x)
       else if (e.key === 'a' || e.key === 'A') setQueueOpen((x) => !x)
+      else if (e.key === '[') setLeftHidden((x) => !x)
+      else if (e.key === 'j' || e.key === 'J') {
+        // jump to the next bot that needs you (cycles)
+        const list = waitingRef.current
+        if (list.length) {
+          const i = (list.findIndex((b) => b.name === selectedBotRef.current) + 1) % list.length
+          pickBot(list[i].name)
+        }
+      }
       else if (e.key === 'h' || e.key === 'H') setHealthOpen((x) => !x)
       else if (e.key === '?') setKeysOpen((x) => !x)
       else if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || e.key === '/') {
@@ -425,7 +489,15 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     const done = new Set(floors.filter((f) => f.bots.length > 1 && f.bots.every((n) => effStatus(live.bots[n], Date.now()) === 'done')).map((f) => f.key))
     if (prevAllDone.current) for (const k of done) if (!prevAllDone.current.has(k)) {
       setCelebration({ key: k, name: k, t: Date.now() })
-      pushNotice({ t: Date.now(), title: `${k} concluiu tudo!`, sub: 'Todos os bots do andar terminaram' })
+      pushNotice({
+        t: Date.now(),
+        title: `${k} concluiu tudo!`,
+        sub: 'Todos os bots do andar terminaram',
+        group: 'floordone',
+        names: [k],
+        groupTitle: (ns) => (ns.length > 1 ? `${ns.length} andares concluíram tudo` : `${ns[0]} concluiu tudo!`),
+        groupSub: (ns) => ns.join(', '),
+      })
     }
     prevAllDone.current = done
   }, [live, floors])
@@ -479,7 +551,15 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     if (prevUnlocks.current != null && n > prevUnlocks.current) {
       const u = live.unlocks[n - 1]
       if (Date.now() - u.t < 60000) {
-        pushNotice({ t: u.t, title: `${u.bot} desbloqueou: ${u.label}`, sub: 'Novo troféu na mesa' })
+        pushNotice({
+          t: u.t,
+          title: `${u.bot} desbloqueou: ${u.label}`,
+          sub: 'Nova estrela no monitor',
+          group: 'unlock',
+          names: [u.bot],
+          groupTitle: (ns) => (ns.length > 1 ? `${ns.length} bots ganharam conquistas` : `${ns[0]} desbloqueou: ${u.label}`),
+          groupSub: (ns) => ns.slice(0, 4).join(', ') + (ns.length > 4 ? '…' : ''),
+        })
         if (prefs.get('uisound', true)) uiSound('done')
       }
     }
@@ -540,7 +620,10 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         <div className="top-center">
           <Toast bot={toastBot} onView={() => view(toastBot.name)} onApprove={() => approve(toastBot.name)} />
         </div>
-        <LeftPanel
+        <button className={`card leftcollapse ${leftHidden ? 'closed' : ''}`} onClick={() => setLeftHidden((x) => !x)} title={leftHidden ? 'Mostrar painel ( [ )' : 'Esconder painel ( [ )'} aria-label={leftHidden ? 'Mostrar painel lateral' : 'Esconder painel lateral'} aria-expanded={!leftHidden}>
+          <span aria-hidden="true">{leftHidden ? '›' : '‹'}</span>
+        </button>
+        {!leftHidden && <LeftPanel
           floors={floors}
           data={data}
           now={now}
@@ -551,7 +634,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
           onPickBot={pickBot}
           talks={talks}
           onQueue={() => setQueueOpen(true)}
-        />
+        />}
         <RightPanel
           floor={floor}
           data={data}
@@ -564,14 +647,29 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
           onReact={readonly ? null : (n, kind) => send({ react: { bot: n, kind } })}
           onDecide={readonly ? null : decide}
         />
-        <Activity data={data} onPick={pickBot} floorBots={floor?.bots || []} />
+        {!leftHidden && <Activity data={data} onPick={pickBot} floorBots={floor?.bots || []} />}
         <Weekly usage={data.usage} data={data} onPickBot={pickBot} onPickTeam={goFloor} />
         <div className="bottom-center">
           {!topic && !replayT && <ConnectBanner onSignIn={onSignIn} />}
           <Timeline history={live.history} talkLog={live.talkLog} value={replayT} onChange={setReplayT} />
           <Hints />
         </div>
-        <MobileFloors floors={floors} data={data} now={now} selectedKey={selKey} onFloor={goFloor} />
+        <MobileFloors floors={floors} data={data} now={now} selectedKey={selKey} onFloor={goFloor} open={mfOpen} setOpen={setMfOpen} />
+        <MobileTabs
+          cur={floor}
+          waiting={waiting.length}
+          onFloors={() => setMfOpen((x) => !x)}
+          onQueue={() => setQueueOpen(true)}
+          onActivity={() => setActivityOpen(true)}
+          onPanel={() => setHealthOpen(true)}
+          onPrevFloor={() => floorIdx > 0 && (buzz(8), goFloor(floors[floorIdx - 1].key))}
+          onNextFloor={() => floorIdx < floors.length - 1 && (buzz(8), goFloor(floors[floorIdx + 1].key))}
+        />
+        {activityOpen && (
+          <Modal title="Atividade" onClose={() => setActivityOpen(false)}>
+            <Activity data={data} onPick={(n) => (setActivityOpen(false), pickBot(n))} floorBots={floor?.bots || []} />
+          </Modal>
+        )}
         {queueOpen && <QueueModal waiting={waiting} now={now} onDecide={decide} onPick={pickBot} onClose={() => setQueueOpen(false)} readonly={readonly} />}
         {healthOpen && <HealthModal conn={conn} data={live} now={now} topic={topic} onPickBot={pickBot} onClose={() => setHealthOpen(false)} />}
         {keysOpen && <ShortcutsModal onClose={() => setKeysOpen(false)} />}
@@ -604,7 +702,9 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
             onClose={() => setOfficeCfg(false)}
           />
         )}
-        {topic && !welcome && live.order.length === 0 && <EmptyOffice />}
+        {topic && !welcome && !guideClosed && (live.order.length === 0 || !(live.history || []).length) && (
+          <EmptyOffice topic={topic} hasRoster={live.order.length > 0} hasStatus={(live.history || []).length > 0} onClose={live.order.length ? () => setGuideClosed(true) : null} />
+        )}
         <HoverTip />
         <SendStatus s={sendStatus} onRetry={() => sendStatus && send(sendStatus.payload)} />
         {!toastBot && notices[0] && <Celebration c={notices[0]} />}

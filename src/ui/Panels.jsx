@@ -1,4 +1,4 @@
-import { memo, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import Avatar from './Avatar'
 import { Clap, Heart, Laugh, Mail, Party, ThumbUp, Trophy } from './Icons'
 import { Arrow, Auto, Building2, Search as SearchIco, Brain, Chat, Check, Close, Doc, Down, Minus, Moon, Pause, Play, Plus, Sun, Up } from './Icons'
@@ -28,9 +28,9 @@ export function Brand({ conn, now, name, onClick }) {
 export function ModeToggles({ mode, setMode, tour, setTour, overview, setOverview, onSearch }) {
   return (
     <div className="card toggles">
-      <button className={`light-btn ${mode === 'day' ? 'on' : ''}`} aria-pressed={mode === 'day'} onClick={() => setMode('day')} title="Dia"><Sun /> <span className="lbl">Dia</span></button>
-      <button className={`light-btn ${mode === 'night' ? 'on' : ''}`} aria-pressed={mode === 'night'} onClick={() => setMode('night')} title="Noite"><Moon /> <span className="lbl">Noite</span></button>
-      <button className={`light-btn ${mode === 'auto' ? 'on' : ''}`} aria-pressed={mode === 'auto'} onClick={() => setMode('auto')} title="Automático (hora real)"><Auto /> <span className="lbl">Auto</span></button>
+      <button className={`light-btn ${mode === 'day' ? 'on' : ''}`} aria-pressed={mode === 'day'} onClick={(e) => setMode('day', e)} title="Dia"><Sun /> <span className="lbl">Dia</span></button>
+      <button className={`light-btn ${mode === 'night' ? 'on' : ''}`} aria-pressed={mode === 'night'} onClick={(e) => setMode('night', e)} title="Noite"><Moon /> <span className="lbl">Noite</span></button>
+      <button className={`light-btn ${mode === 'auto' ? 'on' : ''}`} aria-pressed={mode === 'auto'} onClick={(e) => setMode('auto', e)} title="Automático (hora real)"><Auto /> <span className="lbl">Auto</span></button>
       <button className={overview ? 'on' : ''} aria-pressed={overview} onClick={() => setOverview(!overview)} title="Prédio inteiro (B)"><Building2 /> <span className="lbl">Prédio</span></button>
       <button className="search-ico" onClick={onSearch} title="Buscar bot (Ctrl+K)"><SearchIco /></button>
     </div>
@@ -121,7 +121,7 @@ export function LeftPanel({ floors, data, now, selectedKey, onFloor, waiting, on
         })}
       </div>
       <Collapse title="Esperando por mim" count={waiting.length} open={open.waiting} setOpen={tog('waiting')} accent>
-        {waiting.length === 0 && <p className="muted">Nada precisa de você</p>}
+        {waiting.length === 0 && <Empty icon={<Check size={14} />} title="Tudo em dia" sub={(() => { const w = data.order.filter((n) => effStatus(data.bots[n], now) === 'working').length; return w ? `${w} trabalhando agora · nada depende de você` : 'Nenhum bot precisa de aprovação' })()} />}
         {waiting.length > 1 && onQueue && <button className="ghost sm qbtn" onClick={onQueue}>Ver fila completa (A)</button>}
         {waiting.map((b) => (
           <div key={b.name} className="li">
@@ -150,7 +150,7 @@ export function LeftPanel({ floors, data, now, selectedKey, onFloor, waiting, on
         </Collapse>
       )}
       <Collapse title="Concluídos" count={finished.length} open={open.finished} setOpen={tog('finished')}>
-        {finished.length === 0 && <p className="muted">Nada concluído recentemente</p>}
+        {finished.length === 0 && <Empty title="Nada concluído recentemente" sub={(() => { const last = [...(data.history || [])].reverse().find((h) => h.status === 'done'); return last ? `Última entrega: ${last.bot} · ${durationShort(last.t - now)}` : 'As entregas aparecem aqui' })()} />}
         {finished.slice(0, 12).map((n) => (
           <div key={n} className="li" onClick={() => onPickBot(n)}>
             <Avatar bot={data.bots[n]} size={22} />
@@ -162,7 +162,7 @@ export function LeftPanel({ floors, data, now, selectedKey, onFloor, waiting, on
         ))}
       </Collapse>
       <Collapse title="Rotinas" count={routines.length} open={open.routines} setOpen={tog('routines')}>
-        {routines.length === 0 && <p className="muted">Nenhuma rotina informada</p>}
+        {routines.length === 0 && <Empty title="Nenhuma rotina informada" sub='Os bots podem enviar {"routines":…} com o que rodam e quando' />}
         {routines.slice(0, 20).map((r, i) => (
           <div key={i} className="li" onClick={() => onPickBot(r.bot)}>
             <Avatar bot={data.bots[r.bot]} size={22} />
@@ -193,7 +193,10 @@ function headerColor(sts) {
 }
 
 export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, chatOf, onApprove, onReact, onDecide }) {
-  const swipe = useSwipeDown(onClose)
+  const [full, setFull] = useState(false)
+  const swipe = useSwipeDown(() => (full ? setFull(false) : onClose()), () => setFull(true))
+  const [tab, setTab] = useState('now')
+  useEffect(() => (setTab('now'), setFull(false)), [selectedBot])
   if (selectedBot && data.bots[selectedBot]) {
     const b = data.bots[selectedBot]
     const st = effStatus(b, now)
@@ -202,7 +205,7 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
     const link = chatOf(selectedBot)
     const usage = data.usage?.bots?.[selectedBot]
     return (
-      <div className="right card botcard" style={swipe.dy ? { transform: `translateY(${swipe.dy}px)`, transition: 'none' } : undefined}>
+      <div className={`right card botcard ${full ? 'full' : ''}`} style={swipe.dy ? { transform: `translateY(${swipe.dy}px)`, transition: 'none' } : undefined}>
         <div className="bh" style={{ background: resolveColor(b.color) }} {...swipe.handlers}>
           <span className="grab" aria-hidden="true" />
           <button className="x" onClick={onClose} aria-label="Fechar"><Close size={16} /></button>
@@ -212,8 +215,15 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
             <span>{b.team}</span>
           </div>
         </div>
+        <Tabs
+          value={tab}
+          onChange={setTab}
+          items={[['now', 'Agora'], ['hist', 'Histórico'], ['metrics', 'Métricas'], ...((data.routines[selectedBot] || []).length ? [['routines', `Rotinas · ${data.routines[selectedBot].length}`]] : [])]}
+        />
+        {tab === 'now' && (
+        <>
         <div className="bb">
-          <div className="row"><span className="badge" style={{ '--c': STATUS[st].color }}>{STATUS_WORD[st]}</span><span className="muted">{b.ts ? `${durationShort(b.ts - now)}` : 'sem atualizações'}</span></div>
+          <div className="row"><span className="badge" data-st={st} style={{ '--c': STATUS[st].color }}>{STATUS_WORD[st]}</span><span className="muted">{b.ts ? `${durationShort(b.ts - now)}` : 'sem atualizações'}</span></div>
           <p className="step">{st === 'resting' && b.step ? `Última: ${b.step}` : b.step || '—'}</p>
           {st === 'working' && b.progress != null && (
             <div className="progress" role="progressbar" aria-valuenow={Math.round(b.progress)} aria-valuemin={0} aria-valuemax={100}>
@@ -254,24 +264,27 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
               ))}
             </div>
           )}
-          {/* details stay out of the way until asked for */}
-          <details className="more">
-            <summary>Métricas de hoje{usage != null ? ` · ${usage}% do uso semanal` : ''}</summary>
+        </div>
+        </>
+        )}
+        {tab === 'hist' && <BotHistory data={data} name={selectedBot} now={now} />}
+        {tab === 'metrics' && (
+          <div className="bb">
+            {usage != null && <div className="mini"><b>Uso semanal</b><span>{usage}% do limite</span></div>}
             <Metrics data={data} name={selectedBot} now={now} />
             {(() => {
               const ts = taskStats(data, selectedBot, now)
               return ts.avg != null ? <div className="mini"><b>Tempo médio por tarefa</b><span>{fmtDuration(ts.avg)} · {ts.samples} tarefas em 48 h</span></div> : null
             })()}
-          </details>
-          {(data.routines[selectedBot] || []).length > 0 && (
-            <details className="more">
-              <summary>Rotinas · {data.routines[selectedBot].length}</summary>
-              {data.routines[selectedBot].map((r, i) => (
-                <div key={i} className="mini"><b>{r.name}</b><span>{r.schedule}{r.next_run ? <> · <RoutineWhen next={r.next_run} now={now} /></> : ''}</span></div>
-              ))}
-            </details>
-          )}
-        </div>
+          </div>
+        )}
+        {tab === 'routines' && (
+          <div className="bb">
+            {(data.routines[selectedBot] || []).map((r, i) => (
+              <div key={i} className="mini"><b>{r.name}</b><span>{r.schedule}{r.next_run ? <> · <RoutineWhen next={r.next_run} now={now} /></> : ''}</span></div>
+            ))}
+          </div>
+        )}
       </div>
     )
   }
@@ -368,8 +381,8 @@ export const Activity = memo(function Activity({ data, onPick, floorBots = [] })
           ))}
         </div>
       </div>
-      {items.length === 0 && data.activity.length > 0 && <p className="muted">Nada nesse filtro</p>}
-      {items.length === 0 && <p className="muted">Aguardando a primeira mensagem…</p>}
+      {items.length === 0 && data.activity.length > 0 && <Empty title="Nada nesse filtro" sub="Troque o filtro para ver o resto" />}
+      {items.length === 0 && data.activity.length === 0 && <Empty title="Aguardando a primeira mensagem" sub="Quando um bot mandar status, ele aparece aqui" />}
       {items.map((a, i) => (
         <div key={`${a.t}|${a.kind}|${a.bot || a.from}|${a.to || ''}|${a.step || ''}|${i}`} className="act" onClick={() => onPick(a.kind === 'talk' || a.kind === 'mail' ? a.from : a.bot)}>
           <time>{hhmm(a.t)}</time>
@@ -466,7 +479,7 @@ export const Weekly = memo(function Weekly({ usage, data, onPickBot, onPickTeam 
             ))}
           </>
         ) : (
-          <p className="muted">Nenhum uso informado ainda</p>
+          <Empty title="Nenhum uso informado ainda" sub='Os bots podem mandar {"usage":…} com o consumo da semana' />
         )}
       </div>
     </div>
@@ -525,4 +538,71 @@ function RoutineWhen({ next, now }) {
   if (d >= 0) return <>próxima em {durationShort(d)}</>
   if (-d > 5 * 60e3) return <b className="late">atrasada {durationShort(d)}</b>
   return <>rodando agora</>
+}
+
+
+/** Segmented tabs with a sliding indicator (the "trilho" of the design system). */
+export function Tabs({ value, onChange, items }) {
+  const idx = Math.max(0, items.findIndex(([k]) => k === value))
+  return (
+    <div className="tabs" role="tablist" style={{ '--n': items.length, '--i': idx }}>
+      <i className="tabs-pill" aria-hidden="true" />
+      {items.map(([k, l]) => (
+        <button key={k} role="tab" aria-selected={k === value} className={k === value ? 'on' : ''} onClick={() => onChange(k)}>{l}</button>
+      ))}
+    </div>
+  )
+}
+
+/** The bot's recent tasks (last 48 h): start, what, how long, how it ended. */
+function BotHistory({ data, name, now }) {
+  const ev = (data.history || []).filter((h) => h.bot === name)
+  const tasks = []
+  let cur = null
+  for (const h of ev) {
+    if (h.status === 'working') {
+      if (!cur) cur = { t: h.t, step: h.step, steps: 1 }
+      else (cur.steps++, h.step && (cur.step = h.step))
+    } else {
+      if (cur) tasks.push({ ...cur, end: h.t, status: h.status, result: h.step })
+      else if (h.status === 'done' || h.status === 'error') tasks.push({ t: h.t, end: h.t, step: h.step, status: h.status })
+      else if (h.status === 'waiting_user') tasks.push({ t: h.t, end: h.t, step: h.step, status: h.status })
+      cur = null
+    }
+  }
+  if (cur) tasks.push({ ...cur, end: null, status: 'working' })
+  const list = tasks.reverse().slice(0, 30)
+  if (!list.length) return <p className="muted pad">Nenhuma tarefa nas últimas 48 h</p>
+  return (
+    <div className="bb hist">
+      {list.map((k, i) => (
+        <div key={k.t + ':' + i} className="hrow2" style={{ '--i': Math.min(i, 10) }}>
+          <i className="dot" style={{ background: STATUS[k.status === 'idle' ? 'resting' : k.status]?.color || '#9aa0aa' }} />
+          <div className="ht">
+            <b>{k.result && k.status === 'done' ? k.result : k.step || STATUS_WORD[k.status] || '—'}</b>
+            <span>
+              {hhmm(k.t)}
+              {k.end && k.end > k.t ? ` · ${fmtDuration(k.end - k.t)}` : k.status === 'working' ? ` · em andamento há ${fmtDuration(now - k.t)}` : ''}
+              {' · '}
+              {STATUS_WORD[k.status === 'idle' ? 'resting' : k.status] || k.status}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+
+/** Empty state: a short title and a line that tells you what will show up here or why. */
+function Empty({ icon, title, sub }) {
+  return (
+    <div className="empty">
+      {icon && <span className="ei">{icon}</span>}
+      <div>
+        <b>{title}</b>
+        {sub && <span>{sub}</span>}
+      </div>
+    </div>
+  )
 }

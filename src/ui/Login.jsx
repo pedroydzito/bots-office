@@ -80,7 +80,7 @@ export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOff
           {setMode && (
             <div className="mobile-only seg">
               {[['day', 'Dia'], ['night', 'Noite'], ['auto', 'Auto']].map(([k, l]) => (
-                <button key={k} className={mode === k ? 'on' : ''} aria-pressed={mode === k} onClick={() => setMode(k)}>{l}</button>
+                <button key={k} className={mode === k ? 'on' : ''} aria-pressed={mode === k} onClick={(e) => setMode(k, e)}>{l}</button>
               ))}
             </div>
           )}
