@@ -315,3 +315,6 @@ MIT
 
 - `{"bot":"A","status":"working","step":"Editando vídeo","progress":40}` shows a progress bar over the bot and in its card. A progress-only update also works: `{"bot":"A","progress":70}`.
 - `{"handoff":{"from":"A","to":"B","what":"Roteiro pronto"}}` (same as `{"type":"mail",...}`) flies an envelope with a trail from A's desk to B's (across floors via the elevator) and shows "Recebeu de / Passou para" in both cards.
+- `"role": "ceo"` (or `principal`, `fundador`) in a bot's roster entry marks the company's main bot: executive desk with a gold plaque, slightly bigger bot, gold name tag. `"role": "lead"` gives any bot the lead desk on its floor.
+- When every bot on a floor is `done`, the team gathers by the lounge for a minute to celebrate. A hand-off to another floor is carried there in person by the sender (via the elevator).
+- **Painel do sistema → Gerar relatório da semana** creates a shareable PNG (tasks, errors, usage, top bots, teams). The bot card shows the average task time and flags a task that is taking much longer than usual.

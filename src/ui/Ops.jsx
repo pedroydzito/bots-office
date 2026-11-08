@@ -3,6 +3,8 @@ import Avatar from './Avatar'
 import { Check, Close } from './Icons'
 import { durationShort, effStatus, hhmm } from '../lib/constants'
 import { health } from '../lib/health'
+import { taskStats } from '../lib/metrics'
+import { weeklyReport } from '../lib/report'
 import { forgetOffice, listOffices, renameOffice, viewOnlyLink } from '../lib/auth'
 import { ACCENTS, FLOORS, STYLES, WALLS } from '../lib/look'
 import { useStore } from '../lib/createStore'
@@ -100,6 +102,7 @@ export function HealthModal({ conn, data, now, onClose, topic, onPickBot }) {
     resting: [...by('resting'), ...by('done')],
     hidden: bots.filter((b) => b.hidden),
     silent: visible.filter((b) => now - (b.ts || 0) > 2 * 3600e3),
+    slow: visible.filter((b) => taskStats(data, b.name, now).slow),
   }
   // messages per 5 minutes over the last hour
   const buckets = Array(12).fill(0)
@@ -169,8 +172,10 @@ export function HealthModal({ conn, data, now, onClose, topic, onPickBot }) {
         </div>
         <List k="waiting" label="Esperando você" tone="warn" />
         <List k="error" label="Com erro" tone="bad" />
+        <List k="slow" label="Demorando mais que o normal" tone="warn" />
         <List k="silent" label="Sem sinal há 2 h ou mais" />
         <List k="hidden" label="Ocultos no Grok" />
+        <button className="dark report-btn" onClick={() => weeklyReport(data, data.office?.name)}>Gerar relatório da semana (imagem)</button>
         <div className="dash-foot muted small">
           <span>Último roster: {data.rosterT ? durationShort(data.rosterT - Date.now()) : 'nenhum'}</span>
           <span>Dados no navegador: {(storage / 1024).toFixed(0)} KB</span>

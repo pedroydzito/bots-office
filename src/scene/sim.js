@@ -81,6 +81,11 @@ export function sessions(data, T) {
     if (end < T - 30 * 60e3) continue
     out.push({ ...s, endT: end })
   }
+  for (const m of data.mail || []) {
+    const a = world.seatOf(m.from), b = world.seatOf(m.to)
+    if (!a || !b || a.floorIdx === b.floorIdx || m.t < T - 30 * 60e3) continue
+    out.push({ from: m.from, to: m.to, t0: m.t, lastT: m.t, end: m.t + 25000, endT: m.t + 25000, step: `Entregando: ${m.subject}`, mail: true })
+  }
   return out
 }
 
@@ -214,11 +219,28 @@ function eventsFor(ctx, T) {
       const g = groupOf(all, s)
       const tseat = layout.seats[names.indexOf(s.to)]
       const spot = g.length >= 2 ? meetSpot(layout, [s.to, ...g.map((o) => o.from)], name) : talkSpots(tseat, Math.max(0, g.findIndex((o) => o.from === name))).visitor
-      ev.push({ t: r.goEnd, teleport: layout.elevator, goal: spot, talk: { role: 'visitor', partner: s.to, step: s.step, seed: hash(name), meeting: g.length >= 2, t0: r.goEnd } })
+      ev.push({ t: r.goEnd, teleport: layout.elevator, goal: spot, talk: { role: 'visitor', partner: s.to, step: s.step, seed: hash(name), meeting: g.length >= 2, t0: r.goEnd, mail: !!s.mail } })
       if (isFinite(s.endT)) ev.push({ t: s.endT, goal: { ...elev, gone: true } })
     }
   }
 
+  // the whole team finished: everyone gathers in a circle by the lounge for a minute to celebrate
+  if (role === 'home' && names.length >= 2) {
+    const hist = data.history || []
+    const hs = names.map((n) => statusAt(hist, n, T)).filter((h) => h && T - h.t < 24 * 3600e3)
+    if (hs.length >= 2 && hs.every((h) => h.status === 'done')) {
+      const tp = Math.max(...hs.map((h) => h.t))
+      if (T - tp < 75000) {
+        const c = layout.lounge ? { x: layout.lounge.x, z: layout.lounge.z - 1.9 } : layout.meet
+        const k = names.indexOf(name), n = names.length
+        const a = (k / n) * Math.PI * 2
+        const r = 0.7 + n * 0.12
+        const x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r
+        ev.push({ t: tp + 1500 + k * 250, goal: { kind: 'party', x, z, az: z, yaw: Math.atan2(c.x - x, c.z - z), poi: true } })
+        ev.push({ t: tp + 62000, goal: seatGoal })
+      }
+    }
+  }
   // wandering (home bots only), from the slots that can still matter
   if (role === 'home') {
     for (let k = slot - 2; k <= slot; k++) {

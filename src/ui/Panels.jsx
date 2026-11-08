@@ -4,7 +4,7 @@ import { Clap, Heart, Laugh, Mail, Party, ThumbUp, Trophy } from './Icons'
 import { Arrow, Auto, Building2, Search as SearchIco, Brain, Chat, Check, Close, Doc, Down, Minus, Moon, Pause, Play, Plus, Sun, Up } from './Icons'
 import { CORTEX_KEY, durationShort, effStatus, hhmm, resolveColor, STATUS, talkActive } from '../lib/constants'
 import { sceneSignals } from '../scene/registry'
-import { botMetrics, fmtDuration } from '../lib/metrics'
+import { botMetrics, fmtDuration, taskStats } from '../lib/metrics'
 import { DecisionBox, isStuck } from './Ops'
 import { useSwipeDown } from './Interact'
 
@@ -231,6 +231,12 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
             ))
           })()}
           {isStuck(b, now) && <em className="stuck">parado no mesmo passo há {durationShort(now - b.ts)}</em>}
+          {(() => {
+            const ts = taskStats(data, selectedBot, now)
+            return ts.slow ? (
+              <em className="stuck slow">Demorando mais que o normal: {fmtDuration(ts.elapsed)} (média {fmtDuration(ts.avg)})</em>
+            ) : null
+          })()}
           {st === 'waiting_user' && onDecide && <DecisionBox bot={selectedBot} onDecide={onDecide} />}
           {talk && talkActive(talk, now) && <p className="talkline"><Chat size={13} /> Conversando com <b>{talk.to}</b>: {talk.step}</p>}
           {incoming.map(([f, t]) => (
@@ -252,6 +258,10 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
           <details className="more">
             <summary>Métricas de hoje{usage != null ? ` · ${usage}% do uso semanal` : ''}</summary>
             <Metrics data={data} name={selectedBot} now={now} />
+            {(() => {
+              const ts = taskStats(data, selectedBot, now)
+              return ts.avg != null ? <div className="mini"><b>Tempo médio por tarefa</b><span>{fmtDuration(ts.avg)} · {ts.samples} tarefas em 48 h</span></div> : null
+            })()}
           </details>
           {(data.routines[selectedBot] || []).length > 0 && (
             <details className="more">

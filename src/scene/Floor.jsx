@@ -10,10 +10,10 @@ import StaticMerge from './StaticMerge'
 
 let mergeGen = 0
 import {
-  Aquarium, Arcade, Bench, PoolTable, DESK_FINISH, ExecDesk, isVip, Foosball, PingPong, SoloSetup, Armchair, BeanBag, Poster, WallShelf, Bookshelf, FloorLamp, Printer, Vending, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, GlassElevator, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
+  Aquarium, Arcade, Bench, MeetingTopic, PoolTable, DESK_FINISH, ExecDesk, isVip, Foosball, PingPong, SoloSetup, Armchair, BeanBag, Poster, WallShelf, Bookshelf, FloorLamp, Printer, Vending, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, GlassElevator, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
   StickyWall, TVScreen, WallTitle, WaterCooler, Workstation,
 } from './Props'
-import { durationShort, effStatus, STATUS, talkActive } from '../lib/constants'
+import { durationShort, effStatus, resolveColor, STATUS, talkActive } from '../lib/constants'
 import { botMetrics } from '../lib/metrics'
 import { dataStore } from '../lib/state'
 import { useStore } from '../lib/createStore'
@@ -114,7 +114,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
     return out
   }, [data.talkLog, data.bots, homeSet, Math.floor(now / 5000)])
   // the simulation reads statuses/conversations from `data`; give bots a stable object per change
-  const simData = useMemo(() => ({ history: data.history, talkLog: data.talkLog, rev: data.rev, weather: data.weather?.kind || null }), [data.history, data.talkLog, data.rev, data.weather])
+  const simData = useMemo(() => ({ history: data.history, talkLog: data.talkLog, mail: data.mail, rev: data.rev, weather: data.weather?.kind || null }), [data.history, data.talkLog, data.mail, data.rev, data.weather])
 
   // ---- room status (door sign), wall boards, achievements, sleep-lights
   const sts = home.map((n) => effStatus(data.bots[n], now))
@@ -136,6 +136,17 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [histLen, home, Math.floor(now / 60000)])
+  // 3+ bots talking with the same host on this floor = a meeting: its topic goes on the whiteboard
+  const meeting = (() => {
+    const hosts = {}
+    for (const [from, t] of Object.entries(data.talks || {})) {
+      if (!talkActive(t, now) || !homeSet.has(t.to)) continue
+      ;(hosts[t.to] ||= []).push({ from, step: t.step })
+    }
+    const best = Object.entries(hosts).sort((a, b) => b[1].length - a[1].length)[0]
+    if (!best || best[1].length < 2) return null
+    return { topic: best[1].find((x) => x.step)?.step || 'Reunião', people: [best[0], ...best[1].map((x) => x.from)] }
+  })()
   const allResting = sts.length > 0 && sts.every((s) => s === 'resting')
   const today = (() => {
     const d = new Date(now)
@@ -239,6 +250,9 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       )}
 
       <MailFlights mail={data.mail} floorIdx={floorIdx} layout={layout} />
+      {meeting && layout.decor.find((d) => d.type === 'whiteboard') && (
+        <MeetingTopic d={layout.decor.find((d) => d.type === 'whiteboard')} D={D} topic={meeting.topic} people={meeting.people} />
+      )}
       {celebrate &&
         layout.seats.slice(0, home.length).map((st, i) => (
           <group key={`${celebrate}-${i}`} position={[st.x, 1.2, st.z]}>
@@ -254,15 +268,15 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
             <group key={n} position={[seat.x, 0, seat.z]} rotation={[0, seat.yaw || 0, 0]}>
               <ExecDesk mat={deskMat} vip={isVip(data.bots[n])} />
               <Chair x={0} z={0} owner={n} hiddenOwner={data.bots[n]?.hidden ? n : null} yawBase={seat.yaw || 0} />
-              <Workstation seat={{ x: 0, z: 0 }} idx={i} status={data.bots[n]?.hidden ? 'resting' : effStatus(data.bots[n], now)} night={night} step={data.bots[n]?.step} />
-              <DeskDecor seat={{ x: 0, z: 0 }} items={data.bots[n]?.desk} name={n} trophies={data.stats?.[n]?.got?.length || 0} />
+              <Workstation seat={{ x: 0, z: 0 }} idx={i} status={data.bots[n]?.hidden ? 'resting' : effStatus(data.bots[n], now)} night={night} step={data.bots[n]?.step} color={resolveColor(data.bots[n]?.color)} />
+              <DeskDecor seat={{ x: 0, z: 0 }} items={data.bots[n]?.desk} name={n} trophies={data.stats?.[n]?.got?.length || 0} color={resolveColor(data.bots[n]?.color)} />
             </group>
           )
         return (
           <group key={n}>
             <Chair x={seat.x} z={seat.z} owner={n} hiddenOwner={data.bots[n]?.hidden ? n : null} />
-            <Workstation seat={seat} idx={i} status={data.bots[n]?.hidden ? 'resting' : effStatus(data.bots[n], now)} night={night} step={data.bots[n]?.step} />
-            <DeskDecor seat={seat} items={data.bots[n]?.desk} name={n} trophies={data.stats?.[n]?.got?.length || 0} />
+            <Workstation seat={seat} idx={i} status={data.bots[n]?.hidden ? 'resting' : effStatus(data.bots[n], now)} night={night} step={data.bots[n]?.step} color={resolveColor(data.bots[n]?.color)} />
+            <DeskDecor seat={seat} items={data.bots[n]?.desk} name={n} trophies={data.stats?.[n]?.got?.length || 0} color={resolveColor(data.bots[n]?.color)} />
             {data.bots[n]?.birthday === today && <Cake seat={seat} />}
           </group>
         )

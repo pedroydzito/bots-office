@@ -789,3 +789,4 @@ button, summary, [role='button'] { border-radius: 10px; }
 
 .bot-tag.vip .name-mini, .bot-tag.vip .name-chip { background: linear-gradient(90deg, #c9952b, #f2c94c); color: #2b1d00; font-weight: 800; }
 .bot-tag.vip .name-mini::before, .bot-tag.vip .name-chip::before { content: '★ '; }
+.report-btn { width: 100%; padding: 10px 12px !important; font-size: 13px !important; border-radius: 12px !important; }

@@ -44,3 +44,33 @@ export function fmtDuration(ms) {
   if (m < 60) return `${m} min`
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}`
 }
+
+/**
+ * Typical task length for a bot (from "working" until "done", last 48 h) and whether the current
+ * task is taking much longer than usual.
+ */
+const taskCache = new Map()
+export function taskStats(state, name, now = Date.now()) {
+  const key = `${name}|${state.history.length}|${state.history[state.history.length - 1]?.t || 0}`
+  let base = taskCache.get(key)
+  if (!base) {
+    const ev = state.history.filter((h) => h.bot === name)
+    const runs = []
+    let start = null
+    for (const h of ev) {
+      if (h.status === 'working') start ??= h.t
+      else {
+        if (start != null && h.status === 'done' && h.t - start < 6 * 3600e3 && h.t - start > 20000) runs.push(h.t - start)
+        start = null
+      }
+    }
+    const avg = runs.length ? runs.reduce((a, b) => a + b, 0) / runs.length : null
+    base = { avg, samples: runs.length, currentStart: start }
+    if (taskCache.size > 500) taskCache.clear()
+    taskCache.set(key, base)
+  }
+  const b = state.bots[name]
+  const elapsed = b?.status === 'working' && base.currentStart != null ? now - base.currentStart : null
+  const slow = elapsed != null && base.avg != null && base.samples >= 3 && elapsed > Math.max(10 * 60e3, base.avg * 2.5)
+  return { ...base, elapsed, slow }
+}

@@ -107,7 +107,7 @@ const glowGeo = new THREE.PlaneGeometry(0.9, 0.6)
 
 const MUG_COLORS = ['#1E86FC', '#FD690F', '#F5B70A', '#2FB36B', '#ffffff', '#E5484D']
 
-export const Workstation = memo(function Workstation({ seat, status, idx, night, step }) {
+export const Workstation = memo(function Workstation({ seat, status, idx, night, step, color }) {
   const codes = getCodeTextures()
   const kind = screenKind(step)
   const map = kind ? getScreenTextures()[kind] : codes[idx % codes.length]
@@ -144,7 +144,8 @@ export const Workstation = memo(function Workstation({ seat, status, idx, night,
     if (glow.current) glow.current.visible = glowMat.opacity > 0.01
     if (on && !kind) tickCodeScroll(clock.elapsedTime, codes)
   })
-  const mug = MUG_COLORS[idx % MUG_COLORS.length]
+  // each bot drinks from a mug in its own colour
+  const mug = color || MUG_COLORS[idx % MUG_COLORS.length]
   return (
     <group position={[seat.x, 0.75, seat.z]}>
       {/* monitor faces the bot */}
@@ -732,7 +733,28 @@ const starGeo = (() => {
 })()
 const starMat = new THREE.MeshStandardMaterial({ color: '#f5b70a', metalness: 0.5, roughness: 0.3, emissive: '#f5b70a', emissiveIntensity: 0.15 })
 
-export const DeskDecor = memo(function DeskDecor({ seat, items, name, trophies = 0 }) {
+const plates = new Map()
+/** Small engraved name plate texture (cached per name). */
+function namePlate(name) {
+  if (plates.has(name)) return plates.get(name)
+  const c = document.createElement('canvas')
+  c.width = 256
+  c.height = 44
+  const g = c.getContext('2d')
+  g.fillStyle = '#e8eaee'
+  g.font = '700 28px -apple-system, Segoe UI, Roboto, sans-serif'
+  g.textAlign = 'center'
+  g.textBaseline = 'middle'
+  let t = name
+  while (g.measureText(t).width > 240 && t.length > 3) t = t.slice(0, -1)
+  g.fillText(t, 128, 23)
+  const tx = new THREE.CanvasTexture(c)
+  tx.colorSpace = THREE.SRGBColorSpace
+  plates.set(name, tx)
+  return tx
+}
+
+export const DeskDecor = memo(function DeskDecor({ seat, items, name, trophies = 0, color = '#8F59F9' }) {
   let list = items
   if (!list || !list.length) {
     let h = 0
@@ -741,6 +763,18 @@ export const DeskDecor = memo(function DeskDecor({ seat, items, name, trophies =
   }
   return (
     <group position={[seat.x - 0.55, 0.75, seat.z + 0.95]}>
+      {/* personal touches: a name plaque on the front edge and a small framed photo in the bot's colour */}
+      <group position={[0.55, 0, -0.5]}>
+        <mesh position={[0, 0.035, 0]} rotation={[-0.5, Math.PI, 0]} material={M.dark}><boxGeometry args={[0.34, 0.07, 0.02]} /></mesh>
+        <mesh position={[0, 0.036, -0.012]} rotation={[-0.5, Math.PI, 0]}>
+          <planeGeometry args={[0.32, 0.055]} />
+          <meshBasicMaterial map={namePlate(name)} transparent toneMapped={false} />
+        </mesh>
+      </group>
+      <group position={[1.05, 0, -0.05]} rotation={[0, Math.PI - 0.5, 0]}>
+        <mesh position={[0, 0.07, 0]} material={M.white}><boxGeometry args={[0.13, 0.15, 0.02]} /></mesh>
+        <mesh position={[0, 0.07, -0.011]} rotation={[0, Math.PI, 0]} material={sharedMat(color, 0.6)}><planeGeometry args={[0.1, 0.12]} /></mesh>
+      </group>
       {/* achievements: little gold stars stuck on top of the monitor (not trophies cluttering the desk) */}
       {Array.from({ length: Math.min(5, trophies) }, (_, i) => (
         <mesh key={'st' + i} geometry={starGeo} material={starMat} position={[0.65 + (i - (Math.min(5, trophies) - 1) / 2) * 0.09, 0.56, 0.04]} rotation={[0, (i % 2 ? 0.12 : -0.12), 0]} />
@@ -1227,5 +1261,52 @@ export function PoolTable({ x, z }) {
         <mesh key={'l' + i} position={[lx, 0.32, lz]} material={sharedMat('#4a3324', 0.6)}><boxGeometry args={[0.14, 0.64, 0.14]} /></mesh>
       ))}
     </group>
+  )
+}
+
+
+/** Meeting topic written on the whiteboard while a meeting is going on. */
+export function MeetingTopic({ d, D, topic, people }) {
+  const tex = useMemo(() => {
+    const c = document.createElement('canvas')
+    c.width = 512
+    c.height = 300
+    const t = new THREE.CanvasTexture(c)
+    t.colorSpace = THREE.SRGBColorSpace
+    t.anisotropy = 4
+    return { c, g: c.getContext('2d'), t }
+  }, [])
+  useEffect(() => {
+    const { g, c } = tex
+    g.clearRect(0, 0, c.width, c.height)
+    g.fillStyle = '#1E86FC'
+    g.font = '700 34px -apple-system, Segoe UI, Roboto, sans-serif'
+    g.fillText('REUNIÃO', 24, 52)
+    g.fillStyle = '#16181d'
+    g.font = '600 38px -apple-system, Segoe UI, Roboto, sans-serif'
+    // wrap the topic on up to 3 lines
+    const words = String(topic).split(' ')
+    let line = '', y = 110
+    for (const w of words) {
+      const test = line ? line + ' ' + w : w
+      if (g.measureText(test).width > 460 && line) {
+        g.fillText(line, 24, y)
+        y += 46
+        line = w
+        if (y > 210) break
+      } else line = test
+    }
+    if (y <= 210) g.fillText(line, 24, y)
+    g.fillStyle = '#6b7280'
+    g.font = '500 24px -apple-system, Segoe UI, Roboto, sans-serif'
+    g.fillText(people.slice(0, 4).join(' · '), 24, 272)
+    tex.t.needsUpdate = true
+  }, [topic, people.join('|'), tex]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => tex.t.dispose(), [tex])
+  return (
+    <mesh position={[d.x, 1.35, -D / 2 + 0.32 + 0.03]}>
+      <planeGeometry args={[1.7, 0.98]} />
+      <meshBasicMaterial map={tex.t} transparent polygonOffset polygonOffsetFactor={-2} />
+    </mesh>
   )
 }

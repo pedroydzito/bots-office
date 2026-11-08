@@ -619,6 +619,16 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
           ry = Math.sin(t * 0.9 + phase) * 0.45
           rz = Math.sin(t * 1.4 + phase) * 0.03
           break
+        case 'party': {
+          // celebrating with the team: arms up, hopping, a little spin now and then
+          const hop = Math.abs(Math.sin(t * 7 + phase))
+          by = hop * 0.16
+          hl = hr = 0.42 + Math.sin(t * 9 + phase) * 0.06
+          sy *= 1 + (hop < 0.15 ? -0.06 : 0.03)
+          if ((t + phase) % 4 < 0.7) ry += ((t + phase) % 4) / 0.7 * Math.PI * 2
+          eyeY = Math.min(eyeY, 0.35)
+          break
+        }
         case 'pingpong': {
           // ready stance, paddle hand swinging forehand/backhand, little hops
           const sw = Math.sin(t * 4.2 + phase)
@@ -711,7 +721,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     if (hands.current[0]) hands.current[0].position.set(-hw, 0.22 + hl, 0.08 + hz)
     if (hands.current[1]) hands.current[1].position.set(hw, 0.22 + hr, 0.08 + hz)
     if (book.current) {
-      book.current.visible = act === 'books' || act === 'armchair' || act === 'printer'
+      book.current.visible = act === 'books' || act === 'armchair' || act === 'printer' || !!(sim.talk && sim.talk.mail && sim.talk.role === 'visitor')
       book.current.position.set(0, 0.3 + hl, 0.2 + hz)
     }
     if (mug.current) {
@@ -720,7 +730,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     }
     if (st === 'error') mat.emissive.setRGB(0.6 * (0.5 + 0.5 * Math.sin(t * 6)), 0, 0)
     else mat.emissive.setRGB(0, 0, 0)
-    if (blob.current) blob.current.position.y = -sim.y + 0.03
+    if (blob.current) blob.current.position.y = -sim.y + 0.06
     if (ring.current) {
       ring.current.position.y = -sim.y + 0.045
       const pulse = st === 'waiting_user' || st === 'error' ? 0.5 + 0.5 * Math.sin(t * 5) : 0.6
@@ -756,7 +766,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     <group ref={root} scale={bot.hidden ? 0.88 : /^(ceo|principal|founder|fundador|dono|owner)$/i.test(bot.role || '') ? 1.15 : 1}>
       <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} geometry={ringGeo} material={ringMat} visible={!hidden} />
       {BLOB && !hidden && (
-        <mesh ref={blob} rotation={[-Math.PI / 2, 0, 0]} geometry={blobGeo} material={(blobMat ||= new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false }))} scale={asset.width * 1.5} />
+        <mesh ref={blob} rotation={[-Math.PI / 2, 0, 0]} geometry={blobGeo} material={(blobMat ||= new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }))} scale={asset.width * 1.5} renderOrder={2} />
       )}
       <group ref={body} visible={!hidden}>
         <mesh

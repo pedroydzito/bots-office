@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { rideMs, syncNow, world } from './sim'
+import { syncNow, world } from './sim'
 
 // Mail between bots: an envelope lifts off the sender's desk, flies to the receiver's desk, or
 // to the elevator and out on the receiver's floor. Timing comes from the message time, so every
@@ -33,16 +33,11 @@ function envelopeAt(m, floorIdx, layout, T) {
     from = deskPos(a.seat)
     to = deskPos(b.seat)
     t0 = m.t
-  } else if (a.floorIdx === floorIdx) {
-    from = deskPos(a.seat)
-    to = elev
-    t0 = m.t
-    if (T > t0 + FLY) return null // gone into the elevator
-  } else if (b.floorIdx === floorIdx) {
-    t0 = m.t + FLY + rideMs(a.floorIdx, b.floorIdx)
-    from = elev
-    to = deskPos(b.seat)
-  } else return null
+  } else {
+    // another floor: the sender carries it there in person (see sim sessions)
+    return null
+  }
+  void elev
   const k = (T - t0) / FLY
   if (k < 0) return null
   if (k >= 1) {
