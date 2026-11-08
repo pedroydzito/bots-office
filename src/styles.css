@@ -1011,3 +1011,9 @@ html[data-transicao='onda']::view-transition-new(root) { z-index: 1; }
   .mf-list { max-height: 60vh; overflow: auto; }
 }
 @media (pointer: coarse) { .pip-btn { display: none; } }
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  .top-left { left: 0 !important; right: 0 !important; justify-content: center !important; }
+  .top-left .brand { flex: 0 0 auto !important; }
+  .top-left .searchfield { display: none !important; }
+}
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) { .firsttip-wrap { bottom: calc(74px + env(safe-area-inset-bottom)); } }
