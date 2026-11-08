@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Avatar from './Avatar'
 import { Bell, Clock, Close, Doc, Layers, Party, Pause, Play, Pulse, Search as SearchIco } from './Icons'
 import { CORTEX_KEY, effStatus, hhmm, STATUS } from '../lib/constants'
+import { useSwipeAway } from './Interact'
 
 /** "Go back in time": scrub through the last hours of status changes; the office replays them. */
 export function Timeline({ history, talkLog = [], value, onChange, open: openP, setOpen: setOpenP }) {
@@ -95,10 +96,11 @@ function buildMarks(history, talkLog, min) {
 }
 
 /** Banner when a whole floor finished everything (the floor itself throws confetti). */
-export function Celebration({ c }) {
+export function Celebration({ c, onDismiss }) {
+  const sw = useSwipeAway(() => onDismiss?.())
   if (!c) return null
   return (
-    <div className="card celebration" key={c.t}>
+    <div className="card celebration" key={c.t} style={sw.style} {...sw.handlers}>
       <Party size={18} />
       <div>
         <b>{c.title || `${c.name} concluiu tudo!`}</b>

@@ -194,3 +194,77 @@ export function HoverTip() {
     </div>
   )
 }
+
+
+/** Drag sideways to dismiss (touch): waits 6px to decide, follows the finger, >80px throws it away. */
+export function useSwipeAway(onGone) {
+  const st = useRef(null)
+  const [dx, setDx] = useState(0)
+  const [gone, setGone] = useState(0)
+  return {
+    style: gone
+      ? { transform: `translateX(${gone * window.innerWidth}px)`, opacity: 0, transition: 'transform 280ms var(--curva), opacity 280ms var(--curva)' }
+      : dx
+        ? { transform: `translateX(${dx}px)`, opacity: 1 - Math.abs(dx) / 240, transition: 'none' }
+        : undefined,
+    handlers: {
+      onTouchStart: (e) => (st.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, on: false }),
+      onTouchMove: (e) => {
+        const s = st.current
+        if (!s) return
+        const mx = e.touches[0].clientX - s.x, my = e.touches[0].clientY - s.y
+        if (!s.on) {
+          if (Math.abs(mx) < 6 && Math.abs(my) < 6) return
+          if (Math.abs(my) > Math.abs(mx)) return (st.current = null) // vertical = scrolling
+          s.on = true
+        }
+        setDx(mx)
+      },
+      onTouchEnd: () => {
+        if (Math.abs(dx) > 80) {
+          setGone(Math.sign(dx))
+          setTimeout(onGone, 280)
+        }
+        st.current = null
+        setDx(0)
+      },
+    },
+  }
+}
+
+const TIPS = [
+  ['tip-hold', 'Segure em cima de um bot para aprovar, reagir ou abrir o chat sem abrir o card.'],
+  ['tip-j', 'Aperte J para pular direto para o próximo bot que precisa de você.', 'desktop'],
+  ['tip-swipe', 'Deslize a barra de baixo para o lado para trocar de andar.', 'touch'],
+  ['tip-card', 'Arraste o card do bot para cima para ver tudo em tela cheia.', 'touch'],
+  ['tip-look', 'Em Configurações → Personalizar escritório você muda o estilo, o piso e as cores.'],
+]
+
+/** First-time tip (design system 8.38): one at a time, 900 ms after opening, gone after 7 s or a swipe. */
+export function FirstTip({ blocked }) {
+  const [tip, setTip] = useState(null)
+  useEffect(() => {
+    if (blocked) return
+    const touch = window.matchMedia?.('(pointer: coarse)').matches
+    const next = TIPS.find(([k, , only]) => !prefs.get(k, false) && (!only || (only === 'touch') === touch))
+    if (!next) return
+    const a = setTimeout(() => (prefs.set(next[0], true), setTip(next)), 900)
+    return () => clearTimeout(a)
+  }, [blocked])
+  useEffect(() => {
+    if (!tip) return
+    const b = setTimeout(() => setTip(null), 7000)
+    return () => clearTimeout(b)
+  }, [tip])
+  const sw = useSwipeAway(() => setTip(null))
+  if (!tip) return null
+  return (
+    <div className="firsttip-wrap">
+      <div className="card firsttip" role="status" style={sw.style} {...sw.handlers}>
+        <span className="ft-ico" aria-hidden="true">💡</span>
+        <span className="ft-t">{tip[1]}</span>
+        <button className="ft-x" aria-label="Fechar dica" onClick={() => setTip(null)}><Close size={14} /></button>
+      </div>
+    </div>
+  )
+}

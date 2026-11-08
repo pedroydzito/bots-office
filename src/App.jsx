@@ -17,7 +17,7 @@ import { Activity, Brand, PanelIcon, ConnectBanner, Hints, LeftPanel, ModeToggle
 import { Login, Settings } from './ui/Login'
 import { Celebration, MobileFloors, MobileTabs, Search, Timeline, TvExit } from './ui/Extras'
 import { EmptyOffice, HealthModal, LookModal, Modal, OfficesModal, QueueModal, SendStatus, ShortcutsModal } from './ui/Ops'
-import { buzz, HoverTip, MiniMap, QuickMenu, SearchField, Welcome } from './ui/Interact'
+import { buzz, FirstTip, HoverTip, MiniMap, QuickMenu, SearchField, Welcome } from './ui/Interact'
 import { FLOOR_H, OVERVIEW_GAP } from './scene/layout'
 import { ACCENTS, DEFAULT_LOOK, lookStore } from './lib/look'
 import { botsAt } from './lib/metrics'
@@ -333,6 +333,13 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const compactUi = useStore(prefStore, (p) => p.compact)
   useEffect(() => document.documentElement.classList.toggle('compact-ui', !!compactUi), [compactUi])
   const [mfOpen, setMfOpen] = useState(false)
+  // only say "offline" after a few seconds of trying (short blips don't deserve a note)
+  const [offlineLong, setOfflineLong] = useState(false)
+  useEffect(() => {
+    if (conn !== 'reconnecting') return setOfflineLong(false)
+    const id = setTimeout(() => setOfflineLong(true), 8000)
+    return () => clearTimeout(id)
+  }, [conn])
   const [tlOpen, setTlOpen] = useState(false)
   const [activityOpen, setActivityOpen] = useState(false)
   const [leftHidden, setLeftHiddenRaw] = useState(() => prefs.get('leftHidden', false))
@@ -714,7 +721,9 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         )}
         <HoverTip />
         <SendStatus s={sendStatus} onRetry={() => sendStatus && send(sendStatus.payload)} />
-        {!toastBot && notices[0] && <Celebration c={notices[0]} />}
+        {!toastBot && notices[0] && <Celebration c={notices[0]} onDismiss={() => setNotices((l) => l.slice(1))} />}
+        <FirstTip blocked={welcome || (!!topic && live.order.length === 0)} />
+        {conn === 'reconnecting' && offlineLong && <div className="card offline-note" role="status">Sem conexão agora · mostrando os últimos dados. Volta sozinho.</div>}
         {searchOpen && <Search data={data} now={now} onPick={(n) => { setOverview(false); pickBot(n) }} onClose={() => setSearchOpen(false)} />}
       </div>
       {tv && <TvExit onExit={() => setTv(false)} />}

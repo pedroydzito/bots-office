@@ -950,3 +950,23 @@ html[data-transicao='onda']::view-transition-new(root) { z-index: 1; }
 .panel-ico:hover { color: var(--ink); }
 .leftopen { position: absolute; top: calc(64px + env(safe-area-inset-top)); left: calc(14px + env(safe-area-inset-left)); display: flex; align-items: center; gap: 7px; padding: 8px 12px; font-size: 12.5px; font-weight: 600; color: var(--ink2); z-index: 3; animation: brotaDoBotao 200ms var(--curva) both; }
 @media (max-width: 860px) { .leftopen, .panel-ico { display: none !important; } }
+
+.av-photo { position: relative; }
+.av-photo .av-ini { font-weight: 700; line-height: 1; }
+.av-photo img { position: absolute; inset: 0; opacity: 0; transition: opacity var(--tempo-normal, 280ms) var(--curva); }
+
+/* first-time tip: bottom, like a notice (design system 8.38) */
+.firsttip-wrap { position: fixed; left: 0; right: 0; bottom: calc(16px + env(safe-area-inset-bottom)); display: flex; justify-content: center; padding: 0 16px; z-index: 70; pointer-events: none; animation: modalIn 320ms var(--curva) both; }
+.firsttip { pointer-events: auto; position: relative; display: flex; align-items: flex-start; gap: 10px; padding: 12px 40px 12px 14px; max-width: 440px; width: 100%; font-size: 13px; line-height: 1.45; touch-action: pan-y; user-select: none; }
+.ft-ico { font-size: 15px; }
+.ft-x { position: absolute; right: 8px; top: 8px; padding: 4px; color: var(--muted); }
+@media (max-width: 860px) { .firsttip-wrap { bottom: calc(84px + env(safe-area-inset-bottom)); } }
+.offline-note { position: fixed; left: 50%; top: calc(64px + env(safe-area-inset-top)); transform: translateX(-50%); z-index: 60; padding: 7px 14px; font-size: 12.5px; color: #b45309; animation: modalIn 280ms var(--curva) both; white-space: nowrap; }
+.night .offline-note { color: #f5c463; }
+
+.spark { position: relative; cursor: crosshair; }
+.spark i { transform-origin: bottom; animation: grow 520ms var(--curva) both; animation-delay: calc(min(var(--i), 12) * 55ms); transition: filter .15s; }
+.spark i.on { filter: brightness(1.25); }
+.spark-tip { position: absolute; bottom: calc(100% + 8px); transform: translateX(-50%); pointer-events: none; white-space: nowrap; display: flex; flex-direction: column; padding: 6px 10px; border-radius: 10px; background: var(--card-solid, #fff); border: 1px solid var(--line); box-shadow: var(--shadow); font-size: 12px; z-index: 5; }
+.spark-tip small { font-size: 10.5px; color: var(--muted); font-weight: 700; letter-spacing: .04em; }
+.spark-tip::after { content: ''; position: absolute; left: 50%; top: 100%; height: 8px; width: 0; border-left: 1px dashed var(--muted); }

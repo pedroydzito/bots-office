@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Avatar from './Avatar'
 import { Check, Close } from './Icons'
 import { durationShort, effStatus, hhmm } from '../lib/constants'
@@ -79,6 +79,13 @@ export function QueueModal({ waiting, now, onDecide, onPick, onClose, readonly }
 /** Is the live connection healthy? Delays, last message, silent bots, storage. */
 export function HealthModal({ conn, data, now, onClose, topic, onPickBot }) {
   const [, tick] = useState(0)
+  const [sparkI, setSparkI] = useState(null)
+  const sparkT = useRef(0)
+  const sparkPick = (e) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    setSparkI(Math.min(11, Math.max(0, Math.floor(((e.clientX - r.left) / r.width) * 12))))
+    if (e.pointerType === 'touch') (clearTimeout(sparkT.current), (sparkT.current = setTimeout(() => setSparkI(null), 2600)))
+  }
   const [open, setOpen] = useState(null) // which list is expanded: 'hidden' | 'silent' | 'error' | 'waiting'
   useEffect(() => {
     const id = setInterval(() => tick((x) => x + 1), 1000)
@@ -155,8 +162,20 @@ export function HealthModal({ conn, data, now, onClose, topic, onPickBot }) {
         </div>
         <div className="dash-card">
           <div className="dc-h"><span>Mensagens por 5 min</span><small className="muted">última hora</small></div>
-          <div className="spark">
-            {buckets.map((v, i) => <i key={i} style={{ height: `${Math.max(4, (v / maxB) * 100)}%`, opacity: v ? 1 : 0.3 }} title={`${v} mensagens`} />)}
+          {/* chart tip: one listener on the strip, snaps to the bar under the pointer (design system 8.39) */}
+          <div
+            className="spark"
+            onPointerMove={sparkPick}
+            onPointerDown={sparkPick}
+            onPointerLeave={(e) => e.pointerType !== 'touch' && setSparkI(null)}
+          >
+            {buckets.map((v, i) => <i key={i} className={sparkI === i ? 'on' : ''} style={{ height: `${Math.max(4, (v / maxB) * 100)}%`, opacity: v ? 1 : 0.3, '--i': i }} />)}
+            {sparkI != null && (
+              <div className="spark-tip" style={{ left: `${((sparkI + 0.5) / 12) * 100}%` }} role="status" aria-live="polite">
+                <small>{hhmm(Date.now() - (12 - sparkI) * 300000)}–{hhmm(Date.now() - (11 - sparkI) * 300000)}</small>
+                <b>{buckets[sparkI]} {buckets[sparkI] === 1 ? 'mensagem' : 'mensagens'}</b>
+              </div>
+            )}
           </div>
         </div>
         <div className="dash-card">

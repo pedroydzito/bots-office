@@ -105,8 +105,9 @@ export default function Avatar({ bot, size = 28, ring }) {
   const ey = bot?.shape === 'wedge' ? 19 : bot?.shape === 'heart' ? 15.5 : 16.5
   if (bot?.photo)
     return (
-      <span className="avatar" style={{ width: size, height: size, '--ring': ring || 'transparent' }}>
-        <img src={bot.photo} alt="" />
+      <span className="avatar av-photo" style={{ width: size, height: size, '--ring': ring || 'transparent', background: color + '33' }}>
+        <span className="av-ini" style={{ fontSize: size * 0.45, color }}>{(bot.name || '?').trim()[0]?.toUpperCase()}</span>
+        <img src={bot.photo} alt="" onLoad={(e) => (e.currentTarget.style.opacity = 1)} />
       </span>
     )
   return (

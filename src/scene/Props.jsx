@@ -1139,6 +1139,8 @@ export function WallShelf({ position, rotation, w = 1.4 }) {
 
 
 /** A complete personal setup for a desk of its own: rug, drawer unit, second screen, desk lamp. */
+const secondScreenMat = new THREE.MeshStandardMaterial({ color: '#151a24', roughness: 0.35, metalness: 0.2 })
+
 export function SoloSetup({ row, rug = '#e9e4f5', seed = 0 }) {
   const cx = (row.x1 + row.x2) / 2
   const z = row.z + 0.82
@@ -1154,13 +1156,15 @@ export function SoloSetup({ row, rug = '#e9e4f5', seed = 0 }) {
           <boxGeometry args={[0.16, 0.02, 0.02]} />
         </mesh>
       ))}
-      {/* second, angled screen */}
-      <group position={[cx - 0.5, 0.75, z + 0.12]} rotation={[0, Math.PI + 0.45, 0]}>
-        <mesh position={[0, 0.1, 0.05]} material={M.metal}><boxGeometry args={[0.04, 0.2, 0.03]} /></mesh>
-        <RoundedBox args={[0.46, 0.3, 0.03]} radius={0.01} position={[0, 0.3, 0.04]} material={M.black} />
+      {/* second monitor, same make as the main one, angled towards the bot */}
+      <group position={[cx - 0.62, 0.75, row.z + 0.98]} rotation={[0, Math.PI - 0.38, 0]}>
+        <mesh position={[0, 0.11, 0.06]} material={M.metal}><boxGeometry args={[0.05, 0.22, 0.03]} /></mesh>
+        <mesh position={[0, 0.01, 0.04]} material={M.metal}><boxGeometry args={[0.22, 0.015, 0.14]} /></mesh>
+        <RoundedBox args={[0.5, 0.31, 0.035]} radius={0.012} position={[0, 0.33, 0.04]} material={M.white} castShadow />
+        <mesh position={[0, 0.33, 0.06]} material={secondScreenMat}><planeGeometry args={[0.46, 0.27]} /></mesh>
       </group>
       {/* desk lamp */}
-      <group position={[row.x1 + 0.18, 0.75, z + 0.25]}>
+      <group position={[row.x2 - 0.2, 0.75, z + 0.25]}>
         <mesh position={[0, 0.01, 0]} material={M.dark}><cylinderGeometry args={[0.07, 0.07, 0.02, 16]} /></mesh>
         <mesh position={[0.04, 0.17, 0]} rotation={[0, 0, -0.25]} material={M.dark}><cylinderGeometry args={[0.008, 0.008, 0.34, 6]} /></mesh>
         <mesh position={[0.1, 0.33, -0.02]} rotation={[0.5, 0, 0]} material={sharedMat(['#F5B70A', '#1E86FC', '#E5484D', '#2FB36B'][seed % 4], 0.4)}>
