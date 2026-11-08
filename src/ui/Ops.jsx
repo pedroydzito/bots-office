@@ -192,6 +192,8 @@ const KEYS = [
   ['Arrastar', 'Girar · botão direito ou 2 dedos: mover'],
   ['Rolar / pinça', 'Zoom'],
   ['Ctrl+K ou /', 'Buscar bot'],
+  ['J', 'Ir para o próximo bot que precisa de você'],
+  ['[', 'Esconder / mostrar o painel lateral'],
   ['A', 'Fila de aprovações'],
   ['B', 'Prédio inteiro'],
   ['T', 'Tour'],
