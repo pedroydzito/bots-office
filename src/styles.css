@@ -656,7 +656,7 @@ canvas { touch-action: none; }
 
 /* rounded hover/press veils everywhere: buttons inherit a radius, card-wide buttons follow the card */
 button, summary, [role='button'] { border-radius: 10px; }
-.card > button:only-child, .card > button:first-child:last-child, button.card, .collapse .ch { border-radius: inherit; }
+.card > button:only-child, .card > button:first-child:last-child, .collapse .ch { border-radius: inherit; }
 .collapse:has(.cb) .ch { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .toggles button, .zoom button { border-radius: 10px; }
 /* cards in the scrolling left column: shadow small enough not to be clipped into a dark box */

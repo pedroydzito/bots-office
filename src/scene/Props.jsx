@@ -180,7 +180,7 @@ export function Plant({ position, scale = 1, kind = 0 }) {
           ))}
         </group>
       )}
-      <mesh position={[0, 0.44, 0]} rotation={[-Math.PI / 2, 0, 0]} material={M.soil}>
+      <mesh position={[0, 0.447, 0]} rotation={[-Math.PI / 2, 0, 0]} material={M.soil}>
         <circleGeometry args={[0.215, 24]} />
       </mesh>
     </group>

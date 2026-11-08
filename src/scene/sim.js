@@ -113,7 +113,7 @@ export function rideFor(s) {
 }
 
 // ------------------------------------------------------------------ wandering
-const KINDS = ['coffee', 'cooler', 'sofa', 'view', 'books', 'plant', 'phone', 'chat', 'vending', 'printer', 'arcade', 'armchair', 'stroll']
+const KINDS = ['pet', 'coffee', 'cooler', 'sofa', 'view', 'books', 'plant', 'phone', 'chat', 'vending', 'printer', 'arcade', 'armchair', 'stroll']
 const tripCache = new Map()
 /** Who leaves their desk in this slot on this floor, where to, and until when (conflict-free). */
 function tripsFor(floorKey, names, layout, slot, data, all) {
@@ -141,6 +141,13 @@ function tripsFor(floorKey, names, layout, slot, data, all) {
       const m = mates[Math.floor(rnd(n, slot, 'mate') * mates.length)]
       const ms = layout.seats[names.indexOf(m)]
       if (ms) extra.push({ kind: 'chat', x: ms.x + 0.5, z: ms.az, az: ms.az, yaw: Math.atan2(-0.5, ms.z - ms.az), mate: m })
+    }
+    // play with the floor's pet when it is sitting still somewhere
+    const fi = world.seatOf?.(names[0])?.floorIdx
+    const petKind = ['cat', 'dog', 'fish'][hash(floorKey) % 3]
+    if (fi != null && petKind !== 'fish') {
+      const pp = simPet(depart + 9000, fi, layout, petKind)
+      if (pp && pp.mode !== 'walk') extra.push({ kind: 'pet', x: pp.x + 0.6, z: pp.z, az: pp.z, yaw: -Math.PI / 2 })
     }
     const pois = [...layout.pois, ...extra].filter((p) => !taken.has(`${p.kind}:${p.x},${p.z}`))
     const pick = [...pois].sort((a, b) => (likes.indexOf(b.kind) >= 0) - (likes.indexOf(a.kind) >= 0) || rnd(n, slot, a.kind, a.x) - rnd(n, slot, b.kind, b.x))[0]
