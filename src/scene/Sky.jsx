@@ -29,7 +29,7 @@ function windowsTexture() {
   g.fillRect(0, 0, 64, 128)
   for (let y = 4; y < 124; y += 8)
     for (let x = 4; x < 60; x += 8) {
-      if (Math.random() < 0.42) continue
+      if (Math.random() < 0.72) continue
       g.fillStyle = Math.random() < 0.2 ? '#9fd0ff' : '#ffd79a'
       g.fillRect(x, y, 4, 5)
     }
@@ -39,7 +39,7 @@ function windowsTexture() {
 }
 
 export default function Sky({ nightness = 0, weather, desktop }) {
-  const dome = useRef(), stars = useRef(), city = useRef(), dust = useRef()
+  const dome = useRef(), stars = useRef(), city = useRef(), dust = useRef(), win = useRef()
   const k = useRef(nightness)
   const starGeo = useMemo(() => {
     const p = []
@@ -54,24 +54,26 @@ export default function Sky({ nightness = 0, weather, desktop }) {
   }, [])
   const starMat = useMemo(() => new THREE.PointsMaterial({ color: '#ffffff', size: 1.1, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false }), [])
   // skyline: instanced boxes in a ring behind the office (away from the camera side)
-  const { cityMat, count, matrices } = useMemo(() => {
+  const { cityMat, winMat, count, matrices } = useMemo(() => {
     const em = windowsTexture()
-    const mat = new THREE.MeshStandardMaterial({ color: '#9aa6b8', roughness: 0.9, emissive: '#ffffff', emissiveMap: em, emissiveIntensity: 0 })
+    const mat = new THREE.MeshBasicMaterial({ color: '#9aa6b8' })
+    const wm = new THREE.MeshBasicMaterial({ map: em, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })
     const m = []
     const o = new THREE.Object3D()
     let seed = 7
     const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280)
-    for (let i = 0; i < 70; i++) {
-      const a = -Math.PI * 0.25 + (rnd() - 0.5) * Math.PI * 1.25 + Math.PI // behind: -x / -z
-      const r = 55 + rnd() * 35
-      const w = 4 + rnd() * 6, h = 8 + rnd() * 30, d = 4 + rnd() * 6
+    for (let i = 0; i < 46; i++) {
+      // an even ring all around, far away and low: a hint of a city, not a wall of buildings
+      const a = (i / 46) * Math.PI * 2 + (rnd() - 0.5) * 0.12
+      const r = 85 + rnd() * 30
+      const w = 5 + rnd() * 7, h = 5 + rnd() * 16, d = 5 + rnd() * 7
       o.position.set(Math.cos(a) * r, h / 2 - 1, Math.sin(a) * r)
       o.rotation.y = rnd() * Math.PI
       o.scale.set(w, h, d)
       o.updateMatrix()
       m.push(o.matrix.clone())
     }
-    return { cityMat: mat, count: m.length, matrices: m }
+    return { cityMat: mat, winMat: wm, count: m.length, matrices: m }
   }, [])
   const boxGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), [])
   // dust motes floating in the light (desktop)
@@ -97,8 +99,10 @@ export default function Sky({ nightness = 0, weather, desktop }) {
       starMat.opacity = Math.max(0, n - 0.4) * 1.4 * (1 - grey)
       stars.current.visible = starMat.opacity > 0.01
     }
-    cityMat.emissiveIntensity = n * 1.4
-    cityMat.color.set('#9aa6b8').lerp(tmp.set('#1a2236'), n)
+    // hazy: the buildings take the horizon colour so they read as distant silhouettes
+    winMat.opacity = Math.max(0, n - 0.3) * 0.75
+    if (win.current) win.current.visible = winMat.opacity > 0.01
+    cityMat.color.copy(u.mid.value).lerp(tmp.set(n > 0.5 ? '#1b2440' : '#aeb8c8'), 0.35)
     if (dust.current) {
       const t = clock.elapsedTime
       const tg = controls?.target
@@ -124,8 +128,84 @@ export default function Sky({ nightness = 0, weather, desktop }) {
         args={[boxGeo, cityMat, count]}
         frustumCulled={false}
       />
+      {/* lit windows: a second, additive layer that only shows after dark */}
+      <instancedMesh
+        ref={(im) => {
+          win.current = im
+          if (im && !im.userData.done) {
+            const o = new THREE.Matrix4().makeScale(1.01, 1.0, 1.01)
+            matrices.forEach((m, i) => im.setMatrixAt(i, m.clone().multiply(o)))
+            im.instanceMatrix.needsUpdate = true
+            im.userData.done = true
+          }
+        }}
+        args={[boxGeo, winMat, count]}
+        frustumCulled={false}
+        visible={false}
+      />
+      <Clouds nightness={nightness} />
+      <Birds nightness={nightness} />
       {desktop && <points ref={dust} geometry={dustGeo} material={dustMat} frustumCulled={false} />}
     </>
   )
 }
 const tmp = new THREE.Color()
+
+// soft clouds drifting by during the day (a few flattened spheres in one instanced mesh)
+const cloudGeo = new THREE.SphereGeometry(1, 12, 8)
+const cloudMat = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.75, depthWrite: false })
+const CLOUDS = Array.from({ length: 9 }, (_, i) => ({ a: (i / 9) * Math.PI * 2, r: 70 + (i % 3) * 12, y: 32 + (i % 4) * 5, s: 6 + (i % 3) * 3, speed: 0.004 + (i % 2) * 0.002 }))
+export function Clouds({ nightness = 0 }) {
+  const ref = useRef()
+  const o = useMemo(() => new THREE.Object3D(), [])
+  useFrame(({ clock }) => {
+    const im = ref.current
+    if (!im) return
+    cloudMat.opacity = 0.7 * (1 - nightness)
+    im.visible = cloudMat.opacity > 0.02
+    if (!im.visible) return
+    const t = clock.elapsedTime
+    CLOUDS.forEach((c, i) => {
+      const a = c.a + t * c.speed
+      for (let k = 0; k < 3; k++) {
+        o.position.set(Math.cos(a) * c.r + k * c.s * 0.7, c.y + (k === 1 ? c.s * 0.25 : 0), Math.sin(a) * c.r)
+        o.scale.set(c.s * (k === 1 ? 1.2 : 0.9), c.s * 0.45, c.s * 0.8)
+        o.updateMatrix()
+        im.setMatrixAt(i * 3 + k, o.matrix)
+      }
+    })
+    im.instanceMatrix.needsUpdate = true
+  })
+  return <instancedMesh ref={ref} args={[cloudGeo, cloudMat, CLOUDS.length * 3]} frustumCulled={false} />
+}
+
+// a small flock crossing the sky now and then (daytime)
+const birdGeo = (() => {
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute([-0.6, 0.15, 0, 0, 0, 0, 0, 0, 0.12, 0.6, 0.15, 0, 0, 0, 0, 0, 0, 0.12], 3))
+  return g
+})()
+const birdMat = new THREE.MeshBasicMaterial({ color: '#4a5568', side: THREE.DoubleSide })
+export function Birds({ nightness = 0 }) {
+  const ref = useRef()
+  const o = useMemo(() => new THREE.Object3D(), [])
+  useFrame(({ clock }) => {
+    const im = ref.current
+    if (!im) return
+    const t = clock.elapsedTime
+    const cycle = (t % 90) / 22 // crosses for ~22 s every 90 s
+    im.visible = nightness < 0.5 && cycle < 1
+    if (!im.visible) return
+    for (let i = 0; i < 7; i++) {
+      const row = Math.floor((i + 1) / 2), side = i % 2 ? 1 : -1
+      o.position.set(-60 + cycle * 120 - row * 1.4, 26 + Math.sin(t * 0.7 + i) * 0.6, -40 + side * row * 1.2)
+      o.rotation.set(0, Math.PI / 2, 0)
+      const flap = Math.sin(t * 9 + i)
+      o.scale.set(1.2, 1 + flap * 0.8, 1.2)
+      o.updateMatrix()
+      im.setMatrixAt(i, o.matrix)
+    }
+    im.instanceMatrix.needsUpdate = true
+  })
+  return <instancedMesh ref={ref} args={[birdGeo, birdMat, 7]} frustumCulled={false} />
+}

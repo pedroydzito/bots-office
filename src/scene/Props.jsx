@@ -85,6 +85,23 @@ export function DeskRow({ row }) {
   )
 }
 
+// soft pool of screen light on the desk (shows at night when the monitor is on)
+let glowTex = null
+function screenGlowTexture() {
+  if (glowTex) return glowTex
+  const c = document.createElement('canvas')
+  c.width = c.height = 64
+  const g = c.getContext('2d')
+  const gr = g.createRadialGradient(32, 20, 2, 32, 32, 32)
+  gr.addColorStop(0, 'rgba(160,200,255,0.9)')
+  gr.addColorStop(1, 'rgba(160,200,255,0)')
+  g.fillStyle = gr
+  g.fillRect(0, 0, 64, 64)
+  glowTex = new THREE.CanvasTexture(c)
+  return glowTex
+}
+const glowGeo = new THREE.PlaneGeometry(0.9, 0.6)
+
 const MUG_COLORS = ['#1E86FC', '#FD690F', '#F5B70A', '#2FB36B', '#ffffff', '#E5484D']
 
 export const Workstation = memo(function Workstation({ seat, status, idx, night, step }) {
@@ -109,7 +126,9 @@ export const Workstation = memo(function Workstation({ seat, status, idx, night,
     screenMat.emissiveMap = map
   }, [map, screenMat])
   const ref = useRef(screenMat)
-  useEffect(() => () => screenMat.dispose(), [screenMat])
+  const glowMat = useMemo(() => new THREE.MeshBasicMaterial({ map: screenGlowTexture(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }), [])
+  const glow = useRef()
+  useEffect(() => () => (screenMat.dispose(), glowMat.dispose()), [screenMat, glowMat])
   useFrame(({ clock }, dt) => {
     const m = ref.current
     // resting bot = monitor off (black)
@@ -118,6 +137,8 @@ export const Workstation = memo(function Workstation({ seat, status, idx, night,
     if (!on && m.emissiveIntensity < 0.005) return
     if (sceneFlags.compact && Math.abs(m.emissiveIntensity - target) < 0.01) return
     if (Math.abs(target - m.emissiveIntensity) > 0.005) m.emissiveIntensity += (target - m.emissiveIntensity) * Math.min(1, dt * 3)
+    glowMat.opacity = night ? m.emissiveIntensity * 0.32 : 0
+    if (glow.current) glow.current.visible = glowMat.opacity > 0.01
     if (on && !kind) tickCodeScroll(clock.elapsedTime, codes)
   })
   const mug = MUG_COLORS[idx % MUG_COLORS.length]
@@ -132,6 +153,7 @@ export const Workstation = memo(function Workstation({ seat, status, idx, night,
           <boxGeometry args={[0.22, 0.015, 0.14]} />
         </mesh>
         <RoundedBox args={[0.6, 0.37, 0.035]} radius={0.012} position={[0, 0.34, 0.04]} material={M.white} castShadow />
+        <mesh ref={glow} geometry={glowGeo} material={glowMat} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0.38]} visible={false} />
         <mesh position={[0, 0.34, 0.06]} material={screenMat}>
           <planeGeometry args={[0.55, 0.32]} />
         </mesh>
@@ -670,7 +692,7 @@ export function InfoBoard({ position, rotation, title, lines, accent, cork, empt
       </mesh>
       <mesh position={[0, 0, 0.006]}>
         <planeGeometry args={[w, h]} />
-        <meshBasicMaterial map={tex.t} toneMapped={false} polygonOffset polygonOffsetFactor={-1} />
+        <meshStandardMaterial map={tex.t} roughness={0.9} polygonOffset polygonOffsetFactor={-1} />
       </mesh>
     </group>
   )
@@ -695,8 +717,18 @@ export function StatusLamp({ position, color }) {
   )
 }
 
-const DECOR_ITEMS = ['plant', 'photo', 'trophy', 'lamp', 'cactus', 'books']
+const DECOR_ITEMS = ['plant', 'photo', 'lamp', 'cactus', 'books']
 /** Personal desk items: from looks.desk, or a stable pick from the bot's name. */
+const starGeo = (() => {
+  const sh = new THREE.Shape()
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 ? 0.018 : 0.04, a = (i / 10) * Math.PI * 2 + Math.PI / 2
+    i ? sh.lineTo(Math.cos(a) * r, Math.sin(a) * r) : sh.moveTo(Math.cos(a) * r, Math.sin(a) * r)
+  }
+  return new THREE.ExtrudeGeometry(sh, { depth: 0.01, bevelEnabled: false })
+})()
+const starMat = new THREE.MeshStandardMaterial({ color: '#f5b70a', metalness: 0.5, roughness: 0.3, emissive: '#f5b70a', emissiveIntensity: 0.15 })
+
 export const DeskDecor = memo(function DeskDecor({ seat, items, name, trophies = 0 }) {
   let list = items
   if (!list || !list.length) {
@@ -706,12 +738,9 @@ export const DeskDecor = memo(function DeskDecor({ seat, items, name, trophies =
   }
   return (
     <group position={[seat.x - 0.55, 0.75, seat.z + 0.95]}>
-      {/* achievement trophies earned by this bot */}
-      {Array.from({ length: Math.min(3, trophies) }, (_, i) => (
-        <group key={'tr' + i} position={[1.05 + i * 0.12, 0, -0.28]} scale={0.8}>
-          <mesh position={[0, 0.02, 0]} material={M.dark}><boxGeometry args={[0.08, 0.04, 0.08]} /></mesh>
-          <mesh position={[0, 0.11, 0]} material={sharedMat(['#f5b70a', '#c0c6d0', '#d08a4f'][i], 0.3, 0.6)}><cylinderGeometry args={[0.06, 0.02, 0.12, 14]} /></mesh>
-        </group>
+      {/* achievements: little gold stars stuck on top of the monitor (not trophies cluttering the desk) */}
+      {Array.from({ length: Math.min(5, trophies) }, (_, i) => (
+        <mesh key={'st' + i} geometry={starGeo} material={starMat} position={[0.65 + (i - (Math.min(5, trophies) - 1) / 2) * 0.09, 0.56, 0.04]} rotation={[0, (i % 2 ? 0.12 : -0.12), 0]} />
       ))}
       {list.slice(0, 2).map((it, i) => (
         <group key={i} position={[i * -0.0, 0, i * -0.32]}>

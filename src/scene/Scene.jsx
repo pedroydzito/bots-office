@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import Sky from './Sky'
+import { resetTextureCaches } from './textures'
 import { Environment, Lightformer, OrbitControls, PerformanceMonitor } from '@react-three/drei'
 import * as THREE from 'three'
 import Building from './Building'
@@ -108,7 +109,7 @@ const fwd = new THREE.Vector3(), right = new THREE.Vector3(), delta = new THREE.
 
 const VIEW_DIR = new THREE.Vector3(1, 0.78, 1).normalize()
 
-function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove }) {
+function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove, bounds }) {
   const { camera, controls, gl, size } = useThree()
   const desired = useRef(new THREE.Vector3(0, 0.6, 0))
   const zoomGoal = useRef(null)
@@ -210,8 +211,6 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove }) {
       if (keys.has('s')) desired.current.addScaledVector(fwd, -sp)
       if (keys.has('d')) desired.current.addScaledVector(right, sp)
       if (keys.has('a')) desired.current.addScaledVector(right, -sp)
-      desired.current.x = THREE.MathUtils.clamp(desired.current.x, -12, 12)
-      desired.current.z = THREE.MathUtils.clamp(desired.current.z, -12, 12)
     }
     // follow selected bot
     if (selectedBot) {
@@ -223,6 +222,19 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove }) {
     if (dragging.current) {
       // while the user drags, follow their hand (and damping) instead of pulling back
       desired.current.copy(target)
+    }
+    // panning reaches every corner of the storey but never drags the building off screen
+    if (bounds) {
+      const mx = bounds.W / 2 + 0.5, mz = bounds.D / 2 + 0.5
+      const cx = THREE.MathUtils.clamp(target.x, -mx, mx), cz = THREE.MathUtils.clamp(target.z, -mz, mz)
+      if (cx !== target.x || cz !== target.z) {
+        camera.position.x += cx - target.x
+        camera.position.z += cz - target.z
+        target.x = cx
+        target.z = cz
+      }
+      desired.current.x = THREE.MathUtils.clamp(desired.current.x, -mx, mx)
+      desired.current.z = THREE.MathUtils.clamp(desired.current.z, -mz, mz)
     }
     delta.copy(desired.current).sub(target).multiplyScalar(Math.min(1, dt * 4))
     if (delta.lengthSq() > 1e-8) {
@@ -337,7 +349,7 @@ export default function Scene(props) {
     const check = () => {
       if (document.visibilityState !== 'visible') return
       const g = glRef.current
-      if (g && g.getContext().isContextLost()) setGlKey((k) => k + 1)
+      if (g && g.getContext().isContextLost()) (resetTextureCaches(), setGlKey((k) => k + 1))
     }
     document.addEventListener('visibilitychange', check)
     window.addEventListener('pageshow', check)
@@ -360,7 +372,7 @@ export default function Scene(props) {
         gl.domElement.addEventListener('webglcontextlost', (e) => e.preventDefault())
         // long-press opens our quick menu, not the browser's (no selection / blue flash on phones)
         gl.domElement.addEventListener('contextmenu', (e) => e.preventDefault())
-        gl.domElement.addEventListener('webglcontextrestored', () => setGlKey((k) => k + 1))
+        gl.domElement.addEventListener('webglcontextrestored', () => (resetTextureCaches(), setGlKey((k) => k + 1)))
         gl.toneMapping = THREE.ACESFilmicToneMapping
         gl.toneMappingExposure = 1.05
       }}
@@ -410,9 +422,11 @@ export default function Scene(props) {
         minPolarAngle={0.3}
         maxPolarAngle={1.3}
         enableZoom={MOBILE}
+        screenSpacePanning={false}
+        panSpeed={MOBILE ? 1.5 : 1}
         onStart={onUserMove}
       />
-      <CameraRig floorIdx={floorIdx} focus={focus} selectedBot={selectedBot} tour={tour} onUserMove={onUserMove} />
+      <CameraRig floorIdx={floorIdx} focus={focus} selectedBot={selectedBot} tour={tour} onUserMove={onUserMove} bounds={props.size} />
       <Building {...props} low={low} />
     </Canvas>
   )

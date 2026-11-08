@@ -398,3 +398,10 @@ export function screenKind(step) {
   if (/escrev|texto|post|roteiro|artigo|diario|doc|copy|legenda|resum|nota|redig|lista/.test(s)) return 'doc'
   return null
 }
+
+/** Phones can wipe canvas pixels while the app sleeps: drop cached canvas textures so they are redrawn. */
+export function resetTextureCaches() {
+  codeTextures = null
+  screens = null
+  facadeCache.clear()
+}

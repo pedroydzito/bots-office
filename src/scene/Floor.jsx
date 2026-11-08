@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import Bot from './Bot'
 import MailFlights from './Mail'
@@ -31,6 +31,16 @@ applyFinish()
 lookStore.subscribe(applyFinish)
 const slabMat = new THREE.MeshStandardMaterial({ color: '#e2e4e8', roughness: 0.8 })
 
+const bands = new Map()
+function bandMat(color) {
+  if (!bands.has(color)) bands.set(color, new THREE.MeshStandardMaterial({ color, roughness: 0.6, emissive: color, emissiveIntensity: 0 }))
+  return bands.get(color)
+}
+/** night: team bands glow (with the desktop bloom they read as LED strips) */
+export function setBandGlow(n) {
+  for (const m of bands.values()) m.emissiveIntensity = n * 1.6
+}
+
 export function Shell({ layout, title, subtitle, accent }) {
   const { W, D } = layout
   return (
@@ -51,13 +61,12 @@ export function Shell({ layout, title, subtitle, accent }) {
       {accent && (
         <group>
           {/* team-colour band around both walls + baseboards */}
-          <mesh position={[0, 1.05, -D / 2 + 0.255]}>
+          {/* the team band doubles as an LED strip that glows softly at night */}
+          <mesh position={[0, 1.05, -D / 2 + 0.255]} material={bandMat(accent)}>
             <boxGeometry args={[W, 0.07, 0.01]} />
-            <meshStandardMaterial color={accent} roughness={0.6} />
           </mesh>
-          <mesh position={[-W / 2 + 0.255, 1.05, 0]}>
+          <mesh position={[-W / 2 + 0.255, 1.05, 0]} material={bandMat(accent)}>
             <boxGeometry args={[0.01, 0.07, D]} />
-            <meshStandardMaterial color={accent} roughness={0.6} />
           </mesh>
           <mesh position={[0, 0.06, -D / 2 + 0.265]} material={wallMat}>
             <boxGeometry args={[W, 0.12, 0.03]} />
@@ -89,6 +98,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   const floorIdx = floor.num - 1
   const petKind0 = data.pets?.[floor.key] || ['cat', 'dog', 'fish'][hash(floor.key) % 3]
   const look = useStore(lookStore, (l) => l)
+  useEffect(() => setBandGlow(night ? 1 : 0), [night])
   const petKind = look.pet && !compact ? petKind0 : 'none'
   const homeSet = useMemo(() => new Set(home), [home])
   const seatOf = useMemo(() => {

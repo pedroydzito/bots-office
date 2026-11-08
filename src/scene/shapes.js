@@ -171,7 +171,8 @@ const BUILDERS = {
   hexagon: () => puffy(roundedShape(polygon(6, 1), 0.2), 2),
   cone: () => lathe((t) => (t < 0.12 ? 0.44 * Math.sin((t / 0.12) * Math.PI / 2) : 0.44 * (1 - (t - 0.12) / 0.88) + 0.06 * Math.sin(((t - 0.12) / 0.88) * Math.PI))),
   trio: () => puffy(ringUnion([[0.24, -0.14, 0.27], [0, 0.27, 0.27], [-0.24, -0.14, 0.27]]), 1.3),
-  circle: () => puffy(new THREE.Shape().absarc(0, 0, 1, 0, Math.PI * 2, false), 2.4),
+  // built from points without a repeated start/end point: absarc(0..2π) left a tiny flat seam on one side
+  circle: () => puffy(new THREE.Shape(Array.from({ length: 96 }, (_, i) => new THREE.Vector2(Math.cos((i / 96) * Math.PI * 2), Math.sin((i / 96) * Math.PI * 2)))), 2.4),
   photo: () => puffy(new THREE.Shape().absarc(0, 0, 1, 0, Math.PI * 2, false), 2.4),
   rounded_square: () => puffy(roundedShape([[-1, -1], [1, -1], [1, 1], [-1, 1]], 0.38), 2),
 }
