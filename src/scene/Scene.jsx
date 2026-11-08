@@ -389,7 +389,8 @@ export default function Scene(props) {
   useEffect(() => {
     document.documentElement.classList.toggle('gfx-leve', q === 'leve')
   }, [q])
-  const effDpr = q === 'leve' ? Math.min(dpr, MOBILE ? 1.25 : 1) : q === 'media' ? Math.min(dpr, MOBILE ? 1.6 : 1.25) : dpr
+  const pipOn = useStore(pipStore, (p) => p.on)
+  const effDpr = pipOn ? 1 : q === 'leve' ? Math.min(dpr, MOBILE ? 1.25 : 1) : q === 'media' ? Math.min(dpr, MOBILE ? 1.6 : 1.25) : dpr
   return (
     <Canvas
       key={glKey}

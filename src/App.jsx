@@ -1,5 +1,5 @@
 import { flushSync } from 'react-dom'
-import { togglePiP } from './lib/pip'
+import { pipStore, setPipShape, SHAPES, togglePiP } from './lib/pip'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 // the 3D bundle loads after the interface shell
 const loadScene = () => import('./scene/Scene')
@@ -331,6 +331,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const approve = useCallback((n) => decide(n, 'approve', ''), [decide])
   const [queueOpen, setQueueOpen] = useState(false)
   const [guideClosed, setGuideClosed] = useState(false)
+  const pip = useStore(pipStore, (p) => p)
   const compactUi = useStore(prefStore, (p) => p.compact)
   useEffect(() => document.documentElement.classList.toggle('compact-ui', !!compactUi), [compactUi])
   const [mfOpen, setMfOpen] = useState(false)
@@ -620,7 +621,19 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         onUserMove={onUserMove}
       />
       </Suspense>
-      <div className="hud">
+      {pip.on && (
+        <div className="pip-cover">
+          <b>O escritório está na janela flutuante</b>
+          <span>Esta aba fica em pausa para não gastar em dobro.</span>
+          <div className="pip-shapes" role="group" aria-label="Formato da janela">
+            {Object.entries(SHAPES).map(([k, [l]]) => (
+              <button key={k} className={pip.shape === k ? 'on' : ''} aria-pressed={pip.shape === k} onClick={() => setPipShape(k)}>{l}</button>
+            ))}
+          </div>
+          <button className="dark" onClick={() => togglePiP()}>Voltar para cá</button>
+        </div>
+      )}
+      {!pip.on && <div className="hud">
         <div className="top-left">
           <Brand conn={conn} now={now} name={live.office?.name} onClick={() => setOfficesOpen(true)} />
           <SearchField onOpen={() => setSearchOpen(true)} />
@@ -727,7 +740,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         <FirstTip blocked={welcome || (!!topic && live.order.length === 0)} />
         {conn === 'reconnecting' && offlineLong && <div className="card offline-note" role="status">Sem conexão agora · mostrando os últimos dados. Volta sozinho.</div>}
         {searchOpen && <Search data={data} now={now} onPick={(n) => { setOverview(false); pickBot(n) }} onClose={() => setSearchOpen(false)} />}
-      </div>
+      </div>}
       {tv && <TvExit onExit={() => setTv(false)} />}
     </div>
   )
