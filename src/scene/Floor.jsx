@@ -153,7 +153,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       <Clock position={[-W / 2 + 1.55, 2.45, -D / 2 + 0.28]} />
       <CoffeeCorner position={[-W / 2 + 3.0, 0, -D / 2 + 0.52]} />
       <TVScreen
-        position={[W / 2 - 2.5, 1.75, -D / 2 + 0.3]}
+        position={[layout.tvX ?? W / 2 - 2.5, 1.75, -D / 2 + 0.3]}
         getInfo={() => {
           const st = dataStore.get()
           const t = Date.now()
@@ -173,7 +173,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       {look.plants && <Plant position={[-W / 2 + 0.7, 0, D / 2 - 0.7]} scale={0.9} kind={1} />}
       <WaterCooler position={[-W / 2 + 0.6, 0, layout.wall.coolerZ]} rotation={[0, Math.PI / 2, 0]} />
       {layout.wall.shelfZ != null && <Bookshelf position={[-W / 2 + 0.47, 0, layout.wall.shelfZ]} rotation={[0, Math.PI / 2, 0]} seed={floor.num} />}
-      <Lounge position={[W / 2 - 2.4, 0, D / 2 - 2.3]} night={night} seats={layout.pois.filter((q) => q.kind === 'sofa')} />
+      <Lounge position={[layout.lounge?.x ?? W / 2 - 2.4, 0, layout.lounge?.z ?? D / 2 - 2.3]} night={night} seats={layout.pois.filter((q) => q.kind === 'sofa')} />
       <GlassElevator layout={layout} night={night} floorY={floorY} />
       {layout.decor.map((d, i) =>
         d.type === 'rug' ? (look.rugs ? <Rug key={i} {...d} /> : null) :
@@ -191,10 +191,10 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         d.type === 'lamp' ? <FloorLamp key={i} x={d.x} z={d.z} night={night} /> : null,
       )}
       {layout.rows.filter((r) => r.solo && !r.lead).map((r, i) => (
-        <SoloSetup key={'solo' + i} row={r} seed={(layout.variant >> 4) + i} rug={['#e9e4f5', '#e4eef0', '#f1e7d8', '#e8efe2', '#f3e3e6'][((layout.variant >> 4) + i) % 5]} />
+        <SoloSetup key={'solo' + i} row={r} seed={(layout.variant >>> 4) + i} rug={['#e9e4f5', '#e4eef0', '#f1e7d8', '#e8efe2', '#f3e3e6'][((layout.variant >>> 4) + i) % 5]} />
       ))}
       {layout.rows.map((r, i) => (
-        <DeskRow key={i} row={r} mat={DESK_FINISH[(layout.variant >> 10) % DESK_FINISH.length]} />
+        <DeskRow key={i} row={r} mat={DESK_FINISH[(layout.variant >>> 10) % DESK_FINISH.length]} />
       ))}
       <group userData={{ dynamic: true }}>{petKind !== 'fish' && petKind !== 'none' && <Pet layout={layout} floorIdx={floorIdx} kind={petKind} />}</group>
       {petKind === 'fish' && <Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} />}
@@ -204,12 +204,17 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       {look.art && layout.wall.artZ.map((z, i) => (
         <Poster key={i} position={[-W / 2 + 0.27, 1.75, z]} rotation={[0, Math.PI / 2, 0]} seed={(hash(floor.key) % 97) + i * 3} w={0.85} h={1.05} />
       ))}
-      {look.art && W / 2 - 3.8 - (-W / 2 + 7.0) > 1.6 && (
+      {look.art && W / 2 - 3.8 - (-W / 2 + 7.0) > 1.6 && (layout.artKind === 'plants' ? (
         <group>
-          <Poster position={[(-W / 2 + 7.0 + W / 2 - 3.8) / 2 - 0.55, 1.95, -D / 2 + 0.27]} seed={(hash(floor.key) % 97) + 7} w={0.85} h={1.15} />
-          <WallShelf position={[(-W / 2 + 7.0 + W / 2 - 3.8) / 2 + 0.75, 1.3, -D / 2 + 0.25]} w={1.0} />
+          <WallShelf position={[(layout.artX ?? 0) - 0.2, 1.55, -D / 2 + 0.25]} w={1.6} />
+          <WallShelf position={[(layout.artX ?? 0) + 0.3, 1.05, -D / 2 + 0.25]} w={1.2} />
         </group>
-      )}
+      ) : (
+        <group>
+          <Poster position={[(layout.artX ?? 0) - 0.55, 1.95, -D / 2 + 0.27]} seed={(hash(floor.key) % 97) + 7} w={0.85} h={1.15} />
+          <WallShelf position={[(layout.artX ?? 0) + 0.75, 1.3, -D / 2 + 0.25]} w={1.0} />
+        </group>
+      ))}
       </StaticMerge>
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
