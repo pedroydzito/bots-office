@@ -79,7 +79,10 @@ export function sessions(data, T) {
   for (const s of data.talkLog || []) {
     const end = s.end ?? (T - s.lastT > TALK_TIMEOUT_MS ? s.lastT + TALK_TIMEOUT_MS : Infinity)
     if (end < T - 30 * 60e3) continue
-    out.push({ ...s, endT: end })
+    const item = { ...s, endT: end }
+    const r = rideFor(item)
+    if (r && isFinite(item.endT)) item.endT = Math.max(item.endT, r.goEnd + 25000)
+    out.push(item)
   }
   for (const m of data.mail || []) {
     const a = world.seatOf(m.from), b = world.seatOf(m.to)
@@ -238,7 +241,14 @@ function eventsFor(ctx, T) {
       if (g[0] !== s) continue // one host event per group
       const end = Math.max(...g.map((o) => o.endT))
       const spot = g.length >= 2 ? meetSpot(layout, [name, ...g.map((o) => o.from)], name) : talkSpots(seat).host
-      ev.push({ t: Math.min(...g.map((o) => o.t0)), goal: spot, talk: { role: 'host', partner: g[0].from, step: g[0].step, seed: hash(g[0].from), meeting: g.length >= 2, t0: Math.min(...g.map((o) => o.t0)) } })
+      // a visitor from another floor first walks to the elevator and rides: the host gets up when they arrive
+      const arrive = (o) => {
+        const r = rideFor(o)
+        return r && isFinite(r.goEnd) ? r.goEnd - 2500 : o.t0
+      }
+      const hostStart = Math.min(...g.map(arrive))
+      if (hostStart >= end) continue
+      ev.push({ t: hostStart, goal: spot, talk: { role: 'host', partner: g[0].from, step: g[0].step, seed: hash(g[0].from), meeting: g.length >= 2, t0: hostStart } })
       ev.push({ t: end, goal: seatGoal })
     }
     if (role === 'visit' && s.from === name && here(s.to)) {

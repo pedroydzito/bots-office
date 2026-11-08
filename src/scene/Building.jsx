@@ -93,6 +93,8 @@ function ElevatorShaft({ W, D, floorIdx, night, data, followed }) {
       if (now >= r.backStart && now < r.backEnd) live.push({ name: sess.from, from: r.to, to: r.from, start: r.backStart, end: r.backEnd, shape: b?.shape, color: b?.color })
     }
     ridePositions.clear()
+    // one shaft, one cabin: riders whose cars would overlap share the same cabin, side by side
+    const placed = []
     for (let i = 0; i < MAXC; i++) {
       const car = cars.current[i]
       if (!car) continue
@@ -105,7 +107,14 @@ function ElevatorShaft({ W, D, floorIdx, night, data, followed }) {
       }
       const k = (now - r.start) / (r.end - r.start)
       const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
-      const y = (r.from + (r.to - r.from) * e) * FLOOR_H
+      let y = (r.from + (r.to - r.from) * e) * FLOOR_H
+      const host = placed.find((p) => Math.abs(p.y - y) < 1.4)
+      let slot = 0
+      if (host) {
+        y = host.y
+        slot = ++host.n
+      } else placed.push({ y, n: 0, i })
+      for (let c = 0; c < 3; c++) if (car.children[c]) car.children[c].visible = !host
       // only visible while it is inside this floor's glass box
       // (or anywhere, when the camera is riding along with this bot)
       car.visible = r.name === followed || (y > fy - 2.4 && y < fy + 2.4)
@@ -119,8 +128,16 @@ function ElevatorShaft({ W, D, floorIdx, night, data, followed }) {
           rider.material.color.set(resolveColor(r.color))
         }
         rider.visible = true
-        rider.position.y = 0.1 + Math.abs(Math.sin(now / 160)) * 0.02
-        ridePositions.set(r.name, new THREE.Vector3(x, y + 0.8, z))
+        rider.position.y = 0.1 + Math.abs(Math.sin(now / 160 + slot)) * 0.02
+        // two riders: one on each side of the cabin
+        const ox = slot ? 0.26 : 0
+        rider.position.z = slot ? 0.3 : 0
+        rider.position.x = ox
+        if (slot === 1 && host) {
+          const first = riders.current[host.i]
+          if (first) first.position.z = -0.3
+        } else if (!host) rider.position.z = 0
+        ridePositions.set(r.name, new THREE.Vector3(x + ox, y + 0.8, z + rider.position.z))
       }
     }
   })

@@ -111,8 +111,12 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         if (end > now - 120000) out.push(t.from)
       }
     }
+    // hand-offs delivered in person also bring the sender to this floor
+    for (const m of data.mail || []) {
+      if (homeSet.has(m.to) && !homeSet.has(m.from) && data.bots[m.from] && !out.includes(m.from) && m.t > now - 3 * 60e3) out.push(m.from)
+    }
     return out
-  }, [data.talkLog, data.bots, homeSet, Math.floor(now / 5000)])
+  }, [data.talkLog, data.mail, data.bots, homeSet, Math.floor(now / 5000)])
   // the simulation reads statuses/conversations from `data`; give bots a stable object per change
   const simData = useMemo(() => ({ history: data.history, talkLog: data.talkLog, mail: data.mail, rev: data.rev, weather: data.weather?.kind || null }), [data.history, data.talkLog, data.mail, data.rev, data.weather])
 
