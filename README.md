@@ -318,3 +318,4 @@ MIT
 - `"role": "ceo"` (or `principal`, `fundador`) in a bot's roster entry marks the company's main bot: executive desk with a gold plaque, slightly bigger bot, gold name tag. `"role": "lead"` gives any bot the lead desk on its floor.
 - When every bot on a floor is `done`, the team gathers by the lounge for a minute to celebrate. A hand-off to another floor is carried there in person by the sender (via the elevator).
 - **Painel do sistema → Gerar relatório da semana** creates a shareable PNG (tasks, errors, usage, top bots, teams). The bot card shows the average task time and flags a task that is taking much longer than usual.
+- `waiting_user` can say what kind of answer it needs: `"ask": "approval"` shows Aprovar / Recusar; `"ask": "reply"` shows Responder (opens the bot's chat). Without `ask`, the step is read: words like "aprovar", "posso publicar?", "confirma" mean approval, anything else is a question to answer.

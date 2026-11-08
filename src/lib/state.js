@@ -206,7 +206,10 @@ function applyPayload(d, p, t) {
       // optional progress 0-100 ("progress": 40 or "40%"); cleared when the task ends
       const pr = typeof p.progress === 'number' ? p.progress : typeof p.progress === 'string' ? parseFloat(p.progress) : NaN
       const progress = status === 'working' && isFinite(pr) ? Math.max(0, Math.min(100, pr)) : status === 'working' && d.bots[name].status === 'working' && d.bots[name].step === step ? d.bots[name].progress : undefined
-      d.bots[name] = { ...d.bots[name], status, step, ts: t, progress }
+      // "ask": "approval" (yes/no) or "reply" (just answer the bot); only meaningful while waiting
+      const askRaw = String(p.ask || p.kind || '').toLowerCase()
+      const ask = status === 'waiting_user' ? (/aprov|approv|decis/.test(askRaw) ? 'approval' : /respo|reply|answer|pergunt|question/.test(askRaw) ? 'reply' : undefined) : undefined
+      d.bots[name] = { ...d.bots[name], status, step, ts: t, progress, ask }
       pushActivity(d, { t, kind: 'status', bot: name, status, step })
       d.history.push({ t, bot: name, status, step })
       countStatus(d, name, status, t)

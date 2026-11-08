@@ -626,7 +626,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
           <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} mode={lightMode} setMode={setLightMode} onOffices={() => setOfficesOpen(true)} onHealth={() => setHealthOpen(true)} onKeys={() => setKeysOpen(true)} onOfficeSettings={() => setOfficeCfg(true)} readonly={readonly} />
         </div>
         <div className="top-center">
-          <Toast bot={toastBot} onView={() => view(toastBot.name)} onApprove={() => approve(toastBot.name)} />
+          <Toast bot={toastBot} onView={() => view(toastBot.name)} onApprove={() => approve(toastBot.name)} onReply={() => { const l = chatLink(data, toastBot.name); l ? openLink(l) : view(toastBot.name) }} />
         </div>
         {leftHidden && (
           <button className="card leftopen" onClick={() => setLeftHidden(false)} title="Mostrar painel ( [ )" aria-label="Mostrar painel lateral">

@@ -103,3 +103,15 @@ export function durationShort(ms) {
   const s = d ? (h ? `${d} d ${h} h` : `${d} d`) : h ? (mm ? `${h} h ${mm} min` : `${h} h`) : `${mm} min`
   return neg ? `há ${s}` : s
 }
+
+
+/**
+ * Is this "waiting on you" an approval (yes/no) or just a question to answer?
+ * The bot can say so with "ask": "approval" | "reply"; otherwise we read the step.
+ */
+export function isApproval(b) {
+  if (!b) return false
+  if (b.ask === 'approval') return true
+  if (b.ask === 'reply') return false
+  return /aprov|autoriz|confirm|permiss|posso (publicar|enviar|postar|seguir|mandar|continuar)|pode (publicar|enviar|seguir|mandar)|ok\?|libera/i.test(b.step || '')
+}

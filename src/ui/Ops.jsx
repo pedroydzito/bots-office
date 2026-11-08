@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Avatar from './Avatar'
 import { Check, Close } from './Icons'
-import { durationShort, effStatus, hhmm } from '../lib/constants'
+import { durationShort, effStatus, hhmm, isApproval } from '../lib/constants'
 import { health } from '../lib/health'
 import { taskStats } from '../lib/metrics'
 import { weeklyReport } from '../lib/report'
@@ -65,11 +65,12 @@ export function QueueModal({ waiting, now, onDecide, onPick, onClose, readonly }
             <Avatar bot={b} size={30} ring="#F5A524" />
             <div className="lt">
               <b>{b.name}</b>
-              <span>{b.step || 'Precisa do seu OK'}</span>
+              <span>{b.step || (isApproval(b) ? 'Precisa do seu OK' : 'Quer uma resposta sua')}</span>
             </div>
             <em className={now - b.ts > 30 * 60e3 ? 'late' : ''}>há {durationShort(now - b.ts).replace('há ', '')}</em>
           </div>
-          {!readonly && <DecisionBox bot={b.name} onDecide={onDecide} compact />}
+          {!readonly && isApproval(b) && <DecisionBox bot={b.name} onDecide={onDecide} compact />}
+          {!isApproval(b) && <p className="ask-note">Quer uma resposta sua — abra o bot para responder no chat.</p>}
         </div>
       ))}
     </Modal>

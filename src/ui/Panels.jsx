@@ -2,7 +2,7 @@ import { memo, useEffect, useState } from 'react'
 import Avatar from './Avatar'
 import { Clap, Heart, Laugh, Mail, Party, ThumbUp, Trophy } from './Icons'
 import { Arrow, Auto, Building2, Search as SearchIco, Brain, Chat, Check, Close, Doc, Down, Minus, Moon, Pause, Play, Plus, Sun, Up } from './Icons'
-import { CORTEX_KEY, durationShort, effStatus, hhmm, resolveColor, STATUS, talkActive } from '../lib/constants'
+import { CORTEX_KEY, durationShort, effStatus, hhmm, isApproval, resolveColor, STATUS, talkActive } from '../lib/constants'
 import { sceneSignals } from '../scene/registry'
 import { botMetrics, fmtDuration, taskStats } from '../lib/metrics'
 import { DecisionBox, isStuck } from './Ops'
@@ -58,17 +58,18 @@ export const Pills = memo(function Pills({ counts }) {
   )
 })
 
-export function Toast({ bot, onView, onApprove }) {
+export function Toast({ bot, onView, onApprove, onReply }) {
   if (!bot) return null
+  const appr = isApproval(bot)
   return (
     <div className="card toast" key={bot.name + bot.ts}>
       <Avatar bot={bot} size={30} />
       <div className="tx">
         <b>{bot.name} precisa de você</b>
-        <span>{bot.step || 'Precisa do seu OK'}</span>
+        <span>{bot.step || (appr ? 'Precisa do seu OK' : 'Quer uma resposta sua')}</span>
       </div>
       <button className="ghost" onClick={onView}>Ver</button>
-      <button className="dark" onClick={onApprove}>Aprovar</button>
+      {appr ? <button className="dark" onClick={onApprove}>Aprovar</button> : <button className="dark" onClick={onReply}>Responder</button>}
     </div>
   )
 }
@@ -150,9 +151,9 @@ export function LeftPanel({ floors, data, now, selectedKey, onFloor, waiting, on
             <Avatar bot={b} size={24} />
             <div className="lt" onClick={() => onPickBot(b.name)}>
               <b>{b.name}</b>
-              <span>{b.step || 'Precisa do seu OK'}</span>
+              <span>{b.step || (isApproval(b) ? 'Precisa do seu OK' : 'Quer uma resposta sua')}</span>
             </div>
-            <button className="dark sm" onClick={() => onApprove(b.name)}>Aprovar</button>
+            {isApproval(b) ? <button className="dark sm" onClick={() => onApprove(b.name)}>Aprovar</button> : <button className="ghost sm" onClick={() => onPickBot(b.name)}>Ver</button>}
           </div>
         ))}
       </Collapse>
@@ -269,13 +270,14 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
               <em className="stuck slow">Demorando mais que o normal: {fmtDuration(ts.elapsed)} (média {fmtDuration(ts.avg)})</em>
             ) : null
           })()}
-          {st === 'waiting_user' && onDecide && <DecisionBox bot={selectedBot} onDecide={onDecide} />}
+          {st === 'waiting_user' && onDecide && isApproval(b) && <DecisionBox bot={selectedBot} onDecide={onDecide} />}
+          {st === 'waiting_user' && !isApproval(b) && <p className="ask-note">Está esperando uma resposta sua{link ? ' — responda no chat.' : '.'}</p>}
           {talk && talkActive(talk, now) && <p className="talkline"><Chat size={13} /> Conversando com <b>{talk.to}</b>: {talk.step}</p>}
           {incoming.map(([f, t]) => (
             <p key={f} className="talkline"><Chat size={13} /> <b>{f}</b> está visitando: {t.step}</p>
           ))}
           <div className="actions">
-            {link && <a className="btn ghost" href={link} target={link.startsWith('https') ? '_blank' : undefined} rel="noopener noreferrer">Abrir chat</a>}
+            {link && <a className={`btn ${st === 'waiting_user' && !isApproval(b) ? 'dark' : 'ghost'}`} href={link} target={link.startsWith('https') ? '_blank' : undefined} rel="noopener noreferrer">Abrir chat</a>}
           </div>
           {onReact && (
             <div className="reactbar" aria-label="Reagir">

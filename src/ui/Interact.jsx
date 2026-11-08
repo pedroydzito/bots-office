@@ -3,7 +3,7 @@ import { prefs } from '../lib/notify'
 import { useStore } from '../lib/createStore'
 import { mouse, tipStore } from '../lib/tip'
 import { botPositions, floorOffset } from '../scene/registry'
-import { effStatus, STATUS } from '../lib/constants'
+import { effStatus, isApproval, STATUS } from '../lib/constants'
 import { Chat, Check, Clap, Close, Heart, Laugh, Party, Search as SearchIco, ThumbUp } from './Icons'
 
 /** Short haptic feedback on phones (Settings → Vibração). */
@@ -64,7 +64,10 @@ export function QuickMenu({ q, data, now, onClose, onApprove, onReact, onOpenCha
           ))}
         </div>
       )}
-      {st === 'waiting_user' && onApprove && (
+      {st === 'waiting_user' && !isApproval(b) && onOpenChat && (
+        <button className="quick-a dark" onClick={() => (onOpenChat(b.name), onClose())}><Chat size={13} /> Responder</button>
+      )}
+      {st === 'waiting_user' && isApproval(b) && onApprove && (
         <button className="quick-a dark" onClick={() => (onApprove(b.name), buzz(20), onClose())}><Check size={13} /> Aprovar</button>
       )}
       <button className="quick-a" onClick={() => (onFollow(b.name), onClose())}><SearchIco size={13} /> Seguir</button>

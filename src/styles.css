@@ -981,3 +981,5 @@ html[data-transicao='onda']::view-transition-new(root) { z-index: 1; }
   .toast .tx b, .toast .tx span { display: block; max-width: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .toast button { flex: none; padding: 6px 10px; }
 }
+.ask-note { margin: 4px 0 6px; font-size: 12px; color: #b45309; background: rgba(245,158,11,.12); padding: 6px 9px; border-radius: 9px; }
+.night .ask-note { color: #f5c463; }
