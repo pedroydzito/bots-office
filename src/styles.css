@@ -1010,3 +1010,4 @@ html[data-transicao='onda']::view-transition-new(root) { z-index: 1; }
   .mf-btn { display: none !important; }
   .mf-list { max-height: 60vh; overflow: auto; }
 }
+@media (pointer: coarse) { .pip-btn { display: none; } }

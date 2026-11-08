@@ -1,4 +1,5 @@
 import { flushSync } from 'react-dom'
+import { togglePiP } from './lib/pip'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 // the 3D bundle loads after the interface shell
 const loadScene = () => import('./scene/Scene')
@@ -399,6 +400,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
       else if (e.key === 'b' || e.key === 'B') setOverview((x) => !x)
       else if (e.key === 'a' || e.key === 'A') setQueueOpen((x) => !x)
       else if (e.key === '[') setLeftHidden((x) => !x)
+      else if (e.key === 'p' || e.key === 'P') togglePiP().catch(() => {})
       else if (e.key === 'j' || e.key === 'J') {
         // jump to the next bot that needs you (cycles)
         const list = waitingRef.current

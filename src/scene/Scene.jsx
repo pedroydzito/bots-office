@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import Sky from './Sky'
 import { useStore } from '../lib/createStore'
 import { prefs, prefStore } from '../lib/notify'
+import { pipStore } from '../lib/pip'
 import { resetTextureCaches } from './textures'
 import { Environment, Lightformer, OrbitControls, PerformanceMonitor } from '@react-three/drei'
 import * as THREE from 'three'
@@ -296,7 +297,7 @@ const MOBILE = typeof window !== 'undefined' && (window.matchMedia?.('(pointer: 
 
 // nobody touching the screen for a while: draw ~30 fps instead of the full refresh rate
 function IdleSaver({ cap = false }) {
-  const { setFrameloop, invalidate } = useThree()
+  const { setFrameloop, invalidate, advance } = useThree()
   useEffect(() => {
     let last = Date.now(), idle = false, tick = 0
     const wake = () => {
@@ -308,8 +309,13 @@ function IdleSaver({ cap = false }) {
       if (!idle && (cap || Date.now() - last > 30000)) (idle = true, (perfFlags.idle = true), setFrameloop('demand'), (tick = setInterval(() => invalidate(), 33)))
     }, 2000)
     const vis = () => {
-      if (document.hidden) (clearInterval(tick), setFrameloop('never'))
-      else (idle = false, wake())
+      if (document.hidden && pipStore.get().on) {
+        // floating window open: browsers pause animation frames in hidden tabs, so drive frames ourselves
+        clearInterval(tick)
+        setFrameloop('never')
+        tick = setInterval(() => advance(performance.now()), 100)
+      } else if (document.hidden) (clearInterval(tick), setFrameloop('never'))
+      else (clearInterval(tick), (idle = false), wake())
       if (!document.hidden) setFrameloop('always')
     }
     document.addEventListener('visibilitychange', vis)

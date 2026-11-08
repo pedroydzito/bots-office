@@ -214,6 +214,7 @@ const KEYS = [
   ['Ctrl+K ou /', 'Buscar bot'],
   ['J', 'Ir para o próximo bot que precisa de você'],
   ['[', 'Esconder / mostrar o painel lateral'],
+  ['P', 'Janela flutuante (picture-in-picture)'],
   ['A', 'Fila de aprovações'],
   ['B', 'Prédio inteiro'],
   ['T', 'Tour'],

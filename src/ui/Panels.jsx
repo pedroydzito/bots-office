@@ -7,6 +7,7 @@ import { sceneSignals } from '../scene/registry'
 import { botMetrics, fmtDuration, taskStats } from '../lib/metrics'
 import { DecisionBox, isStuck } from './Ops'
 import { useSwipeDown } from './Interact'
+import { pipSupported, togglePiP } from '../lib/pip'
 
 const STATUS_WORD = { working: 'Trabalhando', waiting_user: 'Esperando você', error: 'Erro', done: 'Concluído', resting: 'Descansando' }
 
@@ -32,6 +33,11 @@ export function ModeToggles({ mode, setMode, tour, setTour, overview, setOvervie
       <button className={`light-btn ${mode === 'night' ? 'on' : ''}`} aria-pressed={mode === 'night'} onClick={(e) => setMode('night', e)} title="Noite"><Moon /> <span className="lbl">Noite</span></button>
       <button className={`light-btn ${mode === 'auto' ? 'on' : ''}`} aria-pressed={mode === 'auto'} onClick={(e) => setMode('auto', e)} title="Automático (hora real)"><Auto /> <span className="lbl">Auto</span></button>
       <button className={overview ? 'on' : ''} aria-pressed={overview} onClick={() => setOverview(!overview)} title="Prédio inteiro (B)"><Building2 /> <span className="lbl">Prédio</span></button>
+      {pipSupported() && (
+        <button className="pip-btn" onClick={() => togglePiP().catch(() => {})} title="Janela flutuante (P): o escritório num cantinho da tela" aria-label="Abrir janela flutuante">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" /><rect x="12" y="12" width="7" height="5" rx="1.2" fill="currentColor" stroke="none" /></svg>
+        </button>
+      )}
       <button className="search-ico" onClick={onSearch} title="Buscar bot (Ctrl+K)"><SearchIco /></button>
     </div>
   )
