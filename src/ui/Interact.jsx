@@ -81,7 +81,7 @@ export function SearchField({ onOpen }) {
   return (
     <button className="card searchfield" onClick={() => onOpen('')} aria-label="Buscar bot">
       <SearchIco size={14} />
-      <span>Buscar bot, time ou tarefa…</span>
+      <span>Buscar bot ou tarefa…</span>
       <kbd>Ctrl K</kbd>
     </button>
   )
