@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import Sky from './Sky'
 import { Environment, Lightformer, OrbitControls, PerformanceMonitor } from '@react-three/drei'
-import { Bloom, EffectComposer, N8AO, ToneMapping, Vignette } from '@react-three/postprocessing'
-import { ToneMappingMode } from 'postprocessing'
 import * as THREE from 'three'
 import Building from './Building'
 import Weather from './Weather'
@@ -306,24 +305,24 @@ function IdleSaver() {
 
 export const perfFlags = { idle: false }
 
-// Desktop "high" look: soft ambient occlusion in corners/under furniture, a gentle glow on screens and
-// lamps, and a light vignette. Skipped on phones and as soon as the device struggles.
-function Effects({ night }) {
-  const gl = useThree((st) => st.gl)
+// desktop-only post effects live in their own chunk: phones never download them
+const Effects = lazy(() => import('./Effects'))
+
+// compile every shader once the office is up, so the first visit to another floor / the
+// building view doesn't stutter while materials compile
+function Precompile() {
+  const { gl, scene, camera } = useThree()
   useEffect(() => {
-    // the composer's ToneMapping effect replaces the renderer's (avoid applying it twice)
-    const prev = gl.toneMapping
-    gl.toneMapping = THREE.NoToneMapping
-    return () => (gl.toneMapping = prev)
-  }, [gl])
-  return (
-    <EffectComposer multisampling={4} disableNormalPass>
-      <N8AO halfRes aoRadius={1.1} intensity={night ? 1.6 : 2.2} distanceFalloff={0.8} quality="performance" />
-      <Bloom mipmapBlur luminanceThreshold={night ? 0.75 : 0.95} luminanceSmoothing={0.2} intensity={night ? 0.7 : 0.25} />
-      <Vignette offset={0.35} darkness={night ? 0.45 : 0.28} />
-      <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-    </EffectComposer>
-  )
+    const id = setTimeout(() => {
+      try {
+        gl.compile(scene, camera)
+      } catch {
+        /* not critical */
+      }
+    }, 2500)
+    return () => clearTimeout(id)
+  }, [gl, scene, camera])
+  return null
 }
 
 export default function Scene(props) {
@@ -347,7 +346,7 @@ export default function Scene(props) {
       window.removeEventListener('pageshow', check)
     }
   }, [])
-  const [dpr, setDpr] = useState(MOBILE ? Math.min(2, window.devicePixelRatio || 1) : Math.min(1.75, window.devicePixelRatio || 1))
+  const [dpr, setDpr] = useState(MOBILE ? Math.min(2, window.devicePixelRatio || 1) : Math.min(1.5, window.devicePixelRatio || 1))
   return (
     <Canvas
       key={glKey}
@@ -365,7 +364,12 @@ export default function Scene(props) {
       }}
     >
       <IdleSaver />
-      {!MOBILE && !low && <Effects night={!!props.night} />}
+      {!MOBILE && !low && (
+        <Suspense fallback={null}>
+          <Effects night={!!props.night} overview={!!props.overview} />
+        </Suspense>
+      )}
+      <Precompile />
       <PerformanceMonitor
         flipflops={3}
         onFallback={() => {
@@ -388,6 +392,7 @@ export default function Scene(props) {
         }}
       />
       <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={low} />
+      <Sky nightness={nightness ?? (night ? 1 : 0)} weather={weather} desktop={!MOBILE && !low} />
       <Weather kind={weather} low={low} />
       <Environment resolution={32} frames={1}>
         <Lightformer form="rect" intensity={2.5} position={[0, 6, 0]} rotation-x={Math.PI / 2} scale={[12, 12, 1]} />

@@ -57,11 +57,11 @@ export default function StaticMerge({ children }) {
       mesh.matrixAutoUpdate = false
       root.add(mesh)
       added.push(mesh)
-      for (const o of b.list) (o.visible = false, hidden.push(o))
+      for (const o of b.list) (o.visible = false, (o.matrixAutoUpdate = false), (o.matrixWorldAutoUpdate = false), hidden.push(o))
     }
     return () => {
       for (const m of added) (root.remove(m), m.geometry.dispose())
-      for (const o of hidden) o.visible = true
+      for (const o of hidden) (o.visible = true, (o.matrixAutoUpdate = true), (o.matrixWorldAutoUpdate = true))
     }
   }, [])
   return <group ref={ref}>{children}</group>

@@ -114,6 +114,8 @@ export function createTVCanvas() {
   const [c, g] = canvas(1024, 600)
   g.scale(2, 2)
   const t = tex(c)
+  t.generateMipmaps = false
+  t.minFilter = THREE.LinearFilter
   t.anisotropy = 8
   return { canvas: c, ctx: g, texture: t }
 }

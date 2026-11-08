@@ -157,10 +157,11 @@ export function HoverTip() {
   useEffect(() => {
     if (!tip) return
     let raf = 0
+    let w = 0, h = 0
     const loop = () => {
       const el = ref.current
       if (el) {
-        const w = el.offsetWidth, h = el.offsetHeight
+        if (!w) (w = el.offsetWidth), (h = el.offsetHeight)
         const x = Math.min(window.innerWidth - w - 8, mouse.x + 16)
         const y = Math.min(window.innerHeight - h - 8, mouse.y + 16)
         el.style.transform = `translate(${Math.max(8, x)}px, ${Math.max(8, y)}px)`

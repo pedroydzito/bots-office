@@ -9,6 +9,14 @@ import { hideTip, showTip } from '../lib/tip'
 /** set by the building: overview mode draws no point lights */
 export const sceneFlags = { compact: false }
 
+const matCache = new Map()
+/** One shared material per colour/finish (fewer materials = fewer state switches per frame). */
+export function sharedMat(color, roughness = 0.6, metalness = 0) {
+  const k = `${color}|${roughness}|${metalness}`
+  if (!matCache.has(k)) matCache.set(k, new THREE.MeshStandardMaterial({ color, roughness, metalness }))
+  return matCache.get(k)
+}
+
 const M = {
   white: new THREE.MeshStandardMaterial({ color: '#f7f7f8', roughness: 0.6 }),
   desk: new THREE.MeshStandardMaterial({ color: '#fbfbfc', roughness: 0.45 }),
@@ -20,7 +28,7 @@ const M = {
   leaf2: new THREE.MeshStandardMaterial({ color: '#6fbf5a', roughness: 0.7 }),
   pot: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.5 }),
   soil: new THREE.MeshStandardMaterial({ color: '#4a3a2c', roughness: 1 }),
-  glass: new THREE.MeshPhysicalMaterial({ color: '#dbe9f5', transparent: true, opacity: 0.18, roughness: 0.05, depthWrite: false }),
+  glass: new THREE.MeshStandardMaterial({ color: '#dbe9f5', transparent: true, opacity: 0.18, roughness: 0.05, metalness: 0.1, depthWrite: false }),
   water: new THREE.MeshPhysicalMaterial({ color: '#8cc8ff', transparent: true, opacity: 0.6, roughness: 0.1 }),
 }
 export { M as MATS }
@@ -108,6 +116,7 @@ export const Workstation = memo(function Workstation({ seat, status, idx, night,
     const on = status === 'working' || status === 'waiting_user' || status === 'error'
     const target = on ? 0.9 * (night ? 1.5 : 1) : 0
     if (!on && m.emissiveIntensity < 0.005) return
+    if (sceneFlags.compact && Math.abs(m.emissiveIntensity - target) < 0.01) return
     if (Math.abs(target - m.emissiveIntensity) > 0.005) m.emissiveIntensity += (target - m.emissiveIntensity) * Math.min(1, dt * 3)
     if (on && !kind) tickCodeScroll(clock.elapsedTime, codes)
   })
@@ -128,9 +137,8 @@ export const Workstation = memo(function Workstation({ seat, status, idx, night,
         </mesh>
       </group>
       <RoundedBox args={[0.42, 0.02, 0.14]} radius={0.008} position={[-0.02, 0.01, 0.55]} material={M.white} />
-      <mesh position={[0.62, 0.06, 0.62]}>
+      <mesh position={[0.62, 0.06, 0.62]} material={sharedMat(mug, 0.4)}>
         <cylinderGeometry args={[0.045, 0.04, 0.11, 14]} />
-        <meshStandardMaterial color={mug} roughness={0.4} />
       </mesh>
     </group>
   )
@@ -312,7 +320,7 @@ export function TVScreen({ position, rotation, getInfo }) {
   }
   return (
     <group position={position} rotation={rotation} onPointerOver={(e) => (e.stopPropagation(), tip())} onPointerOut={hideTip}>
-      <RoundedBox args={[2.3, 1.36, 0.08]} radius={0.03} material={M.black} />
+      <RoundedBox args={[2.3, 1.36, 0.08]} radius={0.03} material={M.black} raycast={() => null} />
       <mesh position={[0, 0, 0.045]}>
         <planeGeometry args={[2.18, 1.26]} />
         <meshBasicMaterial map={tv.texture} toneMapped={false} />
@@ -702,7 +710,7 @@ export const DeskDecor = memo(function DeskDecor({ seat, items, name, trophies =
       {Array.from({ length: Math.min(3, trophies) }, (_, i) => (
         <group key={'tr' + i} position={[1.05 + i * 0.12, 0, -0.28]} scale={0.8}>
           <mesh position={[0, 0.02, 0]} material={M.dark}><boxGeometry args={[0.08, 0.04, 0.08]} /></mesh>
-          <mesh position={[0, 0.11, 0]}><cylinderGeometry args={[0.06, 0.02, 0.12, 14]} /><meshStandardMaterial color={['#f5b70a', '#c0c6d0', '#d08a4f'][i]} metalness={0.6} roughness={0.3} /></mesh>
+          <mesh position={[0, 0.11, 0]} material={sharedMat(['#f5b70a', '#c0c6d0', '#d08a4f'][i], 0.3, 0.6)}><cylinderGeometry args={[0.06, 0.02, 0.12, 14]} /></mesh>
         </group>
       ))}
       {list.slice(0, 2).map((it, i) => (
@@ -715,7 +723,7 @@ export const DeskDecor = memo(function DeskDecor({ seat, items, name, trophies =
           )}
           {it === 'cactus' && (
             <group>
-              <mesh position={[0, 0.04, 0]}><cylinderGeometry args={[0.055, 0.05, 0.08, 12]} /><meshStandardMaterial color="#e07a4f" /></mesh>
+              <mesh position={[0, 0.04, 0]} material={sharedMat('#e07a4f')}><cylinderGeometry args={[0.055, 0.05, 0.08, 12]} /></mesh>
               <mesh position={[0, 0.15, 0]} material={M.leaf2}><capsuleGeometry args={[0.035, 0.1, 4, 8]} /></mesh>
             </group>
           )}
@@ -728,7 +736,7 @@ export const DeskDecor = memo(function DeskDecor({ seat, items, name, trophies =
           {it === 'trophy' && (
             <group>
               <mesh position={[0, 0.02, 0]} material={M.dark}><boxGeometry args={[0.08, 0.04, 0.08]} /></mesh>
-              <mesh position={[0, 0.11, 0]}><cylinderGeometry args={[0.06, 0.02, 0.12, 14]} /><meshStandardMaterial color="#f5b70a" metalness={0.6} roughness={0.3} /></mesh>
+              <mesh position={[0, 0.11, 0]} material={sharedMat('#f5b70a', 0.3, 0.6)}><cylinderGeometry args={[0.06, 0.02, 0.12, 14]} /></mesh>
             </group>
           )}
           {it === 'lamp' && (

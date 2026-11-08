@@ -339,7 +339,15 @@ export const Activity = memo(function Activity({ data, onPick, floorBots = [] })
     (f === 'errors' && a.kind === 'status' && a.status === 'error') ||
     (f === 'talks' && (a.kind === 'talk' || a.kind === 'mail')) ||
     (f === 'floor' && (floorBots.includes(a.bot) || floorBots.includes(a.from) || floorBots.includes(a.to)))
-  const items = data.activity.filter(keep).slice(0, 7)
+  const seen = new Set()
+  const items = data.activity
+    .filter(keep)
+    .filter((a) => {
+      if (a.kind !== 'unlock') return true
+      const k = `${a.bot}|${a.step}`
+      return seen.has(k) ? false : (seen.add(k), true)
+    })
+    .slice(0, 7)
   return (
     <div className="card activity">
       <div className="hd">
@@ -353,7 +361,7 @@ export const Activity = memo(function Activity({ data, onPick, floorBots = [] })
       {items.length === 0 && data.activity.length > 0 && <p className="muted">Nada nesse filtro</p>}
       {items.length === 0 && <p className="muted">Aguardando a primeira mensagem…</p>}
       {items.map((a, i) => (
-        <div key={`${a.t}|${a.kind}|${a.bot || a.from}|${a.to || ''}`} className="act" onClick={() => onPick(a.kind === 'talk' || a.kind === 'mail' ? a.from : a.bot)}>
+        <div key={`${a.t}|${a.kind}|${a.bot || a.from}|${a.to || ''}|${a.step || ''}|${i}`} className="act" onClick={() => onPick(a.kind === 'talk' || a.kind === 'mail' ? a.from : a.bot)}>
           <time>{hhmm(a.t)}</time>
           {a.kind === 'decision' ? (
             <span>

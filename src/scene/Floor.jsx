@@ -20,7 +20,7 @@ import { useStore } from '../lib/createStore'
 import { FLOORS, lookStore, WALLS } from '../lib/look'
 
 export const wallMat = new THREE.MeshStandardMaterial({ color: '#f3f3f5', roughness: 0.9 })
-export const floorMat = new THREE.MeshStandardMaterial({ color: '#eceef1', roughness: 0.75 })
+export const floorMat = new THREE.MeshStandardMaterial({ color: '#eceef1', roughness: 0.5, envMapIntensity: 0.8 })
 // floor & wall finish follow the office look (personalisation)
 function applyFinish() {
   const l = lookStore.get()
@@ -89,7 +89,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   const floorIdx = floor.num - 1
   const petKind0 = data.pets?.[floor.key] || ['cat', 'dog', 'fish'][hash(floor.key) % 3]
   const look = useStore(lookStore, (l) => l)
-  const petKind = look.pet ? petKind0 : 'none'
+  const petKind = look.pet && !compact ? petKind0 : 'none'
   const homeSet = useMemo(() => new Set(home), [home])
   const seatOf = useMemo(() => {
     const m = {}
@@ -188,7 +188,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       ))}
       <group userData={{ dynamic: true }}>{petKind !== 'fish' && petKind !== 'none' && <Pet layout={layout} floorIdx={floorIdx} kind={petKind} />}</group>
       {petKind === 'fish' && <Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} />}
-      <group userData={{ dynamic: true }}>{look.seasonal && <Seasonal layout={layout} seed={floor.key} />}</group>
+      <group userData={{ dynamic: true }}>{look.seasonal && !compact && <Seasonal layout={layout} seed={floor.key} />}</group>
       {/* wall art keeps both walls lively: posters high above the left-wall furniture, art + shelf on the back wall */}
       {/* pictures sit in the gaps between the left-wall furniture, at one shared height */}
       {look.art && layout.wall.artZ.map((z, i) => (

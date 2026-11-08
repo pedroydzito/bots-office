@@ -22,6 +22,7 @@ function blobTexture() {
   return blobTex
 }
 const blobGeo = new THREE.PlaneGeometry(1, 1)
+const NO_RAY = () => null
 let blobMat = null
 const WORK_KIND = (step) => {
   if (!kindCache.has(step)) kindCache.set(step, screenKind(step))
@@ -50,7 +51,7 @@ const glintGeo = new THREE.SphereGeometry(0.014, 10, 8)
 const projV = new THREE.Vector3()
 const hitGeo = new THREE.SphereGeometry(1, 12, 8)
 const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false })
-const handGeo = new THREE.SphereGeometry(0.068, 20, 14)
+const handGeo = new THREE.SphereGeometry(0.068, 12, 9)
 const ringGeo = new THREE.RingGeometry(0.42, 0.5, 48)
 const mouthGeo = new THREE.TorusGeometry(0.035, 0.009, 8, 20, Math.PI)
 const blackMat = new THREE.MeshStandardMaterial({ color: '#141414', roughness: 0.25 })
@@ -297,6 +298,8 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     }, 140)
   }, [])
   useEffect(() => () => clearTimeout(hoverT.current), [])
+  // forget my label spot when I leave the floor (keeps the overlap check small)
+  useEffect(() => () => labelSpots.delete(bot.name), [bot.name])
   const [view, setView] = useState({ off: false, crowded: false })
   const [hidden, setHidden] = useState(true)
   const [gone, setGone] = useState(false)
@@ -688,6 +691,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
       ring.current.position.y = -sim.y + 0.045
       const pulse = st === 'waiting_user' || st === 'error' ? 0.5 + 0.5 * Math.sin(t * 5) : 0.6
       ringMat.opacity = (st === 'resting' ? 0 : 0.55) * pulse
+      ring.current.visible = !v.hidden && st !== 'resting'
       ring.current.scale.setScalar(st === 'waiting_user' ? 1 + 0.15 * Math.sin(t * 5) : 1)
     }
   })
@@ -726,25 +730,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
           material={mat}
           castShadow
           receiveShadow
-          onPointerOver={hoverIn}
-          onPointerOut={hoverOut}
-          onPointerDown={(e) => {
-            // press and hold = quick actions
-            const { clientX, clientY } = e.nativeEvent
-            press.current.fired = false
-            clearTimeout(press.current.timer)
-            press.current.timer = setTimeout(() => {
-              press.current.fired = true
-              onLongPress && onLongPress(bot.name, clientX, clientY)
-            }, 480)
-          }}
-          onPointerUp={() => clearTimeout(press.current.timer)}
-          onPointerLeave={() => clearTimeout(press.current.timer)}
-          onClick={(e) => {
-            e.stopPropagation()
-            if (press.current.fired) return
-            onSelect && onSelect(bot.name)
-          }}
+          raycast={NO_RAY}
         />
         {asset.photoFace && (
           <group position={[0, asset.photoFace.y, asset.photoFace.z]}>

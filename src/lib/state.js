@@ -150,6 +150,8 @@ function countStatus(d, name, status, t) {
   for (const [k, a] of Object.entries(ACHIEVEMENTS)) {
     if (!st.got.includes(k) && a.test(st, t)) {
       st.got = [...st.got, k]
+      // never announce the same trophy twice for a bot (stats can be rebuilt from history)
+      if (d.unlocks.some((u) => u.bot === name && u.key === k)) continue
       d.unlocks = [...d.unlocks, { bot: name, key: k, label: a.label, t }].slice(-50)
       pushActivity(d, { t, kind: 'unlock', bot: name, step: a.label })
     }
@@ -553,7 +555,7 @@ export function ingest(msgs) {
     // keep ~2 days of status changes, oldest first
     d.history.sort((a, b) => a.t - b.t)
     const cutoff = Date.now() - 48 * 3600e3
-    d.history = d.history.filter((h) => h.t >= cutoff).slice(-3000)
+    d.history = d.history.filter((h) => h.t >= cutoff).slice(-2000)
   }
   d.talkLog.sort((a, b) => a.t0 - b.t0)
   d.talkLog = d.talkLog.filter((x) => (x.end ?? x.lastT + 90000) > Date.now() - 45 * 60e3).slice(-200)

@@ -12,7 +12,7 @@ export default function Weather({ kind, low }) {
   const flash = useRef()
   const raining = kind === 'rain' || kind === 'storm'
   const snowing = kind === 'snow'
-  const N = low ? 260 : 700
+  const N = low ? 180 : 600
   const drops = useMemo(
     () => Array.from({ length: N }, () => ({ x: (Math.random() - 0.5) * 36, y: Math.random() * 22, z: (Math.random() - 0.5) * 36, s: 0.6 + Math.random() * 0.6, p: Math.random() * 10 })),
     [N],
