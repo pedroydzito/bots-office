@@ -13,12 +13,14 @@ import {
   Aquarium, Arcade, Armchair, BeanBag, Poster, WallShelf, Bookshelf, FloorLamp, Printer, Vending, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, GlassElevator, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
   StickyWall, TVScreen, WallTitle, WaterCooler, Workstation,
 } from './Props'
-import { effStatus, STATUS, talkActive } from '../lib/constants'
+import { durationShort, effStatus, STATUS, talkActive } from '../lib/constants'
 import { botMetrics } from '../lib/metrics'
 import { dataStore } from '../lib/state'
+import { useStore } from '../lib/createStore'
+import { lookStore } from '../lib/look'
 
-const wallMat = new THREE.MeshStandardMaterial({ color: '#f3f3f5', roughness: 0.9 })
-const floorMat = new THREE.MeshStandardMaterial({ color: '#eceef1', roughness: 0.75 })
+export const wallMat = new THREE.MeshStandardMaterial({ color: '#f3f3f5', roughness: 0.9 })
+export const floorMat = new THREE.MeshStandardMaterial({ color: '#eceef1', roughness: 0.75 })
 const slabMat = new THREE.MeshStandardMaterial({ color: '#e2e4e8', roughness: 0.8 })
 
 export function Shell({ layout, title, subtitle, accent }) {
@@ -72,11 +74,13 @@ function eventsSeries() {
   return buckets
 }
 
-export default function Floor({ floor, layout, data, now, floorY, night, selectedBot, spotlight, onSelect, onLongPress, floorCount = 1, celebrate = null }) {
+export default function Floor({ floor, layout, data, now, floorY, night, selectedBot, spotlight, onSelect, onLongPress, floorCount = 1, celebrate = null, compact = false }) {
   const { W, D } = layout
   const home = floor.bots
   const floorIdx = floor.num - 1
-  const petKind = data.pets?.[floor.key] || ['cat', 'dog', 'fish'][hash(floor.key) % 3]
+  const petKind0 = data.pets?.[floor.key] || ['cat', 'dog', 'fish'][hash(floor.key) % 3]
+  const look = useStore(lookStore, (l) => l)
+  const petKind = look.pet ? petKind0 : 'none'
   const homeSet = useMemo(() => new Set(home), [home])
   const seatOf = useMemo(() => {
     const m = {}
@@ -129,38 +133,44 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
 
   // Furniture, walls and decor don't change with every status update: build them once per
   // layout / light mode instead of on every re-render (big win on phones).
+  // re-merge only when the furniture itself changes (not on day/night: that only recolours)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const mergeKey = useMemo(() => ++mergeGen, [layout, floor.key, floorY, petKind, home, look])
   const staticRoom = useMemo(
     () => (
-      <StaticMerge key={++mergeGen}>
-      <Shell layout={layout} title={floor.name} subtitle={`Andar ${floor.num}`} accent={floor.color} />
+      <StaticMerge key={mergeKey}>
+      <Shell layout={layout} title={floor.name} subtitle={`Andar ${floor.num}`} accent={look.accent ? floor.color : null} />
       <Clock position={[-W / 2 + 1.55, 2.45, -D / 2 + 0.28]} />
       <CoffeeCorner position={[-W / 2 + 3.0, 0, -D / 2 + 0.52]} />
       <TVScreen
         position={[W / 2 - 2.5, 1.75, -D / 2 + 0.3]}
-        label="EVENTOS / 24 MIN"
-        getValue={() => eventsSeries().reduce((a, b) => a + b, 0)}
-        getSeries={eventsSeries}
-        getGoal={() => {
+        getInfo={() => {
           const st = dataStore.get()
-          const n = home.reduce((a, b) => a + (st.week?.bots?.[b] || 0), 0)
-          return { n, ...(st.goals?.[floor.key] || { label: 'Concluídas na semana', target: 0 }) }
+          const t = Date.now()
+          const sts = home.map((n) => effStatus(st.bots[n], t))
+          const mine = new Set(home)
+          const last = []
+          for (let i = (st.history?.length || 0) - 1; i >= 0 && last.length < 3; i--) {
+            const h = st.history[i]
+            if (h.status === 'done' && mine.has(h.bot)) last.push({ bot: h.bot, step: h.step, ago: durationShort(h.t - t) })
+          }
+          return { working: sts.filter((x) => x === 'working').length, waiting: sts.filter((x) => x === 'waiting_user').length, errors: sts.filter((x) => x === 'error').length, total: home.length, last }
         }}
-        night={night}
       />
       <Plant position={[-W / 2 + 0.75, 0, -D / 2 + 0.75]} scale={1.15} />
-      <Plant position={[W / 2 - 1.0, 0, -D / 2 + 0.9]} scale={1.3} kind={1} />
-      {D > 12 && <Plant position={[W / 2 - 0.9, 0, -D / 2 + 5.5]} scale={0.9} />}
-      <Plant position={[-W / 2 + 0.7, 0, D / 2 - 0.7]} scale={0.9} kind={1} />
+      {look.plants && <Plant position={[W / 2 - 1.0, 0, -D / 2 + 0.9]} scale={1.3} kind={1} />}
+      {look.plants && D > 12 && <Plant position={[W / 2 - 0.9, 0, -D / 2 + 5.5]} scale={0.9} />}
+      {look.plants && <Plant position={[-W / 2 + 0.7, 0, D / 2 - 0.7]} scale={0.9} kind={1} />}
       <WaterCooler position={[-W / 2 + 0.6, 0, layout.wall.coolerZ]} rotation={[0, Math.PI / 2, 0]} />
       {layout.wall.shelfZ != null && <Bookshelf position={[-W / 2 + 0.47, 0, layout.wall.shelfZ]} rotation={[0, Math.PI / 2, 0]} seed={floor.num} />}
       <Lounge position={[W / 2 - 2.4, 0, D / 2 - 2.3]} night={night} seats={layout.pois.filter((q) => q.kind === 'sofa')} />
       <GlassElevator layout={layout} night={night} floorY={floorY} />
       {layout.decor.map((d, i) =>
-        d.type === 'rug' ? <Rug key={i} {...d} /> :
+        d.type === 'rug' ? (look.rugs ? <Rug key={i} {...d} /> : null) :
         d.type === 'meeting' ? <MeetingTable key={i} x={d.x} z={d.z} /> :
         d.type === 'whiteboard' ? <Whiteboard key={i} x={d.x} z={layout.meet.z - 1.75} /> :
         d.type === 'beanbag' ? <BeanBag key={i} x={d.x} z={d.z} c={d.c} /> :
-        d.type === 'plant' ? <Plant key={i} position={[d.x, 0, d.z]} kind={d.k} scale={1.1} /> :
+        d.type === 'plant' ? (!look.plants ? null : <Plant key={i} position={[d.x, 0, d.z]} kind={d.k} scale={1.1} />) :
         d.type === 'vending' ? <Vending key={i} x={d.x} z={d.z} /> :
         d.type === 'printer' ? <Printer key={i} x={d.x} z={d.z} /> :
         d.type === 'arcade' ? <Arcade key={i} x={d.x} z={d.z} /> :
@@ -172,13 +182,13 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       ))}
       <group userData={{ dynamic: true }}>{petKind !== 'fish' && petKind !== 'none' && <Pet layout={layout} floorIdx={floorIdx} kind={petKind} />}</group>
       {petKind === 'fish' && <Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} />}
-      <group userData={{ dynamic: true }}><Seasonal layout={layout} seed={floor.key} /></group>
+      <group userData={{ dynamic: true }}>{look.seasonal && <Seasonal layout={layout} seed={floor.key} />}</group>
       {/* wall art keeps both walls lively: posters high above the left-wall furniture, art + shelf on the back wall */}
       {/* pictures sit in the gaps between the left-wall furniture, at one shared height */}
-      {layout.wall.artZ.map((z, i) => (
+      {look.art && layout.wall.artZ.map((z, i) => (
         <Poster key={i} position={[-W / 2 + 0.27, 1.75, z]} rotation={[0, Math.PI / 2, 0]} seed={(hash(floor.key) % 97) + i * 3} w={0.85} h={1.05} />
       ))}
-      {W / 2 - 3.8 - (-W / 2 + 7.0) > 1.6 && (
+      {look.art && W / 2 - 3.8 - (-W / 2 + 7.0) > 1.6 && (
         <group>
           <Poster position={[(-W / 2 + 7.0 + W / 2 - 3.8) / 2 - 0.55, 1.95, -D / 2 + 0.27]} seed={(hash(floor.key) % 97) + 7} w={0.85} h={1.15} />
           <WallShelf position={[(-W / 2 + 7.0 + W / 2 - 3.8) / 2 + 0.75, 1.3, -D / 2 + 0.25]} w={1.0} />
@@ -187,7 +197,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       </StaticMerge>
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [layout, night, floor.key, floor.name, floor.num, floor.color, floorY, petKind, home],
+    [layout, night, floor.key, floor.name, floor.num, floor.color, floorY, petKind, home, look],
   )
 
   return (
@@ -217,8 +227,8 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         if (!seat) return null
         return (
           <group key={n}>
-            <Chair x={seat.x} z={seat.z} owner={n} />
-            <Workstation seat={seat} idx={i} status={effStatus(data.bots[n], now)} night={night} />
+            <Chair x={seat.x} z={seat.z} owner={n} hiddenOwner={data.bots[n]?.hidden ? n : null} />
+            <Workstation seat={seat} idx={i} status={data.bots[n]?.hidden ? 'resting' : effStatus(data.bots[n], now)} night={night} step={data.bots[n]?.step} />
             <DeskDecor seat={seat} items={data.bots[n]?.desk} name={n} trophies={data.stats?.[n]?.got?.length || 0} />
             {data.bots[n]?.birthday === today && <Cake seat={seat} />}
           </group>
@@ -229,7 +239,8 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
           <pointLight key={i} position={[(r.x1 + r.x2) / 2, 2.6, r.z + 0.6]} intensity={5} distance={7} decay={1.5} color="#ffe2b8" />
         ))}
 
-      {home.map((n) => (
+      {/* bots hidden in the Grok app are not drawn: only their empty seat remains */}
+      {home.filter((n) => !data.bots[n]?.hidden).map((n) => (
         <Bot
           key={n}
           bot={data.bots[n]}
@@ -246,6 +257,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
           spotlight={spotlight === n}
           onSelect={onSelect}
           onLongPress={onLongPress}
+          compact={compact}
         />
       ))}
       {visitors.map((n) => (

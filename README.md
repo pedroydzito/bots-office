@@ -304,3 +304,9 @@ scripts/post.sh       publish helper
 ## License
 
 MIT
+
+### Team leads, hidden bots and the office look
+
+- A bot whose name contains *Diretor, Gestor, Gerente, Head, Chefe, Lead, Coordenador, CEO/CMO/CTO…* gets its own desk next to the "Destaques de hoje" board (floors with 3+ bots).
+- Bots with `"hidden": true` are not drawn: their seat stays empty and hovering the chair shows whose place it is. The full list is in **Painel do sistema → Ocultos no Grok**.
+- **Personalizar escritório** (settings) picks a style (Decorado, Aconchegante, Minimalista), floor and wall finish and which decor is shown. It is published as `{"office":{"look":{...}}}`, so every screen shows the same office.

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import Floor from './Floor'
@@ -30,7 +30,7 @@ function Facade({ W, D, y, night, color }) {
   }, [night, mats])
   return (
     <group>
-      <mesh position={[0, y + FLOOR_H / 2 - 0.35, 0]} material={mats} castShadow receiveShadow>
+      <mesh position={[0, y + FLOOR_H / 2 - 0.35, 0]} material={mats} castShadow>
         <boxGeometry args={[W, FLOOR_H, D]} />
       </mesh>
       {/* status strip: each floor's state glows on the facade (green / amber / red / grey) */}
@@ -155,10 +155,18 @@ function floorColor(f, data, now) {
 
 /** Whole-building view: every floor open and live, stacked with gaps ("cutaway"). */
 function Overview({ floors, layouts, data, now, night, selectedBot, spotlight, onSelect, W, D }) {
+  // build the storeys one per frame (the view appears at once and fills in, instead of freezing)
+  const [count, setCount] = useState(2)
+  useEffect(() => {
+    if (count >= floors.length) return
+    const id = requestAnimationFrame(() => setCount((c) => c + 1))
+    return () => cancelAnimationFrame(id)
+  }, [count, floors.length])
   return (
     <group>
       <Plaza W={W} D={D} night={night} />
       {floors.map((f, i) => {
+        if (i >= count) return null
         const y = i * (FLOOR_H + OVERVIEW_GAP)
         return (
           <group key={f.key} position={[0, y, 0]}>
@@ -166,7 +174,7 @@ function Overview({ floors, layouts, data, now, night, selectedBot, spotlight, o
             {f.key === CORTEX_KEY ? (
               <Cortex layout={layouts[f.key]} cortex={data.cortex} floorNum={f.num} floorY={y} night={night} />
             ) : (
-              <Floor floor={f} layout={layouts[f.key]} data={data} now={now} floorY={y} night={night} selectedBot={selectedBot} spotlight={spotlight} onSelect={onSelect} floorCount={floors.length} />
+              <Floor floor={f} layout={layouts[f.key]} data={data} now={now} floorY={y} night={night} selectedBot={selectedBot} spotlight={spotlight} onSelect={onSelect} floorCount={floors.length} compact />
             )}
           </group>
         )
@@ -275,7 +283,8 @@ function Terrace({ W, D, night, weather }) {
   return (
     <group>
       <WeatherGround W={W} D={D} weather={weather} />
-      <mesh position={[0, -0.18, 0]} receiveShadow>
+      {/* no shadow on the slab: its long grazing edge showed jagged shadow steps */}
+      <mesh position={[0, -0.18, 0]}>
         <boxGeometry args={[W, 0.34, D]} />
         <meshStandardMaterial color={night ? '#2a3142' : '#e4e6ea'} roughness={0.85} />
       </mesh>

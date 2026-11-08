@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { prefs } from '../lib/notify'
+import { useStore } from '../lib/createStore'
+import { mouse, tipStore } from '../lib/tip'
 import { botPositions, floorOffset } from '../scene/registry'
 import { effStatus, STATUS } from '../lib/constants'
 import { Chat, Check, Clap, Close, Heart, Laugh, Party, Search as SearchIco, ThumbUp } from './Icons'
@@ -147,3 +149,44 @@ export function Welcome({ onDone }) {
 }
 
 export { Close }
+
+/** Floating tooltip for scene objects: follows the mouse, sharp HTML text (boards, empty seats). */
+export function HoverTip() {
+  const tip = useStore(tipStore, (s) => s.tip)
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!tip) return
+    let raf = 0
+    const loop = () => {
+      const el = ref.current
+      if (el) {
+        const w = el.offsetWidth, h = el.offsetHeight
+        const x = Math.min(window.innerWidth - w - 8, mouse.x + 16)
+        const y = Math.min(window.innerHeight - h - 8, mouse.y + 16)
+        el.style.transform = `translate(${Math.max(8, x)}px, ${Math.max(8, y)}px)`
+      }
+      raf = requestAnimationFrame(loop)
+    }
+    loop()
+    return () => cancelAnimationFrame(raf)
+  }, [tip])
+  if (!tip) return null
+  return (
+    <div ref={ref} className={`card hovertip ${tip.wide ? 'wide' : ''}`} role="tooltip">
+      {tip.accent && <i className="ht-bar" style={{ background: tip.accent }} />}
+      <b>{tip.title}</b>
+      {tip.sub && <span className="ht-sub">{tip.sub}</span>}
+      {tip.lines?.length > 0 && (
+        <div className="ht-lines">
+          {tip.lines.map((l, i) => (
+            <div key={i}>
+              <b style={l.color ? { color: l.color } : null}>{l.a}</b>
+              {l.b && <span>{l.b}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      {tip.empty && !tip.lines?.length && <span className="ht-sub">{tip.empty}</span>}
+    </div>
+  )
+}

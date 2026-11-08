@@ -31,7 +31,6 @@ export function ModeToggles({ mode, setMode, tour, setTour, overview, setOvervie
       <button className={`light-btn ${mode === 'day' ? 'on' : ''}`} aria-pressed={mode === 'day'} onClick={() => setMode('day')} title="Dia"><Sun /> <span className="lbl">Dia</span></button>
       <button className={`light-btn ${mode === 'night' ? 'on' : ''}`} aria-pressed={mode === 'night'} onClick={() => setMode('night')} title="Noite"><Moon /> <span className="lbl">Noite</span></button>
       <button className={`light-btn ${mode === 'auto' ? 'on' : ''}`} aria-pressed={mode === 'auto'} onClick={() => setMode('auto')} title="Automático (hora real)"><Auto /> <span className="lbl">Auto</span></button>
-      <button className={tour ? 'on' : ''} aria-pressed={tour} onClick={() => setTour(!tour)} title="Tour">{tour ? <Pause size={12} /> : <Play size={12} />} <span className="lbl">Tour</span></button>
       <button className={overview ? 'on' : ''} aria-pressed={overview} onClick={() => setOverview(!overview)} title="Prédio inteiro (B)"><Building2 /> <span className="lbl">Prédio</span></button>
       <button onClick={onSearch} title="Buscar bot (Ctrl+K)"><SearchIco /></button>
     </div>
@@ -391,7 +390,7 @@ function usageInsights(usage, data) {
 }
 const WEEKDAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
 
-export const Weekly = memo(function Weekly({ usage, data }) {
+export const Weekly = memo(function Weekly({ usage, data, onPickBot, onPickTeam }) {
   const [byTeam, setByTeam] = useState(false)
   const ins = usageInsights(usage, data)
   const top = usage ? (byTeam ? ins.teams.slice(0, 5) : Object.entries(usage.bots).sort((a, b) => b[1] - a[1]).slice(0, 4)) : []
@@ -405,7 +404,9 @@ export const Weekly = memo(function Weekly({ usage, data }) {
       <div className="card weekly">
         <div className="hd">
           <span>Limite semanal</span>
-          <span className="muted">{isFinite(reset) ? `Renova em ${durationShort(reset - Date.now())}` : ''}</span>
+          <span className="muted" title={isFinite(reset) ? `Renova ${new Date(reset).toLocaleString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : undefined}>
+            {isFinite(reset) ? `Renova em ${durationShort(reset - Date.now())}` : ''}
+          </span>
         </div>
         {usage ? (
           <>
@@ -424,11 +425,11 @@ export const Weekly = memo(function Weekly({ usage, data }) {
               <button className={byTeam ? 'on' : ''} aria-pressed={byTeam} onClick={() => setByTeam(true)}>Times</button>
             </div>
             {top.map(([n, v]) => (
-              <div key={n} className="ub">
+              <button key={n} className="ub" onClick={() => (byTeam ? onPickTeam?.(n) : onPickBot?.(n))} title={byTeam ? `Ir para o andar ${n}` : `Ver ${n}`}>
                 <i style={{ background: byTeam ? '#8F59F9' : resolveColor(data.bots[n]?.color) }} />
                 <span>{n}</span>
                 <em>{Math.round(v * 10) / 10}%</em>
-              </div>
+              </button>
             ))}
           </>
         ) : (

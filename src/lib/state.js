@@ -4,6 +4,7 @@
 // Live mode starts empty: roster, teams, looks and chat links all come from
 // the topic. The bundled example roster is only used by demo mode.
 import demoRoster from '../roster.json'
+import { cleanLook } from './look'
 import { createStore } from './createStore'
 import { normalizeShape, ACCESSORIES } from './constants'
 
@@ -289,7 +290,8 @@ function applyPayload(d, p, t) {
   // {"office":{"name":"Minha empresa"}} — shared office settings (same on every device)
   if (p.office && typeof p.office === 'object') {
     const name = clean(p.office.name, 40)
-    d.office = { ...(d.office || {}), ...(name ? { name } : {}) }
+    const look = cleanLook(p.office.look)
+    d.office = { ...(d.office || {}), ...(name ? { name } : {}), ...(look ? { look: { ...(d.office?.look || {}), ...look } } : {}) }
   }
 
   // {"type":"mail","from":"A","to":"B","step":"Relatório"} — an envelope travels to B's desk

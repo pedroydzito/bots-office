@@ -3,24 +3,26 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 const loadScene = () => import('./scene/Scene')
 loadScene()
 const Scene = lazy(loadScene)
-import { cortexLayout, floorLayout, naturalSize } from './scene/layout'
+import { cortexLayout, floorLayout, LEAD_RE, naturalSize } from './scene/layout'
 import { botPositions, ridePositions, sceneSignals } from './scene/registry'
 import { world } from './scene/sim'
 import { dataStore, deriveFloors, forgetTopic, loadTopic, ingest } from './lib/state'
 import { useNow, useStore } from './lib/createStore'
 import { chatLink, CORTEX_KEY, effStatus, resolveColor, talkActive } from './lib/constants'
 import { connectNtfy, publish } from './lib/ntfy'
-import { captureHash, clearCode, getCode, isReadonly, setCode } from './lib/auth'
+import { captureHash, clearCode, getCode, isReadonly, rememberOffice, setCode } from './lib/auth'
 import { demoApprove, startDemo } from './lib/demo'
 import { Activity, Brand, ConnectBanner, Hints, LeftPanel, ModeToggles, Pills, RightPanel, Toast, Weekly } from './ui/Panels'
 import { Login, Settings } from './ui/Login'
 import { Celebration, MobileFloors, Search, Timeline, TvExit } from './ui/Extras'
-import { EmptyOffice, HealthModal, OfficeSettingsModal, OfficesModal, QueueModal, SendStatus, ShortcutsModal } from './ui/Ops'
-import { buzz, MiniMap, QuickMenu, SearchField, Welcome } from './ui/Interact'
+import { EmptyOffice, HealthModal, LookModal, OfficesModal, QueueModal, SendStatus, ShortcutsModal } from './ui/Ops'
+import { buzz, HoverTip, MiniMap, QuickMenu, SearchField, Welcome } from './ui/Interact'
 import { FLOOR_H, OVERVIEW_GAP } from './scene/layout'
+import { DEFAULT_LOOK, FLOORS, lookStore, WALLS } from './lib/look'
+import { floorMat, wallMat } from './scene/Floor'
 import { botsAt } from './lib/metrics'
 import { notifyWaiting, prefs } from './lib/notify'
-import { startAmbience, startMusic, uiSound, updateAmbience } from './lib/ambience'
+import { resumeAudio, startAmbience, startMusic, uiSound, updateAmbience } from './lib/ambience'
 
 function openLink(link) {
   if (!link) return
@@ -32,6 +34,11 @@ export default function App() {
   // The access code is the ntfy topic. It lives only in localStorage.
   const [code, setCodeState] = useState(() => captureHash() || getCode())
   const [demo, setDemo] = useState(false)
+  const [adding, setAdding] = useState(false)
+  // offices used before the list existed: make sure the current one is in it
+  useEffect(() => {
+    if (code) rememberOffice(code)
+  }, [code])
 
   useEffect(() => {
     const onHash = () => {
@@ -46,6 +53,7 @@ export default function App() {
   }, [])
 
   const signIn = useCallback((c) => {
+    setAdding(false)
     setCode(c)
     setCodeState(c)
     setDemo(false)
@@ -56,14 +64,14 @@ export default function App() {
     setCodeState(null)
     setDemo(false)
   }, [code])
-  const toLogin = useCallback(() => setDemo(false), [])
+  const toLogin = useCallback(() => (setDemo(false), setAdding(true)), [])
 
   const switchTo = useCallback((c) => {
     setCode(c)
     setCodeState(c)
     setDemo(false)
   }, [])
-  if (!code && !demo) return <Login onSubmit={signIn} onDemo={() => setDemo(true)} />
+  if (adding || (!code && !demo)) return <Login onSubmit={signIn} onDemo={() => (setAdding(false), setDemo(true))} onCancel={adding && code ? () => setAdding(false) : null} />
   return <Office key={code || 'demo'} topic={code} onSignOut={signOut} onSignIn={toLogin} onSwitch={switchTo} />
 }
 
@@ -94,6 +102,18 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const [dismissed, setDismissed] = useState({})
 
   const live = useStore(dataStore)
+  // office look: shared one from the topic (or this device's, for view-only links), live preview while editing
+  const [lookPreview, setLookPreview] = useState(null)
+  const look = useMemo(() => {
+    const local = readonly ? prefs.get('look', null) : null
+    return { ...DEFAULT_LOOK, ...(live.office?.look || {}), ...(local || {}), ...(lookPreview || {}) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live.office?.look, lookPreview])
+  useEffect(() => {
+    lookStore.set(look)
+    floorMat.color.set(FLOORS[look.floor][1])
+    wallMat.color.set(WALLS[look.wall][1])
+  }, [look])
   const now = useNow(2000)
   // replaying the timeline shows the office as it was at that moment
   const data = useMemo(() => (replayT ? { ...live, bots: botsAt(live, replayT), talks: {} } : live), [live, replayT])
@@ -123,8 +143,18 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         const c = resolveColor(st.bots[n]?.color)
         count[c] = (count[c] || 0) + 1
       }
-      const color = Object.entries(count).sort((a, b) => b[1] - a[1])[0]?.[0] || '#959595'
-      return { ...fl, color }
+      let color = Object.entries(count).sort((a, b) => b[1] - a[1])[0]?.[0] || '#959595'
+      // very dark / greyish team colours read as "disabled" on the floor list: lift them
+      {
+        const h = color.replace('#', '')
+        const [r, g, bl] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+        const lum = 0.2126 * r + 0.7152 * g + 0.0722 * bl
+        const sat = Math.max(r, g, bl) - Math.min(r, g, bl)
+        if (lum < 0.18 || sat < 0.12) color = '#6E7BF2'
+      }
+      // a team lead (diretor, gestor, head...) gets the separate desk: put them first
+      const lead = fl.bots.length >= 3 ? fl.bots.find((n) => LEAD_RE.test(n) && !st.bots[n]?.hidden) : null
+      return { ...fl, color, lead: lead || null, bots: lead ? [lead, ...fl.bots.filter((n) => n !== lead)] : fl.bots }
     })
     return [...f, { key: CORTEX_KEY, name: 'Cortex', num: f.length + 1, bots: [], color: '#F93498' }]
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -138,9 +168,9 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         W = Math.max(W, n.W)
         D = Math.max(D, n.D)
       }
-      return Object.fromEntries(floors.map((f) => [f.key, f.key === CORTEX_KEY ? cortexLayout(W, D) : floorLayout(f.bots.length, W, D)]))
+      return Object.fromEntries(floors.map((f) => [f.key, f.key === CORTEX_KEY ? cortexLayout(W, D) : floorLayout(f.bots.length, W, D, { lead: !!f.lead, furniture: look.furniture })]))
     },
-    [floors],
+    [floors, look.furniture],
   )
   const size = useMemo(() => {
     const ls = Object.values(layouts)
@@ -367,11 +397,13 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   })
   useEffect(() => {
     // browsers only allow audio after a gesture: resume saved choices on the first click
+    // (any gesture works, and a context created too early is resumed on the next one)
     const start = () => {
       if (prefs.get('ambience', true)) startAmbience()
       if (prefs.get('music', false)) startMusic()
+      resumeAudio()
     }
-    window.addEventListener('pointerdown', start, { once: true })
+    for (const ev of ['pointerdown', 'keydown', 'touchend', 'click']) window.addEventListener(ev, start, { capture: true, passive: true })
     // quiet interface blips on every click (when enabled)
     const click = (e) => {
       if (!prefs.get('uisound', true)) return
@@ -381,7 +413,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     }
     window.addEventListener('click', click, true)
     return () => {
-      window.removeEventListener('pointerdown', start)
+      for (const ev of ['pointerdown', 'keydown', 'touchend', 'click']) window.removeEventListener(ev, start, { capture: true })
       window.removeEventListener('click', click, true)
     }
   }, [])
@@ -502,7 +534,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
           <Brand conn={conn} now={now} name={live.office?.name} onClick={() => setOfficesOpen(true)} />
           <SearchField onOpen={() => setSearchOpen(true)} />
           <ModeToggles mode={lightMode} setMode={setLightMode} tour={tour} setTour={setTour} overview={overview} setOverview={setOverview} onSearch={() => setSearchOpen(true)} />
-          <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} mode={lightMode} setMode={setLightMode} onOffices={() => setOfficesOpen(true)} onHealth={() => setHealthOpen(true)} onKeys={() => setKeysOpen(true)} onOfficeSettings={topic && !readonly ? () => setOfficeCfg(true) : null} readonly={readonly} />
+          <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} mode={lightMode} setMode={setLightMode} onOffices={() => setOfficesOpen(true)} onHealth={() => setHealthOpen(true)} onKeys={() => setKeysOpen(true)} onOfficeSettings={() => setOfficeCfg(true)} readonly={readonly} />
         </div>
         <div className="top-center">
           <Pills counts={counts} />
@@ -533,7 +565,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
           onDecide={readonly ? null : decide}
         />
         <Activity data={data} onPick={pickBot} floorBots={floor?.bots || []} />
-        <Weekly usage={data.usage} data={data} />
+        <Weekly usage={data.usage} data={data} onPickBot={pickBot} onPickTeam={goFloor} />
         <div className="bottom-center">
           {!topic && !replayT && <ConnectBanner onSignIn={onSignIn} />}
           <Timeline history={live.history} talkLog={live.talkLog} value={replayT} onChange={setReplayT} />
@@ -541,7 +573,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         </div>
         <MobileFloors floors={floors} data={data} now={now} selectedKey={selKey} onFloor={goFloor} />
         {queueOpen && <QueueModal waiting={waiting} now={now} onDecide={decide} onPick={pickBot} onClose={() => setQueueOpen(false)} readonly={readonly} />}
-        {healthOpen && <HealthModal conn={conn} data={live} now={now} topic={topic} onClose={() => setHealthOpen(false)} />}
+        {healthOpen && <HealthModal conn={conn} data={live} now={now} topic={topic} onPickBot={pickBot} onClose={() => setHealthOpen(false)} />}
         {keysOpen && <ShortcutsModal onClose={() => setKeysOpen(false)} />}
         {quick && (
           <QuickMenu
@@ -558,8 +590,22 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         <MiniMap layout={lay} floor={floor} data={data} now={now} onPick={pickBot} selected={selectedBot} />
         {welcome && <Welcome onDone={() => (prefs.set('welcomed', true), setWelcome(false))} />}
         {officesOpen && <OfficesModal current={topic} onSwitch={onSwitch} onAdd={onSignIn} onClose={() => setOfficesOpen(false)} />}
-        {officeCfg && <OfficeSettingsModal data={live} floors={floors} onSave={(p) => (send(p), setOfficeCfg(false))} onClose={() => setOfficeCfg(false)} />}
+        {officeCfg && (
+          <LookModal
+            look={look}
+            shared={!!topic && !readonly}
+            onPreview={setLookPreview}
+            onSave={(l) => {
+              const { label, sub, ...clean } = l
+              if (readonly) prefs.set('look', clean)
+              else send({ office: { look: clean } })
+              setLookPreview(null)
+            }}
+            onClose={() => setOfficeCfg(false)}
+          />
+        )}
         {topic && !welcome && live.order.length === 0 && <EmptyOffice />}
+        <HoverTip />
         <SendStatus s={sendStatus} onRetry={() => sendStatus && send(sendStatus.payload)} />
         {!toastBot && notices[0] && <Celebration c={notices[0]} />}
         {searchOpen && <Search data={data} now={now} onPick={(n) => { setOverview(false); pickBot(n) }} onClose={() => setSearchOpen(false)} />}

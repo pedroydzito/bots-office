@@ -60,10 +60,19 @@ export function naturalSize(n) {
  * Every storey has the building's full size (W x D). Desks sit near the back-left; the free space
  * is filled with decor (rugs, a meeting corner, bean bags...). The camera frames the desks.
  */
-export function floorLayout(n, W, D) {
+/** Team leads (director, manager, head...) get their own desk by the highlights board. */
+export const LEAD_RE = /\b(diretor|diretora|director|gestor|gestora|gerente|head|chefe|lead|coordenador|coordenadora|ceo|cmo|cto|coo|cfo)\b/i
+
+export function floorLayout(nAll, W, D, { lead = false, furniture = true } = {}) {
+  const n = lead ? nAll - 1 : nAll
   const cols = colsFor(n)
   const rowsN = Math.ceil(Math.max(n, 1) / cols)
-  const deskW = (cols - 1) * SX + 1.76
+  // a big room with a small team: give everyone more room instead of packing them together
+  const roomForDesks = W - LEFT - RIGHT - 5.2 // keep space for the meeting corner on the right
+  const sx = cols > 1 ? Math.min(2.7, Math.max(SX, (roomForDesks - 1.76) / (cols - 1))) : SX
+  const roomForRows = D - BACK - FRONT - 2.4
+  const sz = rowsN > 1 ? Math.min(3.8, Math.max(SZ, roomForRows / (rowsN - 1))) : SZ
+  const deskW = (cols - 1) * sx + 1.76
   const x0 = -W / 2 + LEFT + 0.88
   const z0 = -D / 2 + BACK
   const seats = []
@@ -71,15 +80,26 @@ export function floorLayout(n, W, D) {
   for (let r = 0; r < rowsN; r++) {
     const cnt = Math.min(cols, n - r * cols)
     if (cnt <= 0) break
-    const z = z0 + r * SZ
-    rows.push({ z, x1: x0 - 0.88, x2: x0 + (cols - 1) * SX + 0.88, aisle: z - 1.1 })
+    const z = z0 + r * sz
+    // spread out: each bot gets its own desk instead of one long shared desk
+    const own = sx >= 2.3
+    if (own) for (let c = 0; c < cnt; c++) rows.push({ z, x1: x0 + c * sx - 0.88, x2: x0 + c * sx + 0.88, aisle: z - 1.1, solo: true })
+    else rows.push({ z, x1: x0 - 0.88, x2: x0 + (cols - 1) * sx + 0.88, aisle: z - 1.1 })
     // ex: side lane between chairs, so bots step out sideways instead of walking through the chair back
-    for (let c = 0; c < cnt; c++) seats.push({ x: x0 + c * SX, z, az: z - 1.1, ex: x0 + c * SX + SX / 2, row: r })
+    for (let c = 0; c < cnt; c++) seats.push({ x: x0 + c * sx, z, az: z - 1.1, ex: x0 + c * sx + sx / 2, row: r })
+  }
+  const lw0 = leftWall(W, D)
+  let leadRow = null
+  if (lead) {
+    // the lead sits beside the "Destaques de hoje" board, facing the team, own desk
+    const x = -W / 2 + 1.8, z = lw0.boardZ - 0.5
+    seats.unshift({ x, z, az: z - 0.9, row: -1, lead: true })
+    leadRow = { z, x1: x - 0.8, x2: x + 0.8, aisle: z - 0.9, solo: true, lead: true }
   }
   const xL = -W / 2 + 3.05
   const lw = leftWall(W, D)
-  const blockEnd = x0 + (cols - 1) * SX + 0.88
-  const deskFront = z0 + (rows.length - 1) * SZ + 1.3
+  const blockEnd = x0 + (cols - 1) * sx + 0.88
+  const deskFront = z0 + (rowsN - 1) * sz + 1.3
   const decor = []
   // rug under the desks
   decor.push({ type: 'rug', x: (x0 - 1.4 + blockEnd + 1.0) / 2, z: (z0 - 1.7 + deskFront + 0.5) / 2, w: blockEnd + 1.0 - (x0 - 1.4), d: deskFront + 0.5 - (z0 - 1.7), color: '#e9e4f5' })
@@ -94,7 +114,7 @@ export function floorLayout(n, W, D) {
   }
   // extra front space: a cosy corner with bean bags and plants
   const frontFree = D / 2 - deskFront
-  if (frontFree > 6.2) {
+  if (furniture && frontFree > 6.2) {
     const cz = deskFront + (frontFree - 3.5) / 2
     decor.push({ type: 'rug', x: x0 + 1.2, z: cz, w: 3.4, d: 2.6, color: '#f1e7d8', round: true })
     decor.push({ type: 'beanbag', x: x0 + 0.4, z: cz - 0.3, c: '#8F59F9' })
@@ -105,14 +125,16 @@ export function floorLayout(n, W, D) {
   // --- more furniture for the open space, each with something bots can do there
   const extraPois = []
   // snack machine against the left wall, near the front
-  decor.push({ type: 'vending', x: -W / 2 + 0.55, z: lw.vendingZ })
-  extraPois.push({ kind: 'vending', x: -W / 2 + 1.6, z: lw.vendingZ, yaw: -Math.PI / 2 })
+  if (furniture) {
+    decor.push({ type: 'vending', x: -W / 2 + 0.55, z: lw.vendingZ })
+    extraPois.push({ kind: 'vending', x: -W / 2 + 1.6, z: lw.vendingZ, yaw: -Math.PI / 2 })
+  }
   // printer under the TV
   decor.push({ type: 'printer', x: W / 2 - 3.7, z: -D / 2 + 0.6 })
   extraPois.push({ kind: 'printer', x: W / 2 - 3.7, z: -D / 2 + 1.5, yaw: Math.PI })
   // arcade cabinet on the right, between the meeting corner and the lounge
   const az1 = z0 + (rx2 - rx1 >= 3.4 ? 2.8 : 0.4), az2 = D / 2 - 4.9
-  if (W / 2 - blockEnd > 2.6 && az2 - az1 > 1.2) {
+  if (furniture && W / 2 - blockEnd > 2.6 && az2 - az1 > 1.2) {
     const z = (az1 + az2) / 2
     decor.push({ type: 'arcade', x: W / 2 - 0.9, z })
     decor.push({ type: 'lamp', x: W / 2 - 0.8, z: z + 1.3 })
@@ -120,7 +142,7 @@ export function floorLayout(n, W, D) {
   }
   // armchairs by the windows, between the phone spot and the lounge
   const ax = x0 + 4.6
-  if (W / 2 - 4.7 - ax > 1.8) {
+  if (furniture && W / 2 - 4.7 - ax > 1.8) {
     decor.push({ type: 'rug', x: ax + 0.6, z: D / 2 - 1.9, w: 2.6, d: 1.6, color: '#e7eef6', round: true })
     decor.push({ type: 'armchair', x: ax, z: D / 2 - 1.9, c: '#c9d4e3' })
     decor.push({ type: 'armchair', x: ax + 1.25, z: D / 2 - 1.9, c: '#e8cfc4' })
@@ -145,16 +167,16 @@ export function floorLayout(n, W, D) {
     ...extraPois,
   ]
   if (lw.shelfZ != null) pois.push({ kind: 'books', x: -W / 2 + 1.45, z: lw.shelfZ, yaw: -Math.PI / 2 })
-  const blockCx = x0 + ((cols - 1) * SX) / 2
-  const blockCz = z0 + ((rows.length - 1) * SZ) / 2
+  const blockCx = x0 + ((cols - 1) * sx) / 2
+  const blockCz = z0 + ((rowsN - 1) * sz) / 2
   return {
-    W, D, seats, rows, xL, cols, x0, z0, decor, meet,
+    W, D, seats, rows: leadRow ? [...rows, leadRow] : rows, xL, cols, x0, z0, decor, meet,
     pois: pois.map((p) => ({ ...p, az: p.az ?? p.z })),
     elevator: lw.elevator,
     wall: lw,
     // frame the bots (not the whole room), nudged back so the wall title shows
     focus: { x: blockCx + 0.3, z: blockCz - 0.9 },
-    dist: viewDistance(deskW + 3, rows.length * SZ + 3),
+    dist: viewDistance(deskW + 3, rowsN * sz + 3),
   }
 }
 

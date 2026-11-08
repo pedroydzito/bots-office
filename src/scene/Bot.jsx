@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
@@ -236,7 +236,7 @@ function StatusIcon({ status, talking }) {
  *  - otherwise resting/finished bots occasionally wander to a point of interest,
  *  - otherwise the bot sits at its seat.
  */
-function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey = '', floorY, selected, spotlight, onSelect, onLongPress, night }) {
+function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey = '', floorY, selected, spotlight, onSelect, onLongPress, night, compact: p_compact = false }) {
   const press = useRef({ timer: null, fired: false })
   const asset = useMemo(() => getBotAsset(bot.shape), [bot.shape])
   // hidden bots (hidden in the Grok app) are quieter: washed-out colour, translucent, a bit smaller
@@ -256,6 +256,22 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
   const phase = useMemo(() => rnd(bot.name, 'phase') * 10, [bot.name])
 
   const [hover, setHover] = useState(false)
+  // body and hit area are two meshes: moving between them must not flicker the hover state
+  const hoverT = useRef(0)
+  const hoverIn = useCallback((e) => {
+    e.stopPropagation()
+    clearTimeout(hoverT.current)
+    setHover(true)
+    document.body.style.cursor = 'pointer'
+  }, [])
+  const hoverOut = useCallback(() => {
+    clearTimeout(hoverT.current)
+    hoverT.current = setTimeout(() => {
+      setHover(false)
+      document.body.style.cursor = ''
+    }, 140)
+  }, [])
+  useEffect(() => () => clearTimeout(hoverT.current), [])
   const [view, setView] = useState({ off: false, crowded: false })
   const [hidden, setHidden] = useState(true)
   const [gone, setGone] = useState(false)
@@ -346,7 +362,13 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     const moving = sim.moving
     const seated = sim.seated
     // only nap after a real status that has been quiet for an hour (a fresh roster isn't asleep)
-    const lastSt = statusAt(p.data.history || [], p.name, T)
+    // (scanning the history is costly with many bots: refresh it about once a second)
+    if (!v.lastStAt || T - v.lastStAt > 1000 || v.lastStRev !== p.data) {
+      v.lastStAt = T
+      v.lastStRev = p.data
+      v.lastSt = statusAt(p.data.history || [], p.name, T)
+    }
+    const lastSt = v.lastSt
     const sleeping = seated && st === 'resting' && !!lastSt && isSleepy(lastSt, T)
 
     // ---- facing
@@ -556,9 +578,12 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
         case 'look': ry += Math.sin(qt * 3) * 0.5 * k; break
       }
     }
-    if (p.hover && !moving) {
-      hr = 0.4 + Math.sin(t * 12) * 0.07
-      hz = 0.05
+    // hover: lift a little and look up (asleep bots stay asleep)
+    const hk = (V.current.hk = (V.current.hk || 0) + ((p.hover && !moving && st !== 'resting' ? 1 : 0) - (V.current.hk || 0)) * Math.min(1, dt * 10))
+    if (hk > 0.001) {
+      by += 0.06 * hk
+      rx -= 0.12 * hk
+      sy *= 1 + 0.03 * hk
     }
     // landing squash when sitting down
     const lt = (T - sim.arrivedT) / 1000
@@ -605,6 +630,9 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
   if (talking) {
     const mine = (talkUi.role === 'visitor') === (talkUi.turn % 2 === 0)
     if (mine) speechText = talkUi.role === 'visitor' ? talkUi.step : REPLIES[(talkUi.seed + talkUi.turn) % REPLIES.length]
+  } else if (status === 'resting') {
+    // a resting bot doesn't keep saying its old task: only on hover/selection, as "Última: ..."
+    if ((hover || selected) && bot.step) speechText = `Última: ${bot.step}`
   } else if (speech || hover || selected || spotlight) {
     speechText = bot.step || STATUS[status]?.label
   }
@@ -619,15 +647,8 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
           material={mat}
           castShadow
           receiveShadow
-          onPointerOver={(e) => {
-            e.stopPropagation()
-            setHover(true)
-            document.body.style.cursor = 'pointer'
-          }}
-          onPointerOut={() => {
-            setHover(false)
-            document.body.style.cursor = ''
-          }}
+          onPointerOver={hoverIn}
+          onPointerOut={hoverOut}
           onPointerDown={(e) => {
             // press and hold = quick actions
             const { clientX, clientY } = e.nativeEvent
@@ -678,15 +699,8 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
           material={hitMat}
           position={[0, asset.height * 0.5, 0]}
           scale={[Math.max(0.55, asset.width * 0.75), Math.max(0.6, asset.height * 0.8), 0.6]}
-          onPointerOver={(e) => {
-            e.stopPropagation()
-            setHover(true)
-            document.body.style.cursor = 'pointer'
-          }}
-          onPointerOut={() => {
-            setHover(false)
-            document.body.style.cursor = ''
-          }}
+          onPointerOver={hoverIn}
+          onPointerOut={hoverOut}
           onPointerDown={(e) => {
             const { clientX, clientY } = e.nativeEvent
             press.current.fired = false
@@ -710,7 +724,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
         {focused && <Accessory kind="headphones" asset={asset} color={color} />}
         {snowy && bot.accessory !== 'scarf' && <Accessory kind="scarf" asset={asset} color={color} />}
       </group>
-      {!hidden && !view.off && (
+      {!hidden && !view.off && (!p_compact || selected || spotlight) && (
         <Html position={[0, iconY, 0]} center distanceFactor={10} zIndexRange={[30, 0]} pointerEvents="none">
           <div className={`bot-tag${selected ? ' sel' : ''}${bot.hidden ? ' is-hidden' : ''}`}>
             {speechText && (
@@ -736,7 +750,7 @@ function same(a, b) {
   return (
     a.bot === b.bot && a.status === b.status && a.seat === b.seat && a.layout === b.layout && a.role === b.role &&
     a.data === b.data && a.names === b.names && a.floorY === b.floorY && a.floorKey === b.floorKey &&
-    a.selected === b.selected && a.spotlight === b.spotlight && a.night === b.night
+    a.selected === b.selected && a.spotlight === b.spotlight && a.night === b.night && a.compact === b.compact
   )
 }
 export default memo(Bot, same)

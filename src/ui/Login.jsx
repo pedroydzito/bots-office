@@ -6,7 +6,7 @@ import { useStore } from '../lib/createStore'
 import { startAmbience, startMusic, stopAmbience, stopMusic, uiSound } from '../lib/ambience'
 import { Keyboard, Layers, Music, Pulse, Tag } from './Icons'
 
-export function Login({ onSubmit, onDemo }) {
+export function Login({ onSubmit, onDemo, onCancel }) {
   const [v, setV] = useState('')
   const [touched, setTouched] = useState(false)
   const ref = useRef(null)
@@ -42,7 +42,11 @@ export function Login({ onSubmit, onDemo }) {
         />
         {touched && v && !ok && <p className="err">Só letras, números, - e _ (máx. 64).</p>}
         <button className="dark" disabled={!ok}>Entrar</button>
-        <button type="button" className="link" onClick={onDemo}>Ver demonstração</button>
+        {onCancel ? (
+          <button type="button" className="link" onClick={onCancel}>Voltar ao escritório atual</button>
+        ) : (
+          <button type="button" className="link" onClick={onDemo}>Ver demonstração</button>
+        )}
       </form>
     </div>
   )
@@ -57,6 +61,7 @@ export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOff
   const [ui, setUi] = useState(() => prefs.get('uisound', true))
   const names = useStore(prefStore, (p) => p.names)
   const [vib, setVib] = useState(() => prefs.get('vibrate', true))
+  const [soundsOpen, setSoundsOpen] = useState(false)
   const ref = useRef(null)
   useEffect(() => {
     if (!open) return
@@ -91,69 +96,37 @@ export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOff
               <Bell size={14} /> Notificações <i className={notify ? 'on' : ''} />
             </button>
           )}
-          <button
-            className="toggle"
-            onClick={() => {
-              prefs.set('sound', !sound)
-              setSound(!sound)
-              if (!sound) chime()
-            }}
-          >
-            <Speaker size={14} /> Som de alerta <i className={sound ? 'on' : ''} />
+          {/* all sounds grouped in one expandable row */}
+          <button className="toggle" aria-expanded={soundsOpen} onClick={() => setSoundsOpen((x) => !x)}>
+            <Speaker size={14} /> Sons e vibração <span className={`chev ${soundsOpen ? 'up' : ''}`} />
           </button>
-          <button
-            className="toggle"
-            onClick={() => {
-              const v = !amb
-              prefs.set('ambience', v)
-              setAmb(v)
-              v ? startAmbience() : stopAmbience()
-            }}
-          >
-            <Speaker size={14} /> Som ambiente <i className={amb ? 'on' : ''} />
-          </button>
-          <button
-            className="toggle"
-            onClick={() => {
-              const v = !music
-              prefs.set('music', v)
-              setMusic(v)
-              v ? startMusic() : stopMusic()
-            }}
-          >
-            <Music size={14} /> Música ambiente <i className={music ? 'on' : ''} />
-          </button>
-          <button
-            className="toggle"
-            onClick={() => {
-              const v = !ui
-              prefs.set('uisound', v)
-              setUi(v)
-              if (v) uiSound('toggle')
-            }}
-          >
-            <Speaker size={14} /> Sons da interface <i className={ui ? 'on' : ''} />
-          </button>
-          <button
-            className="toggle"
-            onClick={() => {
-              const v = !prefs.get('vibrate', true)
-              prefs.set('vibrate', v)
-              setVib(v)
-              if (v && navigator.vibrate) navigator.vibrate(15)
-            }}
-          >
-            <Bell size={14} /> Vibração <i className={vib ? 'on' : ''} />
-          </button>
-          <button className="toggle" onClick={() => setPref('names', !names)}>
-            <Tag size={14} /> Mostrar nomes <i className={names ? 'on' : ''} />
-          </button>
-          <button onClick={() => { setOpen(false); onTv() }}><Tv size={14} /> Modo TV</button>
+          {soundsOpen && (
+            <div className="subgroup">
+              <button className="toggle" onClick={() => { prefs.set('sound', !sound); setSound(!sound); if (!sound) chime() }}>
+                Alerta quando precisam de você <i className={sound ? 'on' : ''} />
+              </button>
+              <button className="toggle" onClick={() => { const v = !amb; prefs.set('ambience', v); setAmb(v); v ? startAmbience() : stopAmbience() }}>
+                Som ambiente <i className={amb ? 'on' : ''} />
+              </button>
+              <button className="toggle" onClick={() => { const v = !music; prefs.set('music', v); setMusic(v); v ? startMusic() : stopMusic() }}>
+                <Music size={13} /> Música <i className={music ? 'on' : ''} />
+              </button>
+              <button className="toggle" onClick={() => { const v = !ui; prefs.set('uisound', v); setUi(v); if (v) uiSound('toggle') }}>
+                Cliques da interface <i className={ui ? 'on' : ''} />
+              </button>
+              {'vibrate' in navigator && (
+                <button className="toggle" onClick={() => { const v = !prefs.get('vibrate', true); prefs.set('vibrate', v); setVib(v); if (v) navigator.vibrate(15) }}>
+                  Vibração <i className={vib ? 'on' : ''} />
+                </button>
+              )}
+            </div>
+          )}
           <hr />
-          {onOfficeSettings && <button onClick={() => { setOpen(false); onOfficeSettings() }}><Tag size={14} /> Configurar escritório</button>}
-          {onOffices && <button onClick={() => { setOpen(false); onOffices() }}><Layers size={14} /> Escritórios{readonly ? ' · só leitura' : ''}</button>}
-          {onHealth && <button onClick={() => { setOpen(false); onHealth() }}><Pulse size={14} /> Saúde do sistema</button>}
-          {onKeys && <button onClick={() => { setOpen(false); onKeys() }}><Keyboard size={14} /> Atalhos</button>}
+          {onOfficeSettings && <button onClick={() => { setOpen(false); onOfficeSettings() }}><Tag size={14} /> Personalizar escritório</button>}
+          {onOffices && <button onClick={() => { setOpen(false); onOffices() }}><Layers size={14} /> Trocar de escritório{readonly ? ' · só leitura' : ''}</button>}
+          {onHealth && <button onClick={() => { setOpen(false); onHealth() }}><Pulse size={14} /> Painel do sistema</button>}
+          <button onClick={() => { setOpen(false); onTv() }}><Tv size={14} /> Modo TV</button>
+          {onKeys && !window.matchMedia?.('(pointer: coarse)').matches && <button onClick={() => { setOpen(false); onKeys() }}><Keyboard size={14} /> Atalhos</button>}
           <hr />
           {live ? (
             <button onClick={onSignOut}>Sair</button>

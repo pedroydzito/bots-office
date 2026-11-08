@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
-import { createTVCanvas, drawBoard, drawTV, getCodeTextures, makeClockFace, makeTitleTexture, makeRugTexture } from './textures'
+import { createTVCanvas, drawBoard, drawTVNow, getCodeTextures, getScreenTextures, screenKind, makeClockFace, makeTitleTexture, makeRugTexture } from './textures'
 import { botPositions, poiKey, seatYaw, sitting, tickCodeScroll } from './registry'
+import { hideTip, showTip } from '../lib/tip'
 
 const M = {
   white: new THREE.MeshStandardMaterial({ color: '#f7f7f8', roughness: 0.6 }),
@@ -15,21 +16,28 @@ const M = {
   leaf: new THREE.MeshStandardMaterial({ color: '#8fd16a', roughness: 0.7 }),
   leaf2: new THREE.MeshStandardMaterial({ color: '#6fbf5a', roughness: 0.7 }),
   pot: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.5 }),
+  soil: new THREE.MeshStandardMaterial({ color: '#4a3a2c', roughness: 1 }),
   glass: new THREE.MeshPhysicalMaterial({ color: '#dbe9f5', transparent: true, opacity: 0.18, roughness: 0.05, depthWrite: false }),
   water: new THREE.MeshPhysicalMaterial({ color: '#8cc8ff', transparent: true, opacity: 0.6, roughness: 0.1 }),
 }
 export { M as MATS }
 
 /** Swivel chair: turns with the bot sitting on it, eases back when empty. */
-export function Chair({ x, z, owner }) {
+export function Chair({ x, z, owner, hiddenOwner }) {
   const top = useRef()
   useFrame((_, dt) => {
     if (!top.current) return
     const want = seatYaw.get(owner) ?? 0
     top.current.rotation.y += (want - top.current.rotation.y) * Math.min(1, dt * 8)
   })
+  const tipProps = hiddenOwner
+    ? {
+        onPointerOver: (e) => (e.stopPropagation(), showTip({ title: `Lugar de ${hiddenOwner}`, sub: 'Bot oculto no Grok' })),
+        onPointerOut: hideTip,
+      }
+    : {}
   return (
-    <group position={[x, 0, z]}>
+    <group position={[x, 0, z]} {...tipProps}>
       <mesh position={[0, 0.03, 0]} material={M.black} castShadow>
         <cylinderGeometry args={[0.28, 0.3, 0.05, 20]} />
       </mesh>
@@ -68,27 +76,36 @@ export function DeskRow({ row }) {
 
 const MUG_COLORS = ['#1E86FC', '#FD690F', '#F5B70A', '#2FB36B', '#ffffff', '#E5484D']
 
-export function Workstation({ seat, status, idx, night }) {
+export function Workstation({ seat, status, idx, night, step }) {
   const codes = getCodeTextures()
+  const kind = screenKind(step)
+  const map = kind ? getScreenTextures()[kind] : codes[idx % codes.length]
   const screenMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
         color: '#000',
         emissive: '#ffffff',
-        emissiveMap: codes[idx % codes.length],
-        map: codes[idx % codes.length],
-        emissiveIntensity: 0.9,
+        emissiveMap: map,
+        map,
+        emissiveIntensity: 0,
       }),
-    [codes, idx],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   )
+  // the screen shows roughly what the bot is doing (mail, chart, document, design, code...)
+  useEffect(() => {
+    screenMat.map = map
+    screenMat.emissiveMap = map
+  }, [map, screenMat])
   const ref = useRef(screenMat)
   useEffect(() => () => screenMat.dispose(), [screenMat])
   useFrame(({ clock }, dt) => {
     const m = ref.current
+    // resting bot = monitor off (black)
     const on = status === 'working' || status === 'waiting_user' || status === 'error'
-    const target = (on ? 1.1 : 0.25) * (night ? 1.6 : 1)
+    const target = on ? 0.9 * (night ? 1.5 : 1) : 0
     if (Math.abs(target - m.emissiveIntensity) > 0.005) m.emissiveIntensity += (target - m.emissiveIntensity) * Math.min(1, dt * 3)
-    tickCodeScroll(clock.elapsedTime, codes)
+    if (on && !kind) tickCodeScroll(clock.elapsedTime, codes)
   })
   const mug = MUG_COLORS[idx % MUG_COLORS.length]
   return (
@@ -152,17 +169,29 @@ export function Plant({ position, scale = 1, kind = 0 }) {
           </mesh>
         </group>
       ) : (
-        <group userData={{ dynamic: true }} ref={leaves} position={[0, 0.44, 0]}>
-          {[0, 1, 2, 3, 4].map((i) => (
-            <mesh key={i} position={[Math.cos(i * 1.3) * 0.12, 0.35 + i * 0.12, Math.sin(i * 1.3) * 0.12]} rotation={[Math.cos(i) * 0.5, i, Math.sin(i) * 0.5]} material={i % 2 ? M.leaf : M.leaf2} scale={[1, 0.25, 0.5]}>
-              <sphereGeometry args={[0.3, 16, 12]} />
-            </mesh>
+        // upright sword-like leaves growing out of the soil (no floating blobs)
+        <group userData={{ dynamic: true }} ref={leaves} position={[0, 0.43, 0]}>
+          {LEAVES.map((l, i) => (
+            <group key={i} rotation={[l.tx, l.ry, l.tz]}>
+              <mesh position={[0, l.h / 2, 0]} material={i % 3 ? M.leaf : M.leaf2} scale={[l.w, l.h, 0.05]}>
+                <sphereGeometry args={[0.5, 12, 10]} />
+              </mesh>
+            </group>
           ))}
         </group>
       )}
+      <mesh position={[0, 0.44, 0]} rotation={[-Math.PI / 2, 0, 0]} material={M.soil}>
+        <circleGeometry args={[0.215, 24]} />
+      </mesh>
     </group>
   )
 }
+
+const LEAVES = Array.from({ length: 9 }, (_, i) => {
+  const a = (i / 9) * Math.PI * 2
+  const out = i % 3 === 0 ? 0.08 : 0.26
+  return { ry: a, tx: 0, tz: out, h: 0.75 + ((i * 37) % 5) * 0.09, w: 0.13 + (i % 2) * 0.03 }
+})
 
 export function WallTitle({ title, subtitle, position, rotation }) {
   const tex = useMemo(() => makeTitleTexture(title, subtitle), [title, subtitle])
@@ -248,18 +277,31 @@ export function CoffeeCorner({ position }) {
   )
 }
 
-export function TVScreen({ position, rotation, label, getValue, getSeries, getGoal, night }) {
+export function TVScreen({ position, rotation, getInfo }) {
   const tv = useMemo(() => createTVCanvas(), [])
   const acc = useRef(10)
+  const info = useRef(null)
   useFrame((_, dt) => {
     acc.current += dt
-    if (acc.current > 1) {
+    if (acc.current > 2) {
       acc.current = 0
-      drawTV(tv, { label, value: getValue(), series: getSeries(), goal: getGoal ? getGoal() : null })
+      info.current = getInfo()
+      drawTVNow(tv, info.current)
     }
   })
+  const tip = () => {
+    const i = info.current || getInfo()
+    showTip({
+      title: 'Agora no andar',
+      sub: `${i.working} trabalhando · ${i.waiting} esperando você · ${i.errors} com erro`,
+      lines: i.last.map((l) => ({ a: l.bot, b: `${l.step || 'Concluído'} · ${l.ago}` })),
+      empty: 'Nada concluído hoje ainda',
+      accent: '#34d399',
+      wide: true,
+    })
+  }
   return (
-    <group position={position} rotation={rotation}>
+    <group position={position} rotation={rotation} onPointerOver={(e) => (e.stopPropagation(), tip())} onPointerOut={hideTip}>
       <RoundedBox args={[2.3, 1.36, 0.08]} radius={0.03} material={M.black} />
       <mesh position={[0, 0, 0.045]}>
         <planeGeometry args={[2.18, 1.26]} />
@@ -584,10 +626,11 @@ export function Whiteboard({ x, z }) {
 export function InfoBoard({ position, rotation, title, lines, accent, cork, empty, w = 1.7, h = 1.25 }) {
   const tex = useMemo(() => {
     const c = document.createElement('canvas')
-    c.width = 512
-    c.height = 470
+    c.width = 1024
+    c.height = 940
     const t = new THREE.CanvasTexture(c)
     t.colorSpace = THREE.SRGBColorSpace
+    t.anisotropy = 8
     return { c, g: c.getContext('2d'), t }
   }, [])
   const sig = JSON.stringify(lines) + title
@@ -598,7 +641,12 @@ export function InfoBoard({ position, rotation, title, lines, accent, cork, empt
   }, [sig, tex])
   useEffect(() => () => tex.t.dispose(), [tex])
   return (
-    <group position={position} rotation={rotation}>
+    <group
+      position={position}
+      rotation={rotation}
+      onPointerOver={(e) => (e.stopPropagation(), showTip({ title, lines, empty, accent, wide: true }))}
+      onPointerOut={hideTip}
+    >
       <mesh position={[0, 0, -0.02]} material={cork ? M.dark : M.white}>
         <boxGeometry args={[w + 0.08, h + 0.08, 0.04]} />
       </mesh>

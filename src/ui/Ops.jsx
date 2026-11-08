@@ -4,6 +4,9 @@ import { Check, Close } from './Icons'
 import { durationShort, effStatus, hhmm } from '../lib/constants'
 import { health } from '../lib/health'
 import { forgetOffice, listOffices, renameOffice, viewOnlyLink } from '../lib/auth'
+import { FLOORS, STYLES, WALLS } from '../lib/look'
+import { useStore } from '../lib/createStore'
+import { prefStore, setPref } from '../lib/notify'
 
 export const STUCK_MS = 20 * 60e3
 /** A bot that has said "working" on the same step for 20+ minutes may be stuck. */
@@ -72,14 +75,14 @@ export function QueueModal({ waiting, now, onDecide, onPick, onClose, readonly }
 }
 
 /** Is the live connection healthy? Delays, last message, silent bots, storage. */
-export function HealthModal({ conn, data, now, onClose, topic }) {
+export function HealthModal({ conn, data, now, onClose, topic, onPickBot }) {
   const [, tick] = useState(0)
+  const [open, setOpen] = useState(null) // which list is expanded: 'hidden' | 'silent' | 'error' | 'waiting'
   useEffect(() => {
     const id = setInterval(() => tick((x) => x + 1), 1000)
     return () => clearInterval(id)
   }, [])
   const avg = health.delays.length ? Math.round(health.delays.reduce((a, b) => a + b, 0) / health.delays.length) : null
-  const silent = data.order.filter((n) => now - (data.bots[n]?.ts || 0) > 2 * 3600e3)
   let storage = 0
   try {
     for (const k of Object.keys(localStorage)) if (k.startsWith('bot-office')) storage += (localStorage.getItem(k) || '').length
@@ -87,32 +90,93 @@ export function HealthModal({ conn, data, now, onClose, topic }) {
     /* ignore */
   }
   const ok = conn === 'live' || conn === 'demo'
-  const rows = [
-    ['Conexão', conn === 'live' ? 'Ao vivo' : conn === 'demo' ? 'Demonstração' : conn === 'syncing' ? 'Sincronizando' : 'Reconectando', ok ? 'good' : 'warn'],
-    ['Conectado há', health.connectedAt ? durationShort(now - health.connectedAt) : '—'],
-    ['Última mensagem', health.lastAt ? `${durationShort(Date.now() - health.lastAt).replace('há ', '')} atrás` : 'nenhuma desde que abriu'],
-    ['Atraso médio', avg == null ? '—' : `${(avg / 1000).toFixed(1)} s`, avg != null && avg > 5000 ? 'warn' : 'good'],
-    ['Mensagens na última hora', String(health.received.length)],
-    ['Bots', `${data.order.length}`],
-    ['Bots ocultos', (() => { const h = data.order.filter((n) => data.bots[n]?.hidden); return h.length ? `${h.length} · ${h.slice(0, 4).join(', ')}${h.length > 4 ? '…' : ''}` : '0' })()],
-    ['Último roster', data.rosterT ? `${durationShort(Date.now() - data.rosterT).replace('há ', '')} atrás` : 'nenhum recebido'],
-    ['Sem sinal há 2h+', `${silent.length}`, silent.length ? 'warn' : 'good'],
-    ['Dados salvos no navegador', `${(storage / 1024).toFixed(0)} KB`],
+  const bots = data.order.map((n) => data.bots[n]).filter(Boolean)
+  const visible = bots.filter((b) => !b.hidden)
+  const by = (st) => visible.filter((b) => effStatus(b, now) === st)
+  const groups = {
+    working: by('working'),
+    waiting: by('waiting_user'),
+    error: by('error'),
+    resting: [...by('resting'), ...by('done')],
+    hidden: bots.filter((b) => b.hidden),
+    silent: visible.filter((b) => now - (b.ts || 0) > 2 * 3600e3),
+  }
+  // messages per 5 minutes over the last hour
+  const buckets = Array(12).fill(0)
+  for (const t of health.received) {
+    const k = 11 - Math.floor((Date.now() - t) / 300000)
+    if (k >= 0 && k < 12) buckets[k]++
+  }
+  const maxB = Math.max(1, ...buckets)
+  const segs = [['working', 'Trabalhando', '#2FB36B'], ['waiting', 'Esperando você', '#F5A524'], ['error', 'Com erro', '#E5484D'], ['resting', 'Parados', '#9aa0aa']]
+  const tiles = [
+    ['Conexão', conn === 'live' ? 'Ao vivo' : conn === 'demo' ? 'Demo' : conn === 'syncing' ? 'Sincronizando' : 'Reconectando', ok ? 'good' : 'warn', health.connectedAt ? `há ${durationShort(now - health.connectedAt)}` : ''],
+    ['Atraso médio', avg == null ? '—' : `${(avg / 1000).toFixed(1)} s`, avg != null && avg > 5000 ? 'warn' : 'good', 'entre o bot e esta tela'],
+    ['Mensagens', String(health.received.length), '', 'na última hora'],
+    ['Última mensagem', health.lastAt ? durationShort(Date.now() - health.lastAt).replace('há ', '') : '—', '', health.lastAt ? 'atrás' : 'desde que abriu'],
   ]
-  return (
-    <Modal title="Saúde do sistema" onClose={onClose}>
-      <div className="hgrid">
-        {rows.map(([k, v, c]) => (
-          <div key={k} className={`hrow ${c || ''}`}>
-            <span>{k}</span>
-            <b>{v}</b>
+  const List = ({ k, label, tone }) => {
+    const list = groups[k]
+    return (
+      <div className={`dash-list ${tone || ''}`}>
+        <button className="dl-h" onClick={() => setOpen(open === k ? null : k)} aria-expanded={open === k} disabled={!list.length}>
+          <span>{label}</span>
+          <b>{list.length}</b>
+          {list.length > 0 && <span className={`chev ${open === k ? 'up' : ''}`} />}
+        </button>
+        {open === k && (
+          <div className="dl-b">
+            {list.map((b) => (
+              <button key={b.name} className="li" onClick={() => (onPickBot && !b.hidden ? (onPickBot(b.name), onClose()) : null)}>
+                <Avatar bot={b} size={22} />
+                <span className="dl-n">{b.name}</span>
+                <span className="muted small">{b.team} · {b.ts ? durationShort(b.ts - now) : 'sem status'}</span>
+              </button>
+            ))}
           </div>
-        ))}
+        )}
       </div>
-      {silent.length > 0 && (
-        <p className="muted pad small">Sem sinal: {silent.slice(0, 12).join(', ')}{silent.length > 12 ? '…' : ''}</p>
-      )}
-      {!topic && <p className="muted pad small">Na demonstração os dados são simulados neste navegador.</p>}
+    )
+  }
+  return (
+    <Modal title="Painel do sistema" onClose={onClose}>
+      <div className="dash">
+        <div className="dash-tiles">
+          {tiles.map(([k, v, c, sub]) => (
+            <div key={k} className={`tile ${c}`}>
+              <span>{k}</span>
+              <b>{v}</b>
+              {sub && <small>{sub}</small>}
+            </div>
+          ))}
+        </div>
+        <div className="dash-card">
+          <div className="dc-h"><span>Mensagens por 5 min</span><small className="muted">última hora</small></div>
+          <div className="spark">
+            {buckets.map((v, i) => <i key={i} style={{ height: `${Math.max(4, (v / maxB) * 100)}%`, opacity: v ? 1 : 0.3 }} title={`${v} mensagens`} />)}
+          </div>
+        </div>
+        <div className="dash-card">
+          <div className="dc-h"><span>{visible.length} bots no escritório</span><small className="muted">{groups.hidden.length} ocultos</small></div>
+          <div className="stack">
+            {segs.map(([k, l, c]) => groups[k].length > 0 && <i key={k} style={{ flex: groups[k].length, background: c }} title={`${l}: ${groups[k].length}`} />)}
+          </div>
+          <div className="legend">
+            {segs.map(([k, l, c]) => (
+              <span key={k}><i style={{ background: c }} />{l} <b>{groups[k].length}</b></span>
+            ))}
+          </div>
+        </div>
+        <List k="waiting" label="Esperando você" tone="warn" />
+        <List k="error" label="Com erro" tone="bad" />
+        <List k="silent" label="Sem sinal há 2 h ou mais" />
+        <List k="hidden" label="Ocultos no Grok" />
+        <div className="dash-foot muted small">
+          <span>Último roster: {data.rosterT ? durationShort(data.rosterT - Date.now()) : 'nenhum'}</span>
+          <span>Dados no navegador: {(storage / 1024).toFixed(0)} KB</span>
+        </div>
+        {!topic && <p className="muted small">Na demonstração os dados são simulados neste navegador.</p>}
+      </div>
     </Modal>
   )
 }
@@ -215,47 +279,77 @@ export function OfficesModal({ current, onSwitch, onAdd, onClose }) {
 
 export { hhmm }
 
-/** Shared office settings: name, weekly goal and pet per team. Saved to the topic, so every device sees them. */
-export function OfficeSettingsModal({ data, floors, onSave, onClose }) {
-  const teams = floors.filter((f) => f.bots.length).map((f) => f.key)
-  const [name, setName] = useState(data.office?.name || '')
-  const [goals, setGoals] = useState(() => Object.fromEntries(teams.map((t) => [t, { label: data.goals?.[t]?.label || '', target: data.goals?.[t]?.target || '' }])))
-  const [pets, setPets] = useState(() => Object.fromEntries(teams.map((t) => [t, data.pets?.[t] || ''])))
-  const save = () => {
-    const g = {}
-    for (const [t, v] of Object.entries(goals)) if (+v.target > 0) g[t] = { label: v.label || 'Meta da semana', target: +v.target }
-    const p = {}
-    for (const [t, v] of Object.entries(pets)) if (v) p[t] = v
-    onSave({ office: { name }, goals: g, pets: p })
-    onClose()
+/** Personalise the office: a style preset, floor & wall finish and which decor is shown. */
+export function LookModal({ look, onPreview, onSave, onClose, shared }) {
+  const [l, setL] = useState(look)
+  const names = useStore(prefStore, (p) => p.names)
+  const set = (patch) => {
+    const n = { ...l, ...patch }
+    setL(n)
+    onPreview(n)
   }
+  const pickStyle = (k) => {
+    const { label, sub, ...rest } = STYLES[k]
+    set({ style: k, ...rest })
+  }
+  const toggles = [
+    ['plants', 'Plantas'],
+    ['rugs', 'Tapetes'],
+    ['art', 'Quadros e prateleiras'],
+    ['furniture', 'Cantinhos (pufes, fliperama, poltronas)'],
+    ['accent', 'Faixa com a cor do time'],
+    ['pet', 'Pet do andar'],
+    ['seasonal', 'Decoração de datas especiais'],
+  ]
   return (
-    <Modal title="Configurar escritório" onClose={onClose} wide>
-      <p className="muted pad small">Fica salvo no seu tópico: todos os aparelhos com este código veem igual.</p>
-      <label className="fld">
-        <span>Nome do escritório</span>
-        <input value={name} onChange={(e) => setName(e.target.value.slice(0, 40))} placeholder="Escritório de Bots" />
-      </label>
-      <div className="teamcfg">
-        <div className="tc-h"><span>Time</span><span>Meta da semana</span><span>Quantidade</span><span>Pet</span></div>
-        {teams.map((t) => (
-          <div key={t} className="tc-r">
-            <b>{t}</b>
-            <input value={goals[t].label} placeholder="Tarefas da semana" onChange={(e) => setGoals((g) => ({ ...g, [t]: { ...g[t], label: e.target.value.slice(0, 40) } }))} aria-label={`Meta de ${t}`} />
-            <input type="number" min="0" value={goals[t].target} placeholder="0" onChange={(e) => setGoals((g) => ({ ...g, [t]: { ...g[t], target: e.target.value } }))} aria-label={`Quantidade da meta de ${t}`} />
-            <select value={pets[t]} onChange={(e) => setPets((p) => ({ ...p, [t]: e.target.value }))} aria-label={`Pet de ${t}`}>
-              <option value="">Automático</option>
-              <option value="cat">Gato</option>
-              <option value="dog">Cachorro</option>
-              <option value="fish">Aquário</option>
-              <option value="none">Nenhum</option>
-            </select>
+    <Modal title="Personalizar escritório" onClose={() => (onPreview(null), onClose())}>
+      <div className="look">
+        <div className="look-styles">
+          {Object.entries(STYLES).map(([k, st]) => (
+            <button key={k} className={`look-style ${l.style === k ? 'on' : ''}`} aria-pressed={l.style === k} onClick={() => pickStyle(k)}>
+              <span className="ls-prev" style={{ '--f': FLOORS[st.floor][1], '--w': WALLS[st.wall][1] }}>
+                <i className="ls-wall" />
+                <i className="ls-floor" />
+                {st.plants && <i className="ls-plant" />}
+                {st.rugs && <i className="ls-rug" />}
+                <i className="ls-desk" />
+              </span>
+              <b>{st.label}</b>
+              <small>{st.sub}</small>
+            </button>
+          ))}
+        </div>
+        <div className="look-row">
+          <span>Piso</span>
+          <div className="swatches">
+            {Object.entries(FLOORS).map(([k, [lab, c]]) => (
+              <button key={k} className={`sw ${l.floor === k ? 'on' : ''}`} style={{ '--c': c }} onClick={() => set({ floor: k })} title={lab} aria-label={`Piso ${lab}`} aria-pressed={l.floor === k} />
+            ))}
           </div>
-        ))}
-      </div>
-      <div className="wrow" style={{ marginTop: 10 }}>
-        <button className="ghost" onClick={onClose}>Cancelar</button>
-        <button className="dark" onClick={save}>Salvar para todos</button>
+        </div>
+        <div className="look-row">
+          <span>Paredes</span>
+          <div className="swatches">
+            {Object.entries(WALLS).map(([k, [lab, c]]) => (
+              <button key={k} className={`sw ${l.wall === k ? 'on' : ''}`} style={{ '--c': c }} onClick={() => set({ wall: k })} title={lab} aria-label={`Paredes ${lab}`} aria-pressed={l.wall === k} />
+            ))}
+          </div>
+        </div>
+        <div className="look-toggles">
+          {toggles.map(([k, lab]) => (
+            <button key={k} className="toggle" onClick={() => set({ [k]: !l[k] })} aria-pressed={!!l[k]}>
+              {lab} <i className={l[k] ? 'on' : ''} />
+            </button>
+          ))}
+          <button className="toggle" onClick={() => setPref('names', !names)} aria-pressed={names}>
+            Nomes dos bots sempre visíveis <i className={names ? 'on' : ''} />
+          </button>
+        </div>
+        <p className="muted small">{shared ? 'Vale para todas as telas que usam este escritório.' : 'Vale só para este aparelho.'}</p>
+        <div className="wrow">
+          <button className="ghost" onClick={() => (onPreview(null), onClose())}>Cancelar</button>
+          <button className="dark" onClick={() => (onSave(l), onClose())}>Salvar</button>
+        </div>
       </div>
     </Modal>
   )

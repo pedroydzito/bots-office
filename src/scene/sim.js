@@ -61,8 +61,15 @@ export function statusAt(history, name, t) {
   return null
 }
 const isBusy = (h) => h && (h.status === 'working' || h.status === 'waiting_user' || h.status === 'error')
+/** Late at night (22h–7h local): free bots doze at their desk instead of wandering. */
+export function isLate(t) {
+  const hr = new Date(t).getHours()
+  return hr >= 22 || hr < 7
+}
 export function isSleepy(h, t) {
-  return !h || ((h.status === 'idle' || h.status === 'done') && t - h.t > 3600e3) || (!isBusy(h) && t - h.t > 3600e3)
+  if (isBusy(h)) return false
+  // during the day a free bot keeps doing its routines (coffee, water, chats, the pet...)
+  return isLate(t) && (!h || t - h.t > 3600e3)
 }
 
 // ------------------------------------------------------------------ conversations
@@ -114,17 +121,17 @@ function tripsFor(floorKey, names, layout, slot, data, all) {
   if (tripCache.has(key)) return tripCache.get(key)
   if (tripCache.size > 400) tripCache.clear()
   const slotStart = slot * SLOT
-  const cap = Math.max(1, Math.round(names.length / 3))
+  const cap = Math.max(1, Math.round(names.length / (isLate(slotStart) ? 4 : 2.2)))
   const taken = new Set()
   const trips = {}
   const order = [...names].sort((a, b) => rnd(a, slot, 'o') - rnd(b, slot, 'o'))
   for (const n of order) {
     if (Object.keys(trips).length >= cap) break
-    const personality = 0.12 + 0.5 * rnd(n, 'personality')
+    const personality = 0.22 + 0.5 * rnd(n, 'personality')
     if (rnd(n, slot, 'go') > personality) continue
     const depart = slotStart + 2000 + rnd(n, slot, 'd') * 22000
     const h = statusAt(data.history || [], n, depart)
-    if (!h || isBusy(h) || isSleepy(h, depart)) continue
+    if (isBusy(h) || isSleepy(h, depart)) continue
     if (all.some((s) => (s.from === n || s.to === n) && s.t0 < depart + SLOT && s.endT > depart - 5000)) continue
     const likes = [...KINDS].sort((a, b) => rnd(n, 'likes', a) - rnd(n, 'likes', b)).slice(0, 6)
     // a quick chat at a colleague's desk is also an option (if that colleague is free)

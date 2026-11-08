@@ -185,3 +185,8 @@ export function uiSound(kind = 'click') {
     /* audio blocked */
   }
 }
+
+/** Browsers start audio suspended until a real gesture: resume everything we created. */
+export function resumeAudio() {
+  for (const c of [ctx, mctx, uctx]) if (c && c.state === 'suspended') c.resume().catch(() => {})
+}

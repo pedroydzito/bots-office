@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
 import { Shell } from './Floor'
-import { Bookshelf, Plant, GlassElevator, MATS } from './Props'
+import { Armchair, BeanBag, Bookshelf, Clock, FloorLamp, GlassElevator, InfoBoard, MATS, MeetingTable, Plant, Poster, Rug, WallShelf } from './Props'
 import { makeCardTexture } from './textures'
 import { durationShort } from '../lib/constants'
 
@@ -146,6 +146,30 @@ export default function Cortex({ layout, cortex, floorNum, floorY, night }) {
       ))}
       <Plant position={[W / 2 - 0.9, 0, -D / 2 + 0.9]} scale={1.2} kind={1} />
       <Plant position={[-W / 2 + 0.7, 0, D / 2 - 0.7]} scale={0.9} />
+      {/* reading corner by the windows */}
+      <Rug x={W / 2 - 2.4} z={D / 2 - 2.0} w={3.4} d={2.4} color="#efe4d6" round />
+      <Armchair x={W / 2 - 3.2} z={D / 2 - 1.9} c="#c9d4e3" />
+      <Armchair x={W / 2 - 1.8} z={D / 2 - 1.9} c="#e8cfc4" />
+      <FloorLamp x={W / 2 - 0.9} z={D / 2 - 2.3} night={night} />
+      <Plant position={[W / 2 - 0.8, 0, D / 2 - 0.8]} scale={1.05} kind={1} />
+      {/* study table + bean bags on the other side */}
+      <MeetingTable x={-W / 2 + 4.6} z={D / 2 - 2.6} />
+      <BeanBag x={-W / 2 + 2.0} z={D / 2 - 1.4} c="#8F59F9" />
+      <BeanBag x={-W / 2 + 3.0} z={D / 2 - 0.9} c="#F5B70A" />
+      <Plant position={[W / 2 - 0.9, 0, 0.6]} scale={1.15} />
+      <Plant position={[-W / 2 + 0.8, 0, -0.9]} scale={0.85} kind={1} />
+      {/* walls: clock, the latest notes as a readable board, art and a shelf on the right wall */}
+      <Clock position={[-W / 2 + 3.6, 2.45, -D / 2 + 0.28]} />
+      <InfoBoard
+        position={[-W / 2 + 0.29, 1.75, 0.2]}
+        rotation={[0, Math.PI / 2, 0]}
+        title="Notas recentes"
+        accent="#F93498"
+        empty="Nenhuma nota ainda"
+        lines={(cortex?.recent || []).slice(0, 5).map((r) => ({ a: r.title || 'Sem título', b: relTime(r.updated) }))}
+      />
+      <Poster position={[-W / 2 + 0.27, 1.85, 2.6]} rotation={[0, Math.PI / 2, 0]} seed={31} w={0.85} h={1.1} />
+      <WallShelf position={[-W / 2 + 0.25, 1.3, -2.0]} rotation={[0, Math.PI / 2, 0]} w={1.2} />
       <GlassElevator layout={layout} night={night} />
       {!cortex && <CardSprite title="Sem dados do Cortex" sub='envie {"cortex":…}' scale={0.32} position={[0, 4.1, 0]} />}
     </group>

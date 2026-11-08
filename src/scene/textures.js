@@ -111,15 +111,69 @@ export function makeClockFace() {
 }
 
 export function createTVCanvas() {
-  const [c, g] = canvas(512, 300)
+  const [c, g] = canvas(1024, 600)
+  g.scale(2, 2)
   const t = tex(c)
+  t.anisotropy = 8
   return { canvas: c, ctx: g, texture: t }
 }
 
 /** Team TV: weekly goal progress on top, activity sparkline below. */
+/** Team TV: what the floor is doing right now + the latest deliveries. */
+export function drawTVNow(tv, { working, waiting, errors, total, last }) {
+  const { ctx: g } = tv
+  const W = 512, H = 300
+  g.fillStyle = '#0b0f17'
+  g.fillRect(0, 0, W, H)
+  g.fillStyle = '#7b8494'
+  g.font = `700 17px ${FONT}`
+  g.fillText('AGORA NO ANDAR', 24, 36)
+  g.textAlign = 'right'
+  g.fillText(`${total} BOTS`, W - 24, 36)
+  g.textAlign = 'left'
+  const stats = [['Trabalhando', working, '#34d399'], ['Esperando você', waiting, '#f5a524'], ['Com erro', errors, '#ff6369']]
+  stats.forEach(([l, v, col], i) => {
+    const x = 24 + i * 160
+    g.fillStyle = v ? col : '#3a4252'
+    g.font = `800 50px ${FONT}`
+    g.fillText(String(v), x, 96)
+    g.fillStyle = '#9aa3b2'
+    g.font = `600 15px ${FONT}`
+    g.fillText(l, x, 120)
+  })
+  g.fillStyle = '#1d2433'
+  g.fillRect(24, 140, W - 48, 2)
+  g.fillStyle = '#7b8494'
+  g.font = `700 15px ${FONT}`
+  g.fillText('ÚLTIMAS ENTREGAS', 24, 170)
+  if (!last.length) {
+    g.fillStyle = '#5d6676'
+    g.font = `500 17px ${FONT}`
+    g.fillText('Nada concluído hoje ainda', 24, 200)
+  }
+  last.slice(0, 3).forEach((l, i) => {
+    const y = 200 + i * 34
+    g.fillStyle = '#ffffff'
+    g.font = `700 18px ${FONT}`
+    let a = l.bot
+    while (g.measureText(a).width > 150 && a.length > 3) a = a.slice(0, -2)
+    g.fillText(a, 24, y)
+    g.fillStyle = '#9aa3b2'
+    g.font = `500 16px ${FONT}`
+    let b = l.step || 'Concluído'
+    while (g.measureText(b).width > 230 && b.length > 3) b = b.slice(0, -2)
+    g.fillText(b, 184, y)
+    g.textAlign = 'right'
+    g.fillStyle = '#6b7484'
+    g.fillText(l.ago, W - 24, y)
+    g.textAlign = 'left'
+  })
+  tv.texture.needsUpdate = true
+}
+
 export function drawTV(tv, { label, value, series, goal, accent = '#34d399' }) {
-  const { ctx: g, canvas: c } = tv
-  const W = c.width, H = c.height
+  const { ctx: g } = tv
+  const W = 512, H = 300
   g.fillStyle = '#0b0f17'
   g.fillRect(0, 0, W, H)
   // goal
@@ -216,7 +270,8 @@ export function makeRugTexture(color) {
 
 /** Wall board (cork or white) with a title and up to 6 lines. Redrawn when its content changes. */
 export function drawBoard(ctx, canvasEl, { title, lines, accent = '#8F59F9', cork = false, empty = '' }) {
-  const g = ctx, W = canvasEl.width, H = canvasEl.height
+  const g = ctx, S = canvasEl.width / 512, W = 512, H = canvasEl.height / S
+  g.setTransform(S, 0, 0, S, 0, 0)
   g.fillStyle = cork ? '#d8b27e' : '#ffffff'
   g.fillRect(0, 0, W, H)
   if (cork) {
@@ -244,14 +299,100 @@ export function drawBoard(ctx, canvasEl, { title, lines, accent = '#8F59F9', cor
       g.restore()
     }
     g.fillStyle = l.color || '#16181d'
-    g.font = `700 25px ${FONT}`
+    g.font = `700 27px ${FONT}`
     let a = l.a
     while (g.measureText(a).width > W - 90 && a.length > 3) a = a.slice(0, -2)
     g.fillText(a, 42, y + 25)
     g.fillStyle = '#5d636e'
-    g.font = `500 21px ${FONT}`
+    g.font = `500 22px ${FONT}`
     let b = l.b || ''
     while (g.measureText(b).width > W - 90 && b.length > 3) b = b.slice(0, -2)
     g.fillText(b, 42, y + 48)
   })
+}
+
+// ---- monitor screens that match what the bot is doing (built once, shared by every desk)
+let screens = null
+function screen(draw) {
+  const [c, g] = canvas(256, 160)
+  draw(g, 256, 160)
+  const t = tex(c)
+  t.anisotropy = 4
+  return t
+}
+function bar(g, x, y, w, h, c) {
+  g.fillStyle = c
+  roundRect(g, x, y, w, h, Math.min(3, h / 2))
+  g.fill()
+}
+export function getScreenTextures() {
+  if (screens) return screens
+  screens = {
+    // inbox: list of messages, one highlighted
+    mail: screen((g, W, H) => {
+      g.fillStyle = '#f4f6fa'; g.fillRect(0, 0, W, H)
+      bar(g, 0, 0, 62, H, '#e3e8f0')
+      for (let i = 0; i < 5; i++) bar(g, 10, 14 + i * 18, 40, 7, i === 0 ? '#1E86FC' : '#b9c2d0')
+      for (let i = 0; i < 6; i++) {
+        const y = 10 + i * 25
+        bar(g, 70, y, W - 78, 21, i === 1 ? '#dbeafe' : '#ffffff')
+        bar(g, 76, y + 4, 60, 5, '#334155')
+        bar(g, 76, y + 12, 120 - (i % 3) * 20, 4, '#94a3b8')
+      }
+    }),
+    // dashboard: bars + a line chart
+    chart: screen((g, W, H) => {
+      g.fillStyle = '#0f172a'; g.fillRect(0, 0, W, H)
+      for (let i = 0; i < 3; i++) (bar(g, 10 + i * 82, 10, 74, 34, '#1e293b'), bar(g, 18 + i * 82, 18, 30, 6, '#64748b'), bar(g, 18 + i * 82, 30, 44, 8, ['#34d399', '#60a5fa', '#fbbf24'][i]))
+      const hs = [30, 52, 40, 70, 58, 86, 74, 95]
+      hs.forEach((h, i) => bar(g, 14 + i * 14, H - 12 - h, 9, h, '#60a5fa'))
+      g.strokeStyle = '#34d399'; g.lineWidth = 3; g.beginPath()
+      ;[60, 48, 52, 34, 40, 22, 28].forEach((v, i) => (i ? g.lineTo(140 + i * 18, H - 60 + v) : g.moveTo(140, H - 60 + v)))
+      g.stroke()
+    }),
+    // writing: a document with paragraphs
+    doc: screen((g, W, H) => {
+      g.fillStyle = '#e8ebf0'; g.fillRect(0, 0, W, H)
+      bar(g, 48, 6, W - 96, H - 6, '#ffffff')
+      bar(g, 62, 18, 90, 9, '#111827')
+      for (let i = 0; i < 10; i++) bar(g, 62, 36 + i * 11, i % 4 === 3 ? 70 : W - 132 - (i % 3) * 8, 5, '#9ca3af')
+    }),
+    // design: canvas with shapes + layers panel
+    design: screen((g, W, H) => {
+      g.fillStyle = '#1f1f24'; g.fillRect(0, 0, W, H)
+      bar(g, 0, 0, 46, H, '#2a2a31')
+      for (let i = 0; i < 6; i++) bar(g, 8, 10 + i * 14, 30, 6, '#4b4b55')
+      bar(g, 60, 12, W - 74, H - 24, '#f8fafc')
+      g.fillStyle = '#8F59F9'; g.beginPath(); g.arc(110, 70, 26, 0, Math.PI * 2); g.fill()
+      bar(g, 150, 40, 70, 46, '#F93498')
+      bar(g, 80, 110, 140, 14, '#F5B70A')
+    }),
+    // browsing / research: a web page with search results
+    web: screen((g, W, H) => {
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H)
+      bar(g, 0, 0, W, 18, '#e5e7eb')
+      bar(g, 40, 5, W - 80, 9, '#ffffff')
+      for (let i = 0; i < 4; i++) (bar(g, 16, 28 + i * 32, 110, 7, '#1d4ed8'), bar(g, 16, 39 + i * 32, W - 40, 4, '#9ca3af'), bar(g, 16, 46 + i * 32, W - 90, 4, '#9ca3af'))
+    }),
+    // video editing: preview + timeline
+    video: screen((g, W, H) => {
+      g.fillStyle = '#111114'; g.fillRect(0, 0, W, H)
+      bar(g, 50, 8, W - 100, 82, '#334155')
+      g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(120, 34); g.lineTo(142, 49); g.lineTo(120, 64); g.fill()
+      for (let r = 0; r < 3; r++) for (let i = 0; i < 5; i++) bar(g, 8 + i * 50 + r * 9, 100 + r * 18, 40, 12, ['#8F59F9', '#1E86FC', '#2FB36B'][r])
+    }),
+  }
+  return screens
+}
+
+/** Pick a screen from the bot's current step (pt/en keywords); null = code. */
+export function screenKind(step) {
+  const s = (step || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  if (/e-?mail|inbox|caixa|mensag|respond|whats|dm\b|lead|contato|outreach/.test(s)) return 'mail'
+  if (/relat|metric|dado|planilha|analis|venda|financ|dashboard|kpi|numero|custo|receita|uso/.test(s)) return 'chart'
+  if (/design|thumb|imagem|arte|logo|banner|layout|criativ|carross|figma|visual/.test(s)) return 'design'
+  if (/video|edic|editand|corte|reels|shorts|youtube|clipe/.test(s)) return 'video'
+  if (/pesquis|busca|procur|vaga|site|navega|research|scrap|monitor/.test(s)) return 'web'
+  if (/escrev|texto|post|roteiro|artigo|diario|doc|copy|legenda|resum|nota|redig|lista/.test(s)) return 'doc'
+  return null
 }
