@@ -60,6 +60,7 @@ export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOff
   const [music, setMusic] = useState(() => prefs.get('music', false))
   const [ui, setUi] = useState(() => prefs.get('uisound', true))
   const names = useStore(prefStore, (p) => p.names)
+  const gfx = useStore(prefStore, (p) => p.gfx || 'auto')
   const [vib, setVib] = useState(() => prefs.get('vibrate', true))
   const [soundsOpen, setSoundsOpen] = useState(false)
   const ref = useRef(null)
@@ -96,6 +97,16 @@ export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOff
               <Bell size={14} /> Notificações <i className={notify ? 'on' : ''} />
             </button>
           )}
+          {/* graphics quality */}
+          <div className="gfx">
+            <span><Layers size={14} /> Gráficos</span>
+            <div className="seg">
+              {[['auto', 'Auto'], ['alta', 'Alta'], ['media', 'Média'], ['leve', 'Leve']].map(([k, l]) => (
+                <button key={k} className={gfx === k ? 'on' : ''} aria-pressed={gfx === k} onClick={() => setPref('gfx', k)}>{l}</button>
+              ))}
+            </div>
+            <small>{gfx === 'leve' ? 'Sem céu, cidade, efeitos e sombras: para PCs sem placa de vídeo' : gfx === 'media' ? 'Sem efeitos de luz; mantém o resto' : gfx === 'alta' ? 'Todos os efeitos' : `Escolhe sozinho pelo aparelho${document.documentElement.classList.contains('gfx-leve') ? ' (Leve neste)' : ''}`}</small>
+          </div>
           {/* all sounds grouped in one expandable row */}
           <button className="toggle" aria-expanded={soundsOpen} onClick={() => setSoundsOpen((x) => !x)}>
             <Speaker size={14} /> Sons e vibração <span className={`chev ${soundsOpen ? 'up' : ''}`} />

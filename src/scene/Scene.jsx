@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import Sky from './Sky'
+import { useStore } from '../lib/createStore'
+import { prefStore } from '../lib/notify'
 import { resetTextureCaches } from './textures'
 import { Environment, Lightformer, OrbitControls, PerformanceMonitor } from '@react-three/drei'
 import * as THREE from 'three'
@@ -287,16 +289,17 @@ function FrameLimiter({ fps = 30 }) {
 const MOBILE = typeof window !== 'undefined' && (window.matchMedia?.('(pointer: coarse)').matches || window.innerWidth < 820)
 
 // nobody touching the screen for a while: draw ~30 fps instead of the full refresh rate
-function IdleSaver() {
+function IdleSaver({ cap = false }) {
   const { setFrameloop, invalidate } = useThree()
   useEffect(() => {
     let last = Date.now(), idle = false, tick = 0
     const wake = () => {
       last = Date.now()
+      if (cap) return
       if (idle) (idle = false, (perfFlags.idle = false), clearInterval(tick), setFrameloop('always'))
     }
     const chk = setInterval(() => {
-      if (!idle && Date.now() - last > 30000) (idle = true, (perfFlags.idle = true), setFrameloop('demand'), (tick = setInterval(() => invalidate(), 33)))
+      if (!idle && (cap || Date.now() - last > 30000)) (idle = true, (perfFlags.idle = true), setFrameloop('demand'), (tick = setInterval(() => invalidate(), 33)))
     }, 2000)
     const vis = () => {
       if (document.hidden) (clearInterval(tick), setFrameloop('never'))
@@ -311,7 +314,7 @@ function IdleSaver() {
       document.removeEventListener('visibilitychange', vis)
       evs.forEach((e) => window.removeEventListener(e, wake))
     }
-  }, [setFrameloop, invalidate])
+  }, [setFrameloop, invalidate, cap])
   return null
 }
 
@@ -359,11 +362,19 @@ export default function Scene(props) {
     }
   }, [])
   const [dpr, setDpr] = useState(MOBILE ? Math.min(2, window.devicePixelRatio || 1) : Math.min(1.5, window.devicePixelRatio || 1))
+  // graphics quality: Auto picks Leve on machines without a real GPU (software / basic renderer)
+  const gfxPref = useStore(prefStore, (p) => p.gfx || 'auto')
+  const [weakGpu, setWeakGpu] = useState(false)
+  const q = gfxPref === 'auto' ? (weakGpu ? 'leve' : MOBILE || low ? 'media' : 'alta') : gfxPref
+  useEffect(() => {
+    document.documentElement.classList.toggle('gfx-leve', q === 'leve')
+  }, [q])
+  const effDpr = q === 'leve' ? Math.min(dpr, MOBILE ? 1.25 : 1) : q === 'media' ? Math.min(dpr, MOBILE ? 1.6 : 1.25) : dpr
   return (
     <Canvas
       key={glKey}
-      shadows={MOBILE ? false : 'soft'}
-      dpr={dpr}
+      shadows={q === 'alta' && !MOBILE ? 'soft' : false}
+      dpr={effDpr}
       gl={{ antialias: true, powerPreference: 'high-performance', stencil: false }}
       camera={{ fov: 30, position: [12, 10 + floorIdx * FLOOR_H, 12], near: 1, far: 160 }}
       onPointerMissed={onPointerMissed}
@@ -373,12 +384,20 @@ export default function Scene(props) {
         // long-press opens our quick menu, not the browser's (no selection / blue flash on phones)
         gl.domElement.addEventListener('contextmenu', (e) => e.preventDefault())
         gl.domElement.addEventListener('webglcontextrestored', () => (resetTextureCaches(), setGlKey((k) => k + 1)))
+        try {
+          const ctx = gl.getContext()
+          const ext = ctx.getExtension('WEBGL_debug_renderer_info')
+          const r = String(ext ? ctx.getParameter(ext.UNMASKED_RENDERER_WEBGL) : ctx.getParameter(ctx.RENDERER))
+          if (/swiftshader|llvmpipe|softpipe|basic render|microsoft basic|software/i.test(r)) setWeakGpu(true)
+        } catch {
+          /* unknown: keep auto */
+        }
         gl.toneMapping = THREE.ACESFilmicToneMapping
         gl.toneMappingExposure = 1.05
       }}
     >
-      <IdleSaver />
-      {!MOBILE && !low && (
+      <IdleSaver cap={q === 'leve'} />
+      {!MOBILE && q === 'alta' && (
         <Suspense fallback={null}>
           <Effects night={!!props.night} overview={!!props.overview} />
         </Suspense>
@@ -405,9 +424,9 @@ export default function Scene(props) {
           setDpr((d) => Math.min(MOBILE ? Math.min(2, window.devicePixelRatio || 1) : Math.min(2, window.devicePixelRatio || 1), d + 0.25))
         }}
       />
-      <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={low} />
-      <Sky nightness={nightness ?? (night ? 1 : 0)} weather={weather} desktop={!MOBILE && !low} />
-      <Weather kind={weather} low={low} />
+      <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={low || q !== 'alta'} />
+      {q !== 'leve' && <Sky nightness={nightness ?? (night ? 1 : 0)} weather={weather} desktop={!MOBILE && q === 'alta'} />}
+      {q !== 'leve' && <Weather kind={weather} low={low || q === 'media'} />}
       <Environment resolution={32} frames={1}>
         <Lightformer form="rect" intensity={2.5} position={[0, 6, 0]} rotation-x={Math.PI / 2} scale={[12, 12, 1]} />
         <Lightformer form="rect" intensity={1.2} position={[8, 3, 4]} rotation-y={-Math.PI / 2} scale={[8, 4, 1]} />
