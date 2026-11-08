@@ -151,7 +151,8 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         if (lum < 0.18 || sat < 0.12) color = '#6E7BF2'
       }
       // a team lead (diretor, gestor, head...) gets the separate desk: put them first
-      const lead = fl.bots.length >= 3 ? fl.bots.find((n) => LEAD_RE.test(n) && !st.bots[n]?.hidden) : null
+      const LEAD_ROLE = /^(ceo|principal|founder|fundador|dono|owner|lead|lider|líder|chefe|diretor|diretora|gestor|head)$/i
+      const lead = fl.bots.find((n) => LEAD_ROLE.test(st.bots[n]?.role || '') && !st.bots[n]?.hidden) || (fl.bots.length >= 3 ? fl.bots.find((n) => LEAD_RE.test(n) && !st.bots[n]?.hidden) : null)
       return { ...fl, color, lead: lead || null, bots: lead ? [lead, ...fl.bots.filter((n) => n !== lead)] : fl.bots }
     })
     return [...f, { key: CORTEX_KEY, name: 'Cortex', num: f.length + 1, bots: [], color: '#F93498' }]

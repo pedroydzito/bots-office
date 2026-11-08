@@ -10,7 +10,7 @@ import StaticMerge from './StaticMerge'
 
 let mergeGen = 0
 import {
-  Aquarium, Arcade, Bench, DESK_FINISH, Foosball, PingPong, SoloSetup, Armchair, BeanBag, Poster, WallShelf, Bookshelf, FloorLamp, Printer, Vending, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, GlassElevator, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
+  Aquarium, Arcade, Bench, PoolTable, DESK_FINISH, ExecDesk, isVip, Foosball, PingPong, SoloSetup, Armchair, BeanBag, Poster, WallShelf, Bookshelf, FloorLamp, Printer, Vending, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, GlassElevator, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
   StickyWall, TVScreen, WallTitle, WaterCooler, Workstation,
 } from './Props'
 import { durationShort, effStatus, STATUS, talkActive } from '../lib/constants'
@@ -93,6 +93,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   const floorIdx = floor.num - 1
   const petKind0 = data.pets?.[floor.key] || ['cat', 'dog', 'fish'][hash(floor.key) % 3]
   const look = useStore(lookStore, (l) => l)
+  const deskMat = DESK_FINISH[(layout.variant >>> 10) % DESK_FINISH.length]
   const petKind = look.pet && !compact ? petKind0 : 'none'
   const homeSet = useMemo(() => new Set(home), [home])
   const seatOf = useMemo(() => {
@@ -178,7 +179,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       {layout.decor.map((d, i) =>
         d.type === 'rug' ? (look.rugs ? <Rug key={i} {...d} /> : null) :
         d.type === 'meeting' ? <MeetingTable key={i} x={d.x} z={d.z} /> :
-        d.type === 'whiteboard' ? <Whiteboard key={i} x={d.x} z={layout.meet.z - 1.75} /> :
+        d.type === 'whiteboard' ? <Whiteboard key={i} x={d.x} z={-D / 2 + 0.32} /> :
         d.type === 'beanbag' ? <BeanBag key={i} x={d.x} z={d.z} c={d.c} /> :
         d.type === 'plant' ? (!look.plants ? null : <Plant key={i} position={[d.x, 0, d.z]} kind={d.k} scale={1.1} />) :
         d.type === 'vending' ? <Vending key={i} x={d.x} z={d.z} /> :
@@ -186,15 +187,17 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         d.type === 'arcade' ? <Arcade key={i} x={d.x} z={d.z} /> :
         d.type === 'armchair' ? <Armchair key={i} x={d.x} z={d.z} c={d.c} /> :
         d.type === 'pingpong' ? <PingPong key={i} x={d.x} z={d.z} /> :
+        d.type === 'pool' ? <PoolTable key={i} x={d.x} z={d.z} /> :
+        d.type === 'bookcase' ? <Bookshelf key={i} position={[d.x, 0, d.z]} width={1.7} shelves={4} seed={i + 5} /> :
         d.type === 'foosball' ? <Foosball key={i} x={d.x} z={d.z} /> :
         d.type === 'bench' ? <Bench key={i} x={d.x} z={d.z} /> :
         d.type === 'lamp' ? <FloorLamp key={i} x={d.x} z={d.z} night={night} /> : null,
       )}
       {layout.rows.filter((r) => r.solo && !r.lead).map((r, i) => (
-        <SoloSetup key={'solo' + i} row={r} seed={(layout.variant >>> 4) + i} rug={['#e9e4f5', '#e4eef0', '#f1e7d8', '#e8efe2', '#f3e3e6'][((layout.variant >>> 4) + i) % 5]} />
+        <SoloSetup key={'solo' + i} row={r} seed={(layout.variant >>> 4) + i} rug={['#cbb8ec', '#b5d3dc', '#e3c7a2', '#c2d9b4', '#ebbcc8', '#b8c6e6'][((layout.variant >>> 4) + i) % 6]} />
       ))}
       {layout.rows.map((r, i) => (
-        <DeskRow key={i} row={r} mat={DESK_FINISH[(layout.variant >>> 10) % DESK_FINISH.length]} />
+        <DeskRow key={i} row={r} mat={deskMat} />
       ))}
       <group userData={{ dynamic: true }}>{petKind !== 'fish' && petKind !== 'none' && <Pet layout={layout} floorIdx={floorIdx} kind={petKind} />}</group>
       {petKind === 'fish' && <Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} />}
@@ -204,7 +207,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       {look.art && layout.wall.artZ.map((z, i) => (
         <Poster key={i} position={[-W / 2 + 0.27, 1.75, z]} rotation={[0, Math.PI / 2, 0]} seed={(hash(floor.key) % 97) + i * 3} w={0.85} h={1.05} />
       ))}
-      {look.art && W / 2 - 3.8 - (-W / 2 + 7.0) > 1.6 && (layout.artKind === 'plants' ? (
+      {look.art && layout.artX != null && (layout.artKind === 'plants' ? (
         <group>
           <WallShelf position={[(layout.artX ?? 0) - 0.2, 1.55, -D / 2 + 0.25]} w={1.6} />
           <WallShelf position={[(layout.artX ?? 0) + 0.3, 1.05, -D / 2 + 0.25]} w={1.2} />
@@ -245,6 +248,16 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       {home.map((n, i) => {
         const seat = layout.seats[i]
         if (!seat) return null
+        if (seat.lead)
+          // the lead's executive desk, turned to face the team (wall + highlights board behind)
+          return (
+            <group key={n} position={[seat.x, 0, seat.z]} rotation={[0, seat.yaw || 0, 0]}>
+              <ExecDesk mat={deskMat} vip={isVip(data.bots[n])} />
+              <Chair x={0} z={0} owner={n} hiddenOwner={data.bots[n]?.hidden ? n : null} yawBase={seat.yaw || 0} />
+              <Workstation seat={{ x: 0, z: 0 }} idx={i} status={data.bots[n]?.hidden ? 'resting' : effStatus(data.bots[n], now)} night={night} step={data.bots[n]?.step} />
+              <DeskDecor seat={{ x: 0, z: 0 }} items={data.bots[n]?.desk} name={n} trophies={data.stats?.[n]?.got?.length || 0} />
+            </group>
+          )
         return (
           <group key={n}>
             <Chair x={seat.x} z={seat.z} owner={n} hiddenOwner={data.bots[n]?.hidden ? n : null} />

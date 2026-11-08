@@ -180,7 +180,7 @@ function eventsFor(ctx, T) {
   if (evCache.size > 2000) evCache.clear()
   const all = sessions(data, T)
   const ev = []
-  const seatGoal = seat ? { kind: 'seat', x: seat.x, z: seat.z, az: seat.az, ex: seat.ex, yaw: 0 } : null
+  const seatGoal = seat ? { kind: 'seat', x: seat.x, z: seat.z, az: seat.az, ex: seat.ex, yaw: seat.yaw || 0 } : null
   const elev = { ...layout.elevator, hide: true }
   const homeFloorOf = (n) => world.seatOf(n)?.floorIdx
   const here = (n) => names.includes(n)
@@ -267,7 +267,7 @@ export function simBot(ctx, T) {
       seat, layout, states: [{
         pos: seat ? { x: seat.x, z: seat.z } : { x: layout.elevator.x, z: layout.elevator.z },
         atSeat: role === 'home', hidden: role === 'visit', path: null, pathT0: 0,
-        goal: role === 'home' && seat ? { kind: 'seat', x: seat.x, z: seat.z, az: seat.az, ex: seat.ex, yaw: 0 } : null,
+        goal: role === 'home' && seat ? { kind: 'seat', x: seat.x, z: seat.z, az: seat.az, ex: seat.ex, yaw: seat.yaw || 0 } : null,
         talk: null, departT: -Infinity,
       }],
     }

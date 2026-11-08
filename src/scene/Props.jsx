@@ -34,11 +34,11 @@ const M = {
 export { M as MATS }
 
 /** Swivel chair: turns with the bot sitting on it, eases back when empty. */
-export const Chair = memo(function Chair({ x, z, owner, hiddenOwner }) {
+export const Chair = memo(function Chair({ x, z, owner, hiddenOwner, yawBase = 0 }) {
   const top = useRef()
   useFrame((_, dt) => {
     if (!top.current) return
-    const want = seatYaw.get(owner) ?? 0
+    const want = (seatYaw.get(owner) ?? yawBase) - yawBase
     top.current.rotation.y += (want - top.current.rotation.y) * Math.min(1, dt * 8)
   })
   const tipProps = hiddenOwner
@@ -67,7 +67,7 @@ export const Chair = memo(function Chair({ x, z, owner, hiddenOwner }) {
 })
 
 /** Desk finishes: every floor picks one (white, oak, walnut, black). */
-export const DESK_FINISH = [M.desk, sharedMat('#d8b48a', 0.55), sharedMat('#8a6446', 0.5), sharedMat('#2d3036', 0.45)]
+export const DESK_FINISH = [sharedMat('#c8996a', 0.55), sharedMat('#8a6446', 0.5), sharedMat('#d8b48a', 0.55), sharedMat('#a87850', 0.5)]
 
 export function DeskRow({ row, mat = M.desk }) {
   const w = row.x2 - row.x1
@@ -1181,6 +1181,50 @@ export function Bench({ x, z }) {
       <mesh position={[0, 0.42, 0]} material={sharedMat('#c49a6c', 0.6)} castShadow><boxGeometry args={[1.6, 0.06, 0.45]} /></mesh>
       {[-0.65, 0.65].map((lx) => (
         <mesh key={lx} position={[lx, 0.2, 0]} material={M.dark}><boxGeometry args={[0.06, 0.4, 0.4]} /></mesh>
+      ))}
+    </group>
+  )
+}
+
+
+/** The main bot of the company (roster "role": "ceo" / "principal"). */
+export const isVip = (b) => !!b && /^(ceo|principal|founder|fundador|dono|owner)$/i.test(b.role || '')
+
+/** Executive desk for a team lead: wider desk, rug, plant and a name plaque (local coords: seat at 0,0, facing +z). */
+export function ExecDesk({ mat, vip }) {
+  const w = vip ? 2.2 : 1.9
+  return (
+    <group>
+      <Rug x={0} z={0.4} w={w + 0.9} d={2.6} color={vip ? '#d9b26a' : '#b9a4d6'} round={false} />
+      <RoundedBox args={[w, 0.07, 1.0]} radius={0.03} position={[0, 0.72, 0.85]} material={mat} castShadow receiveShadow />
+      {/* front modesty panel + side pedestals */}
+      <mesh position={[0, 0.38, 1.32]} material={mat}><boxGeometry args={[w - 0.06, 0.66, 0.04]} /></mesh>
+      {[-w / 2 + 0.25, w / 2 - 0.25].map((x) => (
+        <mesh key={x} position={[x, 0.35, 0.85]} material={mat} castShadow><boxGeometry args={[0.46, 0.7, 0.92]} /></mesh>
+      ))}
+      {/* name plaque facing the team */}
+      <mesh position={[0, 0.8, 1.28]} rotation={[-0.35, 0, 0]} material={vip ? sharedMat('#d4a72c', 0.3, 0.7) : M.dark}><boxGeometry args={[0.36, 0.08, 0.02]} /></mesh>
+      <Plant position={[-(w / 2 + 0.45), 0, 0.3]} scale={0.95} kind={vip ? 0 : 1} />
+    </group>
+  )
+}
+
+
+/** Pool table. */
+export function PoolTable({ x, z }) {
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, 0.72, 0]} material={sharedMat('#6b4a33', 0.5)} castShadow receiveShadow><boxGeometry args={[2.5, 0.16, 1.45]} /></mesh>
+      <mesh position={[0, 0.805, 0]} material={sharedMat('#1f7a4d', 0.9)}><boxGeometry args={[2.25, 0.01, 1.2]} /></mesh>
+      {[[-1.12, -0.6], [0, -0.62], [1.12, -0.6], [-1.12, 0.6], [0, 0.62], [1.12, 0.6]].map(([px, pz], i) => (
+        <mesh key={i} position={[px, 0.812, pz]} material={M.black}><cylinderGeometry args={[0.055, 0.055, 0.01, 12]} /></mesh>
+      ))}
+      {[['#ffffff', -0.6, 0.1], ['#E5484D', 0.3, -0.1], ['#F5B70A', 0.42, 0.06], ['#1E86FC', 0.42, -0.26], ['#111111', 0.55, -0.08]].map(([c, bx, bz], i) => (
+        <mesh key={'b' + i} position={[bx, 0.84, bz]} material={sharedMat(c, 0.25)}><sphereGeometry args={[0.035, 10, 8]} /></mesh>
+      ))}
+      <mesh position={[-0.2, 0.83, 0.35]} rotation={[0, 0, Math.PI / 2 - 0.05]} material={sharedMat('#c49a6c', 0.5)}><cylinderGeometry args={[0.012, 0.018, 1.4, 6]} /></mesh>
+      {[[-1.0, -0.55], [1.0, -0.55], [-1.0, 0.55], [1.0, 0.55]].map(([lx, lz], i) => (
+        <mesh key={'l' + i} position={[lx, 0.32, lz]} material={sharedMat('#4a3324', 0.6)}><boxGeometry args={[0.14, 0.64, 0.14]} /></mesh>
       ))}
     </group>
   )

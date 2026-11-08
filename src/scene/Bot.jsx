@@ -406,7 +406,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
       const look = rnd(p.name, 'look', Math.floor(T / 6000))
       targetYaw = st === 'working' ? (look < 0.25 ? (look - 0.125) * 5 : 0) : (look - 0.5) * 1.1
       if (st === 'waiting_user') targetYaw = Math.max(-1.1, Math.min(1.1, Math.atan2(camera.position.x - sim.x, camera.position.z - sim.z)))
-      targetYaw = Math.max(-0.55, Math.min(0.55, targetYaw))
+      targetYaw = Math.max(-0.55, Math.min(0.55, targetYaw)) + (p.seat?.yaw || 0)
     } else if (sim.at && sim.at.yaw != null) targetYaw = sim.at.yaw
     v.yaw = lerpAngle(v.yaw, targetYaw, 1 - Math.exp(-dt * 8))
     if (seated && sim.y > 0.3) seatYaw.set(p.name, v.yaw)
@@ -719,7 +719,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
   if (gone) return null
 
   return (
-    <group ref={root} scale={bot.hidden ? 0.88 : 1}>
+    <group ref={root} scale={bot.hidden ? 0.88 : /^(ceo|principal|founder|fundador|dono|owner)$/i.test(bot.role || '') ? 1.15 : 1}>
       <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} geometry={ringGeo} material={ringMat} visible={!hidden} />
       {BLOB && !hidden && (
         <mesh ref={blob} rotation={[-Math.PI / 2, 0, 0]} geometry={blobGeo} material={(blobMat ||= new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false }))} scale={asset.width * 1.5} />
@@ -791,7 +791,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
       </group>
       {!hidden && !view.off && (!p_compact || selected || spotlight) && (
         <Html position={[0, iconY, 0]} center distanceFactor={10} zIndexRange={[30, 0]} pointerEvents="none">
-          <div className={`bot-tag${selected ? ' sel' : ''}${bot.hidden ? ' is-hidden' : ''}`}>
+          <div className={`bot-tag${selected ? ' sel' : ''}${bot.hidden ? ' is-hidden' : ''}${/^(ceo|principal|founder|fundador|dono|owner)$/i.test(bot.role || '') ? ' vip' : ''}`}>
             {speechText && (
               <div className={`speech ${talking ? 'talk' : ''}`}>
                 {!talking && <b>{bot.name}</b>}

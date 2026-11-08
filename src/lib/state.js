@@ -80,6 +80,8 @@ function setLook(d, name, l) {
   if (typeof l.birthday === 'string' && /^(\d{4}-)?\d{2}-\d{2}$/.test(l.birthday.trim())) b.birthday = l.birthday.trim().slice(-5)
   const team = clean(l.team || l.group, 32)
   if (team) b.team = team
+  const role = clean(l.role, 24)
+  if (role) b.role = role
   const id = clean(l.id, 64)
   if (id) b.id = id
   d.bots[name] = b

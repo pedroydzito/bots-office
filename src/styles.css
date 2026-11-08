@@ -786,3 +786,6 @@ button, summary, [role='button'] { border-radius: 10px; }
   .celebration { left: 12px; right: 12px; transform: none; max-width: none; }
   .celebration b, .celebration span { white-space: normal; }
 }
+
+.bot-tag.vip .name-mini, .bot-tag.vip .name-chip { background: linear-gradient(90deg, #c9952b, #f2c94c); color: #2b1d00; font-weight: 800; }
+.bot-tag.vip .name-mini::before, .bot-tag.vip .name-chip::before { content: '★ '; }

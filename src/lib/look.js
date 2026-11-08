@@ -7,7 +7,7 @@ export const STYLES = {
   aconchegante: { label: 'Aconchegante', sub: 'Madeira, tons quentes e muitas plantas', floor: 'wood', wall: 'sand', plants: true, art: true, rugs: true, furniture: true, accent: true },
   minimalista: { label: 'Minimalista', sub: 'Só mesas, bots e o essencial', floor: 'concrete', wall: 'white', plants: false, art: false, rugs: false, furniture: false, accent: false },
 }
-export const FLOORS = { light: ['Claro', '#eceef1'], wood: ['Madeira', '#c9a27c'], concrete: ['Concreto', '#c3c6cb'], dark: ['Grafite', '#4a4e57'] }
+export const FLOORS = { light: ['Claro', '#e4dfd8'], wood: ['Madeira', '#c9a27c'], concrete: ['Concreto', '#c3c6cb'], dark: ['Grafite', '#4a4e57'] }
 export const WALLS = { white: ['Branco', '#f3f3f5'], sand: ['Areia', '#efe5d6'], grey: ['Cinza', '#d7dbe1'], sage: ['Sálvia', '#d5e0d0'] }
 export const ACCENTS = { roxo: ['Roxo', '#8F59F9'], azul: ['Azul', '#1E86FC'], verde: ['Verde', '#18A957'], laranja: ['Laranja', '#F26B1D'], rosa: ['Rosa', '#E83E8C'], grafite: ['Grafite', '#4B5563'] }
 const BOOLS = ['plants', 'art', 'rugs', 'furniture', 'accent', 'pet', 'seasonal']
