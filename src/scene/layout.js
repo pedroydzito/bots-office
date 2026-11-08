@@ -81,7 +81,79 @@ const KITS = [
   { w: 2.8, d: 2.2, items: (x, z, c) => [{ type: 'rug', x, z, w: 2.8, d: 2.0, color: c, round: true }, { type: 'beanbag', x: x - 0.6, z, c: '#F93498' }, { type: 'beanbag', x: x + 0.6, z: z + 0.2, c: '#1E86FC' }], pois: () => [] },
 ]
 
-function fillEmpty({ W, D, v, decor, pois, rows, seats, xL, furniture, lounge, game }) {
+const GAME_SIZE = { pool: [3.0, 2.0], pingpong: [3.1, 2.0], foosball: [1.4, 1.9], arcade: [1.2, 1.2] }
+
+/**
+ * Put the floor's table game in the open strip in front of the desks (not jammed next to the aquarium).
+ * Uses a light collision check (desks / existing decor / lounge / aquarium) so it still finds a spot.
+ */
+function placeGame({ W, D, decor, pois, rows, seats, lounge, game, deskFront, preferX, v }) {
+  if (!game || decor.some((d) => GAME_SIZE[d.type])) return
+  const C = 0.5
+  const nx = Math.ceil(W / C), nz = Math.ceil(D / C)
+  const taken = new Uint8Array(nx * nz)
+  const mark = (x1, z1, x2, z2) => {
+    for (let i = Math.max(0, Math.floor((x1 + W / 2) / C)); i <= Math.min(nx - 1, Math.floor((x2 + W / 2) / C)); i++)
+      for (let j = Math.max(0, Math.floor((z1 + D / 2) / C)); j <= Math.min(nz - 1, Math.floor((z2 + D / 2) / C)); j++) taken[j * nx + i] = 1
+  }
+  const free = (x1, z1, x2, z2) => {
+    if (x1 < -W / 2 + 0.5 || x2 > W / 2 - 0.5 || z1 < -D / 2 + 0.7 || z2 > D / 2 - 0.5) return false
+    for (let i = Math.floor((x1 + W / 2) / C); i <= Math.floor((x2 + W / 2) / C); i++)
+      for (let j = Math.floor((z1 + D / 2) / C); j <= Math.floor((z2 + D / 2) / C); j++) if (taken[j * nx + i]) return false
+    return true
+  }
+  // solid stuff only (not walkways): desks, furniture, lounge sofa, aquarium
+  for (const r of rows) mark(r.x1 - 0.7, r.z - 1.2, r.x2 + 0.7, r.z + 1.2)
+  for (const st of seats) if (st.lead) mark(st.x - 1.0, st.z - 1.5, st.x + 2.0, st.z + 1.5)
+  const FOOT = { meeting: [1.3, 1.0], vending: [0.5, 0.55], printer: [0.5, 0.4], pool: [1.5, 0.95], pingpong: [1.55, 0.95], foosball: [0.6, 0.9], arcade: [0.55, 0.55], bench: [0.9, 0.45], armchair: [0.55, 0.55], beanbag: [0.55, 0.55], plant: [0.35, 0.35], lamp: [0.25, 0.25], bookcase: [0.9, 0.3] }
+  for (const d of decor) {
+    if (d.type === 'rug') continue
+    const f = FOOT[d.type] || [0.5, 0.5]
+    mark(d.x - f[0], d.z - f[1], d.x + f[0], d.z + f[1])
+  }
+  mark(lounge.x - 1.7, lounge.z - 1.4, lounge.x + 1.7, lounge.z + 1.2)
+  // aquarium: keep a clear gap so the foosball is never glued to it
+  {
+    const ax = W / 2 - 0.7, az = -D / 2 + 4.6
+    mark(ax - 1.3, az - 1.0, ax + 0.8, az + 1.0)
+  }
+  let seed = (v || 1) ^ 0x9e3779b9
+  const rnd = () => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 4294967296)
+  const tries = [...new Set([game, 'foosball'])].filter((g) => g !== 'arcade')
+  const px = preferX ?? 0
+  const pz = (deskFront ?? 0) + 1.8
+  for (const g of tries) {
+    const [gw, gd] = GAME_SIZE[g]
+    const pad = g === 'foosball' ? 0.55 : 0.7
+    const cand = []
+    for (let x = -W / 2 + 2.2; x < W / 2 - 1.2; x += 0.4)
+      for (let z = -D / 2 + 2.8; z < D / 2 - 2.0; z += 0.4) {
+        if (!free(x - gw / 2 - pad, z - gd / 2 - pad, x + gw / 2 + pad, z + gd / 2 + pad)) continue
+        const dist = Math.hypot(x - px, z - pz)
+        // strong preference for the empty strip in front of the office desks
+        const frontBonus = z > (deskFront ?? -D) + 0.2 && z < lounge.z - 1.2 ? -6 : 0
+        cand.push([x, z, dist + frontBonus + rnd() * 0.2])
+      }
+    cand.sort((a, b) => a[2] - b[2])
+    if (!cand.length) continue
+    const [x, z] = cand[0]
+    decor.push({ type: g, x, z })
+    pois.push({ kind: g, x: x - gw / 2 - 0.45, z: z + (g === 'pool' ? 0.2 : 0), az: z, yaw: Math.PI / 2 })
+    pois.push({ kind: g, x: x + gw / 2 + 0.45, z: z - (g === 'pool' ? 0.2 : 0), az: z, yaw: -Math.PI / 2 })
+    return
+  }
+  if (game === 'arcade') {
+    for (let z = -D / 2 + 2.5; z < D / 2 - 2; z += 0.5) {
+      const x = W / 2 - 0.9
+      if (!free(x - 0.6, z - 0.9, x + 0.5, z + 0.9) || !free(x - 1.8, z - 0.5, x - 0.6, z + 0.5)) continue
+      decor.push({ type: 'arcade', x, z })
+      pois.push({ kind: 'arcade', x: x - 1.0, z, az: z, yaw: Math.PI / 2 })
+      return
+    }
+  }
+}
+
+function fillEmpty({ W, D, v, decor, pois, rows, seats, xL, furniture, lounge }) {
   if (!furniture) return
   const C = 0.5 // cell size
   const nx = Math.ceil(W / C), nz = Math.ceil(D / C)
@@ -103,7 +175,7 @@ function fillEmpty({ W, D, v, decor, pois, rows, seats, xL, furniture, lounge, g
   mark(-W / 2, D / 2 - 1.7, W / 2, D / 2)
   for (const r of rows) mark(r.x1 - 0.9, r.z - 1.6, r.x2 + 0.9, r.z + 1.6)
   for (const st of seats) if (st.lead) mark(st.x - 1.2, st.z - 2.0, st.x + 2.4, st.z + 2.0)
-  const FOOT = { meeting: [1.3, 1.0], vending: [0.5, 0.6], printer: [0.5, 0.45], pool: [1.5, 0.95], pingpong: [1.55, 0.95], foosball: [0.6, 0.9], arcade: [0.6, 0.6], bench: [1.0, 0.5], armchair: [0.6, 0.6], beanbag: [0.6, 0.6], plant: [0.4, 0.4], lamp: [0.3, 0.3] }
+  const FOOT = { meeting: [1.3, 1.0], vending: [0.5, 0.6], printer: [0.5, 0.45], pool: [1.5, 0.95], pingpong: [1.55, 0.95], foosball: [0.6, 0.9], arcade: [0.6, 0.6], bench: [1.0, 0.5], armchair: [0.6, 0.6], beanbag: [0.6, 0.6], plant: [0.4, 0.4], lamp: [0.3, 0.3], aquarium: [0.85, 0.55] }
   for (const d of decor) {
     if (d.type === 'rug' && !d.kit) continue // the big rug under the desks is covered by the desk marks
     const f = FOOT[d.type] || [0.6, 0.6]
@@ -113,46 +185,14 @@ function fillEmpty({ W, D, v, decor, pois, rows, seats, xL, furniture, lounge, g
   }
   for (const p of pois) mark(p.x - 0.5, Math.min(p.z, p.az ?? p.z) - 0.5, p.x + 0.5, Math.max(p.z, p.az ?? p.z) + 0.5)
   mark(lounge.x - 2.0, lounge.z - 1.8, lounge.x + 2.0, D / 2) // lounge
-  // try kits in a per-floor order, at candidate points scanned in a per-floor order
+  // aquarium footprint (same spot Floor uses for fish)
+  {
+    const ax = W / 2 - 0.7, az = -D / 2 + 4.6
+    mark(ax - 1.1, az - 0.85, ax + 0.7, az + 0.85)
+  }
   let seed = v || 1
   const rnd = () => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 4294967296)
   const order = KITS.map((k, i) => [k, rnd(), i]).sort((a, b) => a[1] - b[1])
-  // the floor's one game, if it didn't fit in its usual spot: wherever it fits, else a compact arcade
-  const GAME_SIZE = { pool: [3.0, 2.0], pingpong: [3.1, 2.0], foosball: [1.4, 1.9], arcade: [1.2, 1.2] }
-  if (game && !decor.some((d) => GAME_SIZE[d.type])) {
-    // free-standing tables only; an arcade cabinet belongs against a wall
-    const tries = [...new Set([game, 'foosball'])].filter((g) => g !== 'arcade')
-    for (const g of tries) {
-      const [gw, gd] = GAME_SIZE[g]
-      let done = false
-      for (let x = -W / 2 + 2; x < W / 2 - 1 && !done; x += 0.5)
-        for (let z = -D / 2 + 2.5; z < D / 2 - 1.8 && !done; z += 0.5) {
-          // a clear meter all around: bots stand on every side to play
-          if (!free(x - gw / 2 - 0.7, z - gd / 2 - 0.55, x + gw / 2 + 0.7, z + gd / 2 + 0.55)) continue
-          decor.push({ type: g, x, z })
-          // players on both ends, facing the table
-          if (g === 'arcade') pois.push({ kind: 'arcade', x: x - gw / 2 - 0.5, z, az: z, yaw: Math.PI / 2 })
-          else {
-            pois.push({ kind: g, x: x - gw / 2 - 0.45, z: z + (g === 'pool' ? 0.2 : 0), az: z, yaw: Math.PI / 2 })
-            pois.push({ kind: g, x: x + gw / 2 + 0.45, z: z - (g === 'pool' ? 0.2 : 0), az: z, yaw: -Math.PI / 2 })
-          }
-          mark(x - gw / 2 - 1.2, z - gd / 2 - 1.1, x + gw / 2 + 1.2, z + gd / 2 + 1.1)
-          done = true
-        }
-      if (done) break
-    }
-    if (!decor.some((d) => GAME_SIZE[d.type]) && game === 'arcade') {
-      // cabinet against the right wall, wherever there is a free stretch
-      for (let z = -D / 2 + 2.5; z < D / 2 - 2; z += 0.5) {
-        const x = W / 2 - 0.9
-        if (!free(x - 0.6, z - 0.9, x + 0.5, z + 0.9) || !free(x - 1.8, z - 0.5, x - 0.6, z + 0.5)) continue
-        decor.push({ type: 'arcade', x, z })
-        pois.push({ kind: 'arcade', x: x - 1.0, z, az: z, yaw: Math.PI / 2 })
-        mark(x - 1.9, z - 1.0, x + 0.6, z + 1.0)
-        break
-      }
-    }
-  }
   let placed = 0
   for (let pass = 0; pass < 2; pass++)
     for (const [kit, , ki] of order) {
@@ -310,15 +350,19 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true, seed =
   // printer under the TV
   decor.push({ type: 'printer', x: tvX - 1.2, z: -D / 2 + 0.6 })
   extraPois.push({ kind: 'printer', x: tvX - 1.2, z: -D / 2 + 1.5, yaw: Math.PI })
-  // arcade cabinet on the right, between the meeting corner and the lounge
+  // arcade cabinet on the right, between the meeting corner and the lounge (keep clear of the aquarium)
   const az1 = z0 + (rx2 - rx1 >= 3.4 ? 2.8 : 0.4), az2 = D / 2 - 4.9
+  const aquaZ = -D / 2 + 4.6
   if (furniture && W / 2 - blockEnd > 2.6 && az2 - az1 > 1.2) {
     const z = (az1 + az2) / 2
     const game = gamePlaced || theGame !== 'arcade' ? null : theGame
-    if (game) decor.push({ type: game, x: game === 'pool' || game === 'pingpong' ? W / 2 - 2.0 : W / 2 - 0.9, z })
-    gamePlaced = gamePlaced || !!game
+    // don't glue the cabinet to the aquarium: if too close, let placeGame find a better spot later
+    if (game && Math.abs(z - aquaZ) > 1.8) {
+      decor.push({ type: game, x: W / 2 - 0.9, z })
+      gamePlaced = true
+      extraPois.push({ kind: 'arcade', x: W / 2 - 1.9, z, yaw: Math.PI / 2 })
+    }
     decor.push({ type: 'lamp', x: W / 2 - 0.8, z: z + 1.3 })
-    if (game) extraPois.push({ kind: game === 'foosball' ? 'foosball' : 'arcade', x: W / 2 - 1.9, z, yaw: Math.PI / 2 })
   }
   // armchairs by the windows, between the phone spot and the lounge
   const ax = x0 + 4.6
@@ -395,15 +439,16 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true, seed =
       if (!has) decor.splice(i, 1)
     }
   }
-  // fill what is still empty (after mirroring, so nothing lands on a moved corner)
-  fillEmpty({ W, D, v, decor, pois, rows, seats, xL, furniture, lounge, game: theGame })
+  // table game first (open strip in front of the desks), then fill the rest with kits
+  if (furniture) placeGame({ W, D, decor, pois, rows, seats, lounge, game: theGame, deskFront, preferX: x0 + deskW / 2, v })
+  fillEmpty({ W, D, v, decor, pois, rows, seats, xL, furniture, lounge })
   for (const p of pois) {
     p.x = Math.min(W / 2 - 0.7, Math.max(-W / 2 + 0.7, p.x))
     p.z = Math.min(D / 2 - 0.7, Math.max(-D / 2 + 0.7, p.z))
   }
   const blockCx = x0 + ((cols - 1) * sx) / 2
   const blockCz = z0 + ((rowsN - 1) * sz) / 2
-  return {
+  const layout = {
     own, variant: v, lounge, tvX, artX, artKind,
     W, D, seats, rows: leadRow ? [...rows, leadRow] : rows, xL, cols, x0, z0, decor, meet,
     pois: pois.map((p) => ({ ...p, az: p.az ?? p.z })),
@@ -413,33 +458,180 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true, seed =
     focus: { x: blockCx + 0.3, z: blockCz - 0.9 },
     dist: viewDistance(deskW + 3, rowsN * sz + 3),
   }
+  layout.walk = buildWalkGrid(layout)
+  return layout
 }
 
 export function cortexLayout(W = 13, D = 12) {
   const lw = leftWall(W, D)
-  return {
+  const layout = {
     W, D, seats: [], rows: [], xL: -W / 2 + 3.05, cols: 0, decor: [], meet: { x: 0, z: 0 },
-    pois: [], elevator: lw.elevator, wall: lw,
+    pois: [], elevator: lw.elevator, wall: lw, variant: 0,
     focus: { x: 0, z: -0.8 },
     dist: 16,
   }
+  layout.walk = buildWalkGrid(layout)
+  return layout
 }
 
-/** Polyline through the lanes: own lane -> left corridor -> target lane. */
-export function planPath(a, b, L) {
-  const pts = [[a.x, a.z]]
-  if (a.ex != null) pts.push([a.ex, a.z], [a.ex, a.az])
-  else pts.push([a.x, a.az])
-  if (Math.abs(a.az - b.az) > 0.01) pts.push([L.xL, a.az], [L.xL, b.az])
-  if (b.ex != null) pts.push([b.ex, b.az], [b.ex, b.z])
-  else pts.push([b.x, b.az])
-  pts.push([b.x, b.z])
-  const out = [pts[0]]
-  for (const p of pts.slice(1)) {
-    const q = out[out.length - 1]
-    if (Math.hypot(p[0] - q[0], p[1] - q[1]) > 0.01) out.push(p)
+// ---- walk grid: bots go around furniture; only cut through if no other route exists
+const WALK_C = 0.4
+const BLOCK_FOOT = {
+  meeting: [1.15, 0.85], vending: [0.45, 0.5], printer: [0.45, 0.4],
+  pool: [1.35, 0.85], pingpong: [1.4, 0.85], foosball: [0.55, 0.8], arcade: [0.5, 0.5],
+  bench: [0.85, 0.4], armchair: [0.5, 0.5], beanbag: [0.5, 0.5], plant: [0.3, 0.3],
+  lamp: [0.22, 0.22], bookcase: [0.9, 0.3], aquarium: [0.75, 0.45],
+}
+
+function markRect(grid, nx, nz, W, D, C, x1, z1, x2, z2, val = 1) {
+  const i0 = Math.max(0, Math.floor((x1 + W / 2) / C))
+  const i1 = Math.min(nx - 1, Math.floor((x2 + W / 2) / C))
+  const j0 = Math.max(0, Math.floor((z1 + D / 2) / C))
+  const j1 = Math.min(nz - 1, Math.floor((z2 + D / 2) / C))
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) grid[j * nx + i] = val
+}
+
+/** Solid furniture + desks the bots must walk around. */
+export function buildWalkGrid(L) {
+  const { W, D } = L
+  const C = WALK_C
+  const nx = Math.ceil(W / C), nz = Math.ceil(D / C)
+  const hard = new Uint8Array(nx * nz)
+  // outer walls (keep a walkable rim inside)
+  markRect(hard, nx, nz, W, D, C, -W / 2, -D / 2, W / 2, -D / 2 + 0.45)
+  markRect(hard, nx, nz, W, D, C, -W / 2, D / 2 - 0.35, W / 2, D / 2)
+  markRect(hard, nx, nz, W, D, C, -W / 2, -D / 2, -W / 2 + 0.45, D / 2)
+  markRect(hard, nx, nz, W, D, C, W / 2 - 0.35, -D / 2, W / 2, D / 2)
+  // desks: solid tops, leave the front aisle free
+  for (const r of L.rows || []) markRect(hard, nx, nz, W, D, C, r.x1 - 0.15, r.z - 0.15, r.x2 + 0.15, r.z + 1.05)
+  for (const st of L.seats || []) {
+    if (st.lead) markRect(hard, nx, nz, W, D, C, st.x - 0.95, st.z - 0.6, st.x + 1.1, st.z + 1.1)
+    else markRect(hard, nx, nz, W, D, C, st.x - 0.55, st.z + 0.15, st.x + 0.55, st.z + 0.95)
   }
-  return out
+  for (const d of L.decor || []) {
+    if (d.type === 'rug') continue
+    const f = BLOCK_FOOT[d.type] || [0.45, 0.45]
+    markRect(hard, nx, nz, W, D, C, d.x - f[0], d.z - f[1], d.x + f[0], d.z + f[1])
+  }
+  // aquarium is rendered even when not in decor (fish pet): always block its default spot
+  {
+    const ax = W / 2 - 0.7, az = -D / 2 + 4.6
+    markRect(hard, nx, nz, W, D, C, ax - 0.75, az - 0.45, ax + 0.45, az + 0.45)
+  }
+  return { hard, nx, nz, C, W, D }
+}
+
+function cellOf(grid, x, z) {
+  const i = Math.max(0, Math.min(grid.nx - 1, Math.floor((x + grid.W / 2) / grid.C)))
+  const j = Math.max(0, Math.min(grid.nz - 1, Math.floor((z + grid.D / 2) / grid.C)))
+  return { i, j }
+}
+function worldOf(grid, i, j) {
+  return [i * grid.C - grid.W / 2 + grid.C / 2, j * grid.C - grid.D / 2 + grid.C / 2]
+}
+
+/** A* on the walk grid. `allowBlocked`: false = go around only; true = cut through if needed. */
+function astarOnce(grid, sx, sz, gx, gz, bias, allowBlocked) {
+  const { hard, nx, nz } = grid
+  const start = cellOf(grid, sx, sz)
+  const goal = cellOf(grid, gx, gz)
+  const N = nx * nz
+  const came = new Int32Array(N).fill(-1)
+  const gScore = new Float32Array(N).fill(Infinity)
+  const fScore = new Float32Array(N).fill(Infinity)
+  const open = new Uint8Array(N)
+  const si = start.i + start.j * nx, gi = goal.i + goal.j * nx
+  gScore[si] = 0
+  fScore[si] = Math.hypot(goal.i - start.i, goal.j - start.j)
+  open[si] = 1
+  let openCount = 1
+  // bias flips neighbour order so two bots prefer opposite sides of the same obstacle
+  const dirs = bias >= 0
+    ? [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]
+    : [[-1, 0], [0, 1], [1, 0], [0, -1], [-1, 1], [1, 1], [-1, -1], [1, -1]]
+  while (openCount > 0) {
+    let cur = -1, best = Infinity
+    for (let k = 0; k < N; k++) if (open[k] && fScore[k] < best) (best = fScore[k], cur = k)
+    if (cur < 0) break
+    if (cur === gi) break
+    open[cur] = 0
+    openCount--
+    const ci = cur % nx, cj = (cur / nx) | 0
+    for (const [di, dj] of dirs) {
+      const ni = ci + di, nj = cj + dj
+      if (ni < 0 || nj < 0 || ni >= nx || nj >= nz) continue
+      const nk = ni + nj * nx
+      const atEnd = nk === si || nk === gi
+      if (hard[nk] && !atEnd && !allowBlocked) continue
+      const step = (di && dj ? 1.414 : 1) + (hard[nk] && !atEnd ? 40 : 0)
+      const tent = gScore[cur] + step
+      if (tent >= gScore[nk]) continue
+      came[nk] = cur
+      gScore[nk] = tent
+      fScore[nk] = tent + Math.hypot(goal.i - ni, goal.j - nj) + bias * 0.04 * (ni - ci)
+      if (!open[nk]) (open[nk] = 1, openCount++)
+    }
+  }
+  if (came[gi] < 0 && gi !== si) return null
+  const cells = []
+  for (let c = gi; c >= 0; c = came[c]) {
+    cells.push(c)
+    if (c === si) break
+  }
+  cells.reverse()
+  const pts = cells.map((c) => worldOf(grid, c % nx, (c / nx) | 0))
+  const slim = [pts[0]]
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = slim[slim.length - 1], b = pts[i], c = pts[i + 1]
+    const abx = b[0] - a[0], abz = b[1] - a[1], bcx = c[0] - b[0], bcz = c[1] - b[1]
+    if (Math.abs(abx * bcz - abz * bcx) > 0.08) slim.push(b)
+  }
+  if (pts.length) slim.push(pts[pts.length - 1])
+  return slim
+}
+
+/** Prefer a free path around furniture; only cut through when that is impossible. */
+function astar(grid, sx, sz, gx, gz, bias = 0) {
+  return astarOnce(grid, sx, sz, gx, gz, bias, false) || astarOnce(grid, sx, sz, gx, gz, bias, true)
+}
+
+const pathCache = new Map()
+
+/**
+ * Walk around furniture to the target. `bias` (>0 prefer right, <0 prefer left) makes two bots
+ * take different routes to the same place. Only cuts through an object if no free path exists.
+ */
+export function planPath(a, b, L, bias = 0) {
+  const key = `${L.variant}|${a.x.toFixed(2)},${a.z.toFixed(2)}|${b.x.toFixed(2)},${b.z.toFixed(2)}|${bias.toFixed(2)}`
+  if (pathCache.has(key)) return pathCache.get(key)
+  if (pathCache.size > 800) pathCache.clear()
+
+  const pts = []
+  // stand up / leave the seat sideways before pathfinding across the room
+  if (a.ex != null && Math.hypot((a.x || 0) - a.ex, (a.z || 0) - (a.az ?? a.z)) > 0.05) {
+    pts.push([a.x, a.z], [a.ex, a.z], [a.ex, a.az ?? a.z])
+  } else if (a.az != null && Math.abs((a.z || 0) - a.az) > 0.05) {
+    pts.push([a.x, a.z], [a.x, a.az])
+  } else {
+    pts.push([a.x, a.z])
+  }
+  const start = pts[pts.length - 1]
+  const endApproach = b.ex != null ? [b.ex, b.az ?? b.z] : b.az != null && Math.abs((b.z || 0) - b.az) > 0.05 ? [b.x, b.az] : [b.x, b.z]
+  const grid = L.walk || (L.walk = buildWalkGrid(L))
+  const mid = astar(grid, start[0], start[1], endApproach[0], endApproach[1], bias) || [[start[0], start[1]], endApproach]
+  for (const p of mid) {
+    const q = pts[pts.length - 1]
+    if (Math.hypot(p[0] - q[0], p[1] - q[1]) > 0.05) pts.push(p)
+  }
+  if (b.ex != null) {
+    const q = pts[pts.length - 1]
+    if (Math.hypot(b.ex - q[0], (b.az ?? b.z) - q[1]) > 0.05) pts.push([b.ex, b.az ?? b.z])
+    if (Math.hypot(b.x - b.ex, b.z - (b.az ?? b.z)) > 0.05) pts.push([b.x, b.z])
+  } else if (Math.hypot(b.x - pts[pts.length - 1][0], b.z - pts[pts.length - 1][1]) > 0.05) {
+    pts.push([b.x, b.z])
+  }
+  pathCache.set(key, pts)
+  return pts
 }
 
 export function talkSpots(seat, k = 0) {

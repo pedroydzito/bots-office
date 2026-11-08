@@ -222,7 +222,7 @@ function ReactionFloat({ name }) {
   )
 }
 
-function StatusIcon({ status, talking }) {
+function StatusIcon({ status, talking, sleeping }) {
   if (talking)
     return (
       <div className="sb sb-talk">
@@ -251,6 +251,8 @@ function StatusIcon({ status, talking }) {
         </div>
       )
     default:
+      // Z only while actually sleeping at the chair (night + idle), never while wandering / playing
+      if (!sleeping) return null
       return <div className="sb sb-resting">z<i>z</i><i>z</i><i>z</i></div>
   }
 }
@@ -307,6 +309,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
   const [speech, setSpeech] = useState(false)
   const [confetti, setConfetti] = useState(0)
   const [focused, setFocused] = useState(false)
+  const [sleepingUi, setSleepingUi] = useState(false)
 
   const P = useRef({})
   P.current = { status, seat, layout, role, names, data, floorKey, hover, ts: bot.ts, name: bot.name, step: bot.step, compact: p_compact }
@@ -398,6 +401,10 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     }
     const lastSt = v.lastSt
     const sleeping = seated && st === 'resting' && !!lastSt && isSleepy(lastSt, T)
+    if (sleeping !== v.sleepingUi) {
+      v.sleepingUi = sleeping
+      setSleepingUi(sleeping)
+    }
 
     // ---- facing
     let targetYaw = v.yaw
@@ -730,10 +737,12 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
       }
     }
     if (waitingToPlay) {
-      // at the table, waiting for the other player: bouncing on the spot, looking around
-      by = Math.abs(Math.sin(t * 5 + phase)) * 0.03
-      ry = Math.sin(t * 1.4 + phase) * 0.3
-      hl = hr = 0.08
+      // arrived first: quiet warm-up on the rods, no "waiting for partner" bounce
+      rx = 0.12
+      hz = 0.12
+      hl = 0.06 + Math.sin(t * 2.2 + phase) * 0.03
+      hr = 0.06 + Math.sin(t * 1.8 + phase + 1) * 0.03
+      ry = Math.sin(t * 0.5 + phase) * 0.08
     }
     // ---- quirks: short gestures, picked from a shared clock
     const qslot = Math.floor(T / 13000)
@@ -908,7 +917,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
               </div>
             )}
             <ReactionFloat name={bot.name} />
-            <StatusIcon status={status} talking={talking} />
+            <StatusIcon status={status} talking={talking} sleeping={sleepingUi} />
             {status === 'working' && bot.progress != null && !talking && (
               <div className="bot-prog"><i style={{ width: `${bot.progress}%` }} /></div>
             )}
