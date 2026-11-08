@@ -393,7 +393,9 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
 
   // ambient sound follows the office (browsers only allow it after a click, so it resumes on first click)
   useEffect(() => {
-    updateAmbience({ workingCount: counts.working, weather: live.weather?.kind })
+    // only the floor on screen is heard (in the building view, everyone)
+    const heard = overview ? counts.working : (floors[floorIdx]?.bots || []).filter((n) => !live.bots[n]?.hidden && effStatus(live.bots[n], now) === 'working').length
+    updateAmbience({ workingCount: heard, weather: live.weather?.kind })
   })
   useEffect(() => {
     // browsers only allow audio after a gesture: resume saved choices on the first click

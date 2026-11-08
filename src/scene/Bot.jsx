@@ -553,6 +553,18 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
           ry = Math.sin(t * 0.9 + phase) * 0.45
           rz = Math.sin(t * 1.4 + phase) * 0.03
           break
+        case 'pet': {
+          // crouch next to the pet and pat it, with a happy little wiggle now and then
+          sy *= 0.86
+          rx = 0.32
+          hz = 0.22
+          hr = 0.05 + Math.abs(Math.sin(t * 5 + phase)) * 0.12
+          hl = 0.02
+          const joy = (t + phase) % 5 < 0.8
+          if (joy) (by = Math.abs(Math.sin(t * 14)) * 0.04, rz = Math.sin(t * 10) * 0.08)
+          eyeY = Math.min(eyeY, 0.35)
+          break
+        }
         case 'chat':
           // dropped by a colleague's desk for a quick chat
           hl = 0.1 + Math.sin(t * 6) * 0.06

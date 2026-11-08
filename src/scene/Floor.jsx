@@ -27,8 +27,9 @@ export function Shell({ layout, title, subtitle, accent }) {
   const { W, D } = layout
   return (
     <group>
-      <mesh position={[0, -0.175, 0]} material={slabMat} receiveShadow>
-        <boxGeometry args={[W, 0.35, D]} />
+      {/* a hair smaller than the storey slab: equal faces flickered (z-fighting) on the building side */}
+      <mesh position={[0, -0.18, 0]} material={slabMat}>
+        <boxGeometry args={[W - 0.04, 0.34, D - 0.04]} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]} material={floorMat} receiveShadow>
         <planeGeometry args={[W, D]} />
