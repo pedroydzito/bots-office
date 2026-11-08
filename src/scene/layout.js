@@ -217,7 +217,7 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true, seed =
     // the lead sits beside the "Destaques de hoje" board, facing the team, own desk
     // the lead sits with the wall (and the highlights board) behind, facing the team
     const x = -W / 2 + 1.25, z = lw0.boardZ
-    seats.unshift({ x, z, az: z - 1.05, row: -1, lead: true, yaw: Math.PI / 2 })
+    seats.unshift({ x, z, az: z - 1.05, row: -1, lead: true, yaw: Math.PI / 2, talk: { x: -W / 2 + 3.05, z: z - 0.3 } })
     leadRow = null
   }
   const xL = -W / 2 + 3.05
@@ -443,6 +443,14 @@ export function planPath(a, b, L) {
 }
 
 export function talkSpots(seat, k = 0) {
+  // seats in tight places (the lead's desk against the wall) talk out in the open walkway
+  if (seat.talk) {
+    const { x, z } = seat.talk
+    return {
+      host: { kind: 'spot', x, z: z - 0.45, az: z - 0.45, yaw: 0 },
+      visitor: { kind: 'spot', x: x + k * 0.72, z: z + 0.45, az: z + 0.45, yaw: Math.PI },
+    }
+  }
   return {
     host: { kind: 'spot', x: seat.x - 0.42, z: seat.az, az: seat.az, yaw: Math.PI / 2 },
     visitor: { kind: 'spot', x: seat.x + 0.42 + k * 0.72, z: seat.az, az: seat.az, yaw: -Math.PI / 2 },
