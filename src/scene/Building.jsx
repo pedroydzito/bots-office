@@ -6,7 +6,7 @@ import Cortex from './Cortex'
 import { FLOOR_H, OVERVIEW_GAP } from './layout'
 import { getFacadeTexture } from './textures'
 import { CORTEX_KEY } from '../lib/constants'
-import { MATS, Railing } from './Props'
+import { MATS, Railing, sceneFlags } from './Props'
 import { RoundedBox } from '@react-three/drei'
 import { floorOffset, ridePositions } from './registry'
 import { hash, rideFor, sessions, syncNow } from './sim'
@@ -197,6 +197,7 @@ export default function Building({ floors, selectedIdx, size, layouts, data, now
   })
   const y = selectedIdx * FLOOR_H
   const lay = sel ? layouts[sel.key] : null
+  sceneFlags.compact = !!overview
   if (overview) {
     floorOffset.x = 0
     floorOffset.z = 0

@@ -85,7 +85,7 @@ export function SearchField({ onOpen }) {
 export function MiniMap({ layout, floor, data, now, onPick, selected }) {
   const [, tick] = useState(0)
   useEffect(() => {
-    const id = setInterval(() => tick((x) => x + 1), 300)
+    const id = setInterval(() => !document.hidden && tick((x) => x + 1), 500)
     return () => clearInterval(id)
   }, [])
   if (!layout || !floor) return null

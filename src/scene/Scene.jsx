@@ -66,7 +66,7 @@ function SunWithTarget({ sunRef, low }) {
     return () => (gl.shadowMap.autoUpdate = true)
   }, [gl])
   useFrame(({ clock }) => {
-    if (clock.elapsedTime - lastShadow.current > 0.05) {
+    if (clock.elapsedTime - lastShadow.current > (perfFlags.idle ? 0.15 : 0.05)) {
       lastShadow.current = clock.elapsedTime
       gl.shadowMap.needsUpdate = true
     }
@@ -275,10 +275,10 @@ function IdleSaver() {
     let last = Date.now(), idle = false, tick = 0
     const wake = () => {
       last = Date.now()
-      if (idle) (idle = false, clearInterval(tick), setFrameloop('always'))
+      if (idle) (idle = false, (perfFlags.idle = false), clearInterval(tick), setFrameloop('always'))
     }
     const chk = setInterval(() => {
-      if (!idle && Date.now() - last > 30000) (idle = true, setFrameloop('demand'), (tick = setInterval(() => invalidate(), 33)))
+      if (!idle && Date.now() - last > 30000) (idle = true, (perfFlags.idle = true), setFrameloop('demand'), (tick = setInterval(() => invalidate(), 33)))
     }, 2000)
     const vis = () => {
       if (document.hidden) (clearInterval(tick), setFrameloop('never'))
@@ -296,6 +296,8 @@ function IdleSaver() {
   }, [setFrameloop, invalidate])
   return null
 }
+
+export const perfFlags = { idle: false }
 
 export default function Scene(props) {
   const { night, nightness, weather, tour, floorIdx, focus, selectedBot, onPointerMissed, onUserMove } = props
@@ -341,6 +343,8 @@ export default function Scene(props) {
         onFallback={() => {
           setLow(true)
           setDpr(MOBILE ? 1.15 : 1)
+          // struggling device: drop the frosted-glass blur on the interface too
+          document.documentElement.classList.add('lowfx')
         }}
         // phones are capped at 30 fps on purpose: judge them against that, not 60
         // aim at the screen's own refresh rate (120 Hz phone, 75 Hz monitor...)

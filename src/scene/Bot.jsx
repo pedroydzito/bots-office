@@ -287,7 +287,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
   const [focused, setFocused] = useState(false)
 
   const P = useRef({})
-  P.current = { status, seat, layout, role, names, data, floorKey, hover, ts: bot.ts, name: bot.name, step: bot.step }
+  P.current = { status, seat, layout, role, names, data, floorKey, hover, ts: bot.ts, name: bot.name, step: bot.step, compact: p_compact }
   const V = useRef({ yaw: 0, ui: '', hidden: true, gone: false })
 
   // speech bubble + confetti follow the status change time, so every screen shows them together
@@ -318,7 +318,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     if (!root.current) return
     // a few times per second: where is my label on screen? hide it when off screen, and hide
     // my name when a closer bot's name would overlap it
-    if (clock.elapsedTime - (v.lastProj || 0) > 0.2) {
+    if (!P.current.compact && clock.elapsedTime - (v.lastProj || 0) > 0.25) {
       v.lastProj = clock.elapsedTime
       projV.setFromMatrixPosition(root.current.matrixWorld)
       projV.y += asset.top + 0.42
@@ -399,6 +399,9 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
       botPositions.set(p.name, bp)
     }
     if (sim.sitting && sim.at) sitting.add(poiKey(sim.at))
+
+    // off screen: position is enough, skip the body animation (big win with many bots)
+    if (v.off && !p.hover) return
 
     // ---- body animation (all driven by the shared clock)
     let by = 0, rx = 0, rz = 0, ry = 0, sy = 1, eyeY = 1, jx = 0

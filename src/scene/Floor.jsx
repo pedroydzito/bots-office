@@ -106,10 +106,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   // ---- room status (door sign), wall boards, achievements, sleep-lights
   const sts = home.map((n) => effStatus(data.bots[n], now))
   const floorColor = sts.includes('error') ? STATUS.error.color : sts.includes('waiting_user') ? STATUS.waiting_user.color : sts.includes('working') ? STATUS.working.color : '#9aa0aa'
-  const waitingLines = Object.values(data.bots)
-    .filter((b) => effStatus(b, now) === 'waiting_user')
-    .slice(0, 6)
-    .map((b) => ({ a: b.name, b: b.step || 'Precisa do seu OK' }))
+  // (unused waiting-board lines removed: they scanned every bot on every render)
   const histLen = data.history?.length || 0
   const highlights = useMemo(() => {
     if (!data.history) return []
@@ -235,9 +232,10 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
           </group>
         )
       })}
-      {night && !allResting &&
+      {/* lights stay mounted (intensity 0 by day): adding/removing lights recompiles every shader */}
+      {!compact &&
         layout.rows.slice(0, 2).map((r, i) => (
-          <pointLight key={i} position={[(r.x1 + r.x2) / 2, 2.6, r.z + 0.6]} intensity={5} distance={7} decay={1.5} color="#ffe2b8" />
+          <pointLight key={i} position={[(r.x1 + r.x2) / 2, 2.6, r.z + 0.6]} intensity={night && !allResting ? 5 : 0} distance={7} decay={1.5} color="#ffe2b8" />
         ))}
 
       {/* bots hidden in the Grok app are not drawn: only their empty seat remains */}

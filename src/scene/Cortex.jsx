@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
 import { Shell } from './Floor'
+import StaticMerge from './StaticMerge'
 import { Armchair, BeanBag, Bookshelf, Clock, FloorLamp, GlassElevator, InfoBoard, MATS, MeetingTable, Plant, Poster, Rug, WallShelf } from './Props'
 import { makeCardTexture } from './textures'
 import { durationShort } from '../lib/constants'
@@ -117,6 +118,7 @@ export default function Cortex({ layout, cortex, floorNum, floorY, night }) {
   for (let z = -D / 2 + 3.0; z < layout.elevator.z - 1.6; z += 1.8) leftShelves.push(z)
   return (
     <group>
+      <StaticMerge key={`${W}|${D}|${night}`}>
       <Shell layout={layout} title="Cortex" subtitle={`Andar ${floorNum} · Biblioteca`} />
       {backShelves.map((x, i) => (
         <Bookshelf key={i} position={[x, 0, -D / 2 + 0.47]} width={1.7} shelves={4} seed={i + 11} />
@@ -124,6 +126,7 @@ export default function Cortex({ layout, cortex, floorNum, floorY, night }) {
       {leftShelves.map((z, i) => (
         <Bookshelf key={i} position={[-W / 2 + 0.47, 0, z]} rotation={[0, Math.PI / 2, 0]} width={1.7} shelves={4} seed={i + 21} />
       ))}
+      </StaticMerge>
       <group>
         <Brain notes={cortex?.notes} />
         <NoteCards recent={cortex?.recent || []} />

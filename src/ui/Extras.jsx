@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Avatar from './Avatar'
 import { Clock, Close, Layers, Party, Pause, Play, Search as SearchIco } from './Icons'
 import { CORTEX_KEY, effStatus, hhmm, STATUS } from '../lib/constants'
@@ -63,6 +63,18 @@ export function Timeline({ history, talkLog = [], value, onChange }) {
 /** Dots on the timeline: errors, approvals, finished work and meetings — click to jump there. */
 function Markers({ history, talkLog, min, max, onPick }) {
   const span = Math.max(1, max - min)
+  // recomputed only when the logs grow or the window moves by a minute (not on every 2 s tick)
+  const marks = useMemo(() => buildMarks(history, talkLog, min), [history.length, talkLog.length, Math.floor(min / 60000)]) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className="tl-marks">
+      {marks.slice(-80).map((m, i) => (
+        <button key={i} className="tl-mark" style={{ left: `${((m.t - min) / span) * 100}%`, '--c': m.c }} title={`${hhmm(m.t)} · ${m.l}`} aria-label={m.l} onClick={() => onPick(m.t)} />
+      ))}
+    </div>
+  )
+}
+
+function buildMarks(history, talkLog, min) {
   const marks = []
   for (const h of history) {
     if (h.t < min) continue
@@ -77,13 +89,7 @@ function Markers({ history, talkLog, min, max, onPick }) {
       if (overlap.length >= 2 && overlap[0] === s) marks.push({ t: s.t0, c: '#8F59F9', l: `Reunião com ${host}` })
     }
   }
-  return (
-    <div className="tl-marks">
-      {marks.slice(-80).map((m, i) => (
-        <button key={i} className="tl-mark" style={{ left: `${((m.t - min) / span) * 100}%`, '--c': m.c }} title={`${hhmm(m.t)} · ${m.l}`} aria-label={m.l} onClick={() => onPick(m.t)} />
-      ))}
-    </div>
-  )
+  return marks
 }
 
 /** Banner when a whole floor finished everything (the floor itself throws confetti). */

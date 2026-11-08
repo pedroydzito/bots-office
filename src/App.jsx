@@ -396,7 +396,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     // only the floor on screen is heard (in the building view, everyone)
     const heard = overview ? counts.working : (floors[floorIdx]?.bots || []).filter((n) => !live.bots[n]?.hidden && effStatus(live.bots[n], now) === 'working').length
     updateAmbience({ workingCount: heard, weather: live.weather?.kind })
-  })
+  }, [overview, counts.working, floorIdx, floors, live.bots, live.weather?.kind, Math.floor(now / 10000)])
   useEffect(() => {
     // browsers only allow audio after a gesture: resume saved choices on the first click
     // (any gesture works, and a context created too early is resumed on the next one)

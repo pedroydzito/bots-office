@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
 import { createTVCanvas, drawBoard, drawTVNow, getCodeTextures, getScreenTextures, screenKind, makeClockFace, makeTitleTexture, makeRugTexture } from './textures'
 import { botPositions, poiKey, seatYaw, sitting, tickCodeScroll } from './registry'
 import { hideTip, showTip } from '../lib/tip'
+
+/** set by the building: overview mode draws no point lights */
+export const sceneFlags = { compact: false }
 
 const M = {
   white: new THREE.MeshStandardMaterial({ color: '#f7f7f8', roughness: 0.6 }),
@@ -23,7 +26,7 @@ const M = {
 export { M as MATS }
 
 /** Swivel chair: turns with the bot sitting on it, eases back when empty. */
-export function Chair({ x, z, owner, hiddenOwner }) {
+export const Chair = memo(function Chair({ x, z, owner, hiddenOwner }) {
   const top = useRef()
   useFrame((_, dt) => {
     if (!top.current) return
@@ -53,7 +56,7 @@ export function Chair({ x, z, owner, hiddenOwner }) {
       </group>
     </group>
   )
-}
+})
 
 export function DeskRow({ row }) {
   const w = row.x2 - row.x1
@@ -76,7 +79,7 @@ export function DeskRow({ row }) {
 
 const MUG_COLORS = ['#1E86FC', '#FD690F', '#F5B70A', '#2FB36B', '#ffffff', '#E5484D']
 
-export function Workstation({ seat, status, idx, night, step }) {
+export const Workstation = memo(function Workstation({ seat, status, idx, night, step }) {
   const codes = getCodeTextures()
   const kind = screenKind(step)
   const map = kind ? getScreenTextures()[kind] : codes[idx % codes.length]
@@ -104,6 +107,7 @@ export function Workstation({ seat, status, idx, night, step }) {
     // resting bot = monitor off (black)
     const on = status === 'working' || status === 'waiting_user' || status === 'error'
     const target = on ? 0.9 * (night ? 1.5 : 1) : 0
+    if (!on && m.emissiveIntensity < 0.005) return
     if (Math.abs(target - m.emissiveIntensity) > 0.005) m.emissiveIntensity += (target - m.emissiveIntensity) * Math.min(1, dt * 3)
     if (on && !kind) tickCodeScroll(clock.elapsedTime, codes)
   })
@@ -130,7 +134,7 @@ export function Workstation({ seat, status, idx, night, step }) {
       </mesh>
     </group>
   )
-}
+})
 
 function nearestBot(x, z) {
   let best = Infinity
@@ -147,6 +151,7 @@ export function Plant({ position, scale = 1, kind = 0 }) {
     // checking every bot's distance is the costly part: do it ~6x per second, not every frame
     if ((leaves.k = (leaves.k || 0) + 1) % 10 === 0) leaves.near = nearestBot(position[0], position[2]) < 1.3 ? 1 : 0
     amp.current += ((leaves.near || 0) - amp.current) * Math.min(1, dt * 2)
+    if (amp.current < 0.01 && leaves.k % 3) return
     const t = clock.elapsedTime
     leaves.current.rotation.z = Math.sin(t * 7) * 0.07 * amp.current + Math.sin(t * 0.8 + position[0]) * 0.012
     leaves.current.rotation.x = Math.cos(t * 6) * 0.05 * amp.current
@@ -159,13 +164,13 @@ export function Plant({ position, scale = 1, kind = 0 }) {
       {kind === 0 ? (
         <group userData={{ dynamic: true }} ref={leaves} position={[0, 0.44, 0]}>
           <mesh position={[0, 0.35, 0]} material={M.leaf} scale={[1, 1.15, 1]}>
-            <sphereGeometry args={[0.38, 24, 18]} />
+            <sphereGeometry args={[0.38, 18, 12]} />
           </mesh>
           <mesh position={[0.05, 0.75, 0.02]} material={M.leaf}>
-            <sphereGeometry args={[0.28, 24, 18]} />
+            <sphereGeometry args={[0.28, 16, 12]} />
           </mesh>
           <mesh position={[-0.02, 1.02, 0]} material={M.leaf2}>
-            <sphereGeometry args={[0.18, 20, 14]} />
+            <sphereGeometry args={[0.18, 12, 10]} />
           </mesh>
         </group>
       ) : (
@@ -174,7 +179,7 @@ export function Plant({ position, scale = 1, kind = 0 }) {
           {LEAVES.map((l, i) => (
             <group key={i} rotation={[l.tx, l.ry, l.tz]}>
               <mesh position={[0, l.h / 2, 0]} material={i % 3 ? M.leaf : M.leaf2} scale={[l.w, l.h, 0.05]}>
-                <sphereGeometry args={[0.5, 12, 10]} />
+                <sphereGeometry args={[0.5, 10, 8]} />
               </mesh>
             </group>
           ))}
@@ -207,7 +212,10 @@ export function WallTitle({ title, subtitle, position, rotation }) {
 export function Clock({ position, rotation }) {
   const face = useMemo(() => makeClockFace(), [])
   const h = useRef(), m = useRef()
-  useFrame(() => {
+  const last = useRef(0)
+  useFrame(({ clock }) => {
+    if (clock.elapsedTime - last.current < 1) return
+    last.current = clock.elapsedTime
     const d = new Date()
     const mins = d.getMinutes() + d.getSeconds() / 60
     if (m.current) m.current.rotation.z = -(mins / 60) * Math.PI * 2
@@ -285,8 +293,10 @@ export function TVScreen({ position, rotation, getInfo }) {
     acc.current += dt
     if (acc.current > 2) {
       acc.current = 0
-      info.current = getInfo()
-      drawTVNow(tv, info.current)
+      const i = getInfo()
+      const sig = JSON.stringify(i)
+      info.current = i
+      if (sig !== tv.sig) (tv.sig = sig, drawTVNow(tv, i))
     }
   })
   const tip = () => {
@@ -467,7 +477,7 @@ export function Lounge({ position, night, seats = [] }) {
           <coneGeometry args={[0.18, 0.2, 24, 1, true]} />
           <meshStandardMaterial color="#fff6e0" emissive="#ffd28a" emissiveIntensity={night ? 2.2 : 0.1} side={THREE.DoubleSide} />
         </mesh>
-        {night && <pointLight position={[0, 1.5, 0]} intensity={7} distance={6} color="#ffcf8a" decay={1.6} />}
+        {!sceneFlags.compact && <pointLight position={[0, 1.5, 0]} intensity={night ? 7 : 0} distance={6} color="#ffcf8a" decay={1.6} />}
       </group>
     </group>
   )
@@ -679,7 +689,7 @@ export function StatusLamp({ position, color }) {
 
 const DECOR_ITEMS = ['plant', 'photo', 'trophy', 'lamp', 'cactus', 'books']
 /** Personal desk items: from looks.desk, or a stable pick from the bot's name. */
-export function DeskDecor({ seat, items, name, trophies = 0 }) {
+export const DeskDecor = memo(function DeskDecor({ seat, items, name, trophies = 0 }) {
   let list = items
   if (!list || !list.length) {
     let h = 0
@@ -738,7 +748,7 @@ export function DeskDecor({ seat, items, name, trophies = 0 }) {
       ))}
     </group>
   )
-}
+})
 
 /** Birthday: cake with a candle on the desk. */
 export function Cake({ seat }) {
