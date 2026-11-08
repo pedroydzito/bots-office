@@ -372,7 +372,10 @@ function withRoster(s) {
 function applyRosterOrder(d) {
   if (!d.rosterOrder.length) return
   const inRoster = new Set(d.rosterOrder)
-  d.order = [...d.rosterOrder.filter((n) => d.bots[n]), ...d.order.filter((n) => !inRoster.has(n))]
+  // bots that are not in the latest roster only stay while they are actually active (a status in the
+  // last 30 min): old names left in this browser's cache (renamed / removed bots) disappear
+  const recent = Date.now() - 30 * 60e3
+  d.order = [...d.rosterOrder.filter((n) => d.bots[n]), ...d.order.filter((n) => !inRoster.has(n) && (d.bots[n]?.ts || 0) > recent)]
 }
 
 function draft(s) {
@@ -475,6 +478,8 @@ export function loadTopic(topic) {
           lastTime: p.lastTime || 0,
         }
         seen = new Set(p.seen || [])
+        // cached bots that are no longer in the roster (renamed/removed) don't come back on load
+        if (s.rosterOrder?.length) applyRosterOrder(s)
       }
     } catch {
       /* corrupt storage: start fresh */
