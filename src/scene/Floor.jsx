@@ -10,7 +10,7 @@ import StaticMerge from './StaticMerge'
 
 let mergeGen = 0
 import {
-  Aquarium, Arcade, Armchair, BeanBag, Poster, WallShelf, Bookshelf, FloorLamp, Printer, Vending, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, GlassElevator, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
+  Aquarium, Arcade, Bench, DESK_FINISH, Foosball, PingPong, SoloSetup, Armchair, BeanBag, Poster, WallShelf, Bookshelf, FloorLamp, Printer, Vending, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, GlassElevator, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
   StickyWall, TVScreen, WallTitle, WaterCooler, Workstation,
 } from './Props'
 import { durationShort, effStatus, STATUS, talkActive } from '../lib/constants'
@@ -58,23 +58,18 @@ export function Shell({ layout, title, subtitle, accent }) {
       <mesh position={[-W / 2 + 0.125, 1.6, 0]} material={wallMat} receiveShadow castShadow>
         <boxGeometry args={[0.25, 3.2, D]} />
       </mesh>
+      {/* baseboards */}
+      <mesh position={[0, 0.06, -D / 2 + 0.265]} material={wallMat}>
+        <boxGeometry args={[W, 0.12, 0.03]} />
+      </mesh>
+      <mesh position={[-W / 2 + 0.265, 0.06, 0]} material={wallMat}>
+        <boxGeometry args={[0.03, 0.12, D]} />
+      </mesh>
+      {/* a single vertical line in the team colour, as tall as the floor name */}
       {accent && (
-        <group>
-          {/* team-colour band around both walls + baseboards */}
-          {/* the team band doubles as an LED strip that glows softly at night */}
-          <mesh position={[0, 1.05, -D / 2 + 0.255]} material={bandMat(accent)}>
-            <boxGeometry args={[W, 0.07, 0.01]} />
-          </mesh>
-          <mesh position={[-W / 2 + 0.255, 1.05, 0]} material={bandMat(accent)}>
-            <boxGeometry args={[0.01, 0.07, D]} />
-          </mesh>
-          <mesh position={[0, 0.06, -D / 2 + 0.265]} material={wallMat}>
-            <boxGeometry args={[W, 0.12, 0.03]} />
-          </mesh>
-          <mesh position={[-W / 2 + 0.265, 0.06, 0]} material={wallMat}>
-            <boxGeometry args={[0.03, 0.12, D]} />
-          </mesh>
-        </group>
+        <mesh position={[-W / 2 + 3.1, 2.355, -D / 2 + 0.262]} material={bandMat(accent)}>
+          <boxGeometry args={[0.05, 0.34, 0.01]} />
+        </mesh>
       )}
       <WallTitle title={title} subtitle={subtitle} position={[-W / 2 + 5.0, 2.28, -D / 2 + 0.26]} />
     </group>
@@ -98,7 +93,6 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   const floorIdx = floor.num - 1
   const petKind0 = data.pets?.[floor.key] || ['cat', 'dog', 'fish'][hash(floor.key) % 3]
   const look = useStore(lookStore, (l) => l)
-  useEffect(() => setBandGlow(night ? 1 : 0), [night])
   const petKind = look.pet && !compact ? petKind0 : 'none'
   const homeSet = useMemo(() => new Set(home), [home])
   const seatOf = useMemo(() => {
@@ -191,10 +185,16 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         d.type === 'printer' ? <Printer key={i} x={d.x} z={d.z} /> :
         d.type === 'arcade' ? <Arcade key={i} x={d.x} z={d.z} /> :
         d.type === 'armchair' ? <Armchair key={i} x={d.x} z={d.z} c={d.c} /> :
+        d.type === 'pingpong' ? <PingPong key={i} x={d.x} z={d.z} /> :
+        d.type === 'foosball' ? <Foosball key={i} x={d.x} z={d.z} /> :
+        d.type === 'bench' ? <Bench key={i} x={d.x} z={d.z} /> :
         d.type === 'lamp' ? <FloorLamp key={i} x={d.x} z={d.z} night={night} /> : null,
       )}
+      {layout.rows.filter((r) => r.solo && !r.lead).map((r, i) => (
+        <SoloSetup key={'solo' + i} row={r} seed={(layout.variant >> 4) + i} rug={['#e9e4f5', '#e4eef0', '#f1e7d8', '#e8efe2', '#f3e3e6'][((layout.variant >> 4) + i) % 5]} />
+      ))}
       {layout.rows.map((r, i) => (
-        <DeskRow key={i} row={r} />
+        <DeskRow key={i} row={r} mat={DESK_FINISH[(layout.variant >> 10) % DESK_FINISH.length]} />
       ))}
       <group userData={{ dynamic: true }}>{petKind !== 'fish' && petKind !== 'none' && <Pet layout={layout} floorIdx={floorIdx} kind={petKind} />}</group>
       {petKind === 'fish' && <Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} />}
@@ -219,7 +219,6 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   return (
     <group>
       {staticRoom}
-      <StatusLamp position={[-W / 2 + 2.95, 2.4, -D / 2 + 0.3]} color={floorColor} />
       {layout.wall.stickyZ != null && (
         <InfoBoard
           position={[-W / 2 + 0.29, 1.75, layout.wall.boardZ]}

@@ -133,7 +133,7 @@ export default function Sky({ nightness = 0, weather, desktop }) {
         ref={(im) => {
           win.current = im
           if (im && !im.userData.done) {
-            const o = new THREE.Matrix4().makeScale(1.01, 1.0, 1.01)
+            const o = new THREE.Matrix4().makeScale(1.012, 0.994, 1.012)
             matrices.forEach((m, i) => im.setMatrixAt(i, m.clone().multiply(o)))
             im.instanceMatrix.needsUpdate = true
             im.userData.done = true

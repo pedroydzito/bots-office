@@ -61,14 +61,27 @@ export function naturalSize(n) {
  * is filled with decor (rugs, a meeting corner, bean bags...). The camera frames the desks.
  */
 /** Team leads (director, manager, head...) get their own desk by the highlights board. */
+const RUGS = ['#e9e4f5', '#e4eef0', '#f1e7d8', '#e8efe2', '#f3e3e6', '#e2e8f3']
+
 export const LEAD_RE = /\b(diretor|diretora|director|gestor|gestora|gerente|head|chefe|lead|coordenador|coordenadora|ceo|cmo|cto|coo|cfo)\b/i
 
-export function floorLayout(nAll, W, D, { lead = false, furniture = true } = {}) {
+const strHash = (str) => {
+  let h = 2166136261
+  for (const ch of String(str)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0
+  return h
+}
+
+export function floorLayout(nAll, W, D, { lead = false, furniture = true, seed = '' } = {}) {
   const n = lead ? nAll - 1 : nAll
-  const cols = colsFor(n)
+  // every floor gets its own personality (same on every screen): corner type, rug colours, games...
+  const v = strHash(seed)
+  let cols = colsFor(n)
+  // a small team in a deep room: a 2-column grid so desks can spread out with their own setups
+  if (n >= 3 && n <= 4 && D - BACK - FRONT > 5.5) cols = 2
   const rowsN = Math.ceil(Math.max(n, 1) / cols)
   // a big room with a small team: give everyone more room instead of packing them together
-  const roomForDesks = W - LEFT - RIGHT - 5.2 // keep space for the meeting corner on the right
+  // keep space for the meeting corner on the right, unless the team is small: then spread out
+  const roomForDesks = W - LEFT - RIGHT - (n <= 4 ? 2.4 : 5.2)
   const sx = cols > 1 ? Math.min(2.7, Math.max(SX, (roomForDesks - 1.76) / (cols - 1))) : SX
   const roomForRows = D - BACK - FRONT - 2.4
   const sz = rowsN > 1 ? Math.min(3.8, Math.max(SZ, roomForRows / (rowsN - 1))) : SZ
@@ -77,12 +90,12 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true } = {})
   const z0 = -D / 2 + BACK
   const seats = []
   const rows = []
+  const own = cols > 1 ? sx >= 2.2 : n <= 2
   for (let r = 0; r < rowsN; r++) {
     const cnt = Math.min(cols, n - r * cols)
     if (cnt <= 0) break
     const z = z0 + r * sz
     // spread out: each bot gets its own desk instead of one long shared desk
-    const own = sx >= 2.3
     if (own) for (let c = 0; c < cnt; c++) rows.push({ z, x1: x0 + c * sx - 0.88, x2: x0 + c * sx + 0.88, aisle: z - 1.1, solo: true })
     else rows.push({ z, x1: x0 - 0.88, x2: x0 + (cols - 1) * sx + 0.88, aisle: z - 1.1 })
     // ex: side lane between chairs, so bots step out sideways instead of walking through the chair back
@@ -102,7 +115,7 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true } = {})
   const deskFront = z0 + (rowsN - 1) * sz + 1.3
   const decor = []
   // rug under the desks
-  decor.push({ type: 'rug', x: (x0 - 1.4 + blockEnd + 1.0) / 2, z: (z0 - 1.7 + deskFront + 0.5) / 2, w: blockEnd + 1.0 - (x0 - 1.4), d: deskFront + 0.5 - (z0 - 1.7), color: '#e9e4f5' })
+  if (!own) decor.push({ type: 'rug', x: (x0 - 1.4 + blockEnd + 1.0) / 2, z: (z0 - 1.7 + deskFront + 0.5) / 2, w: blockEnd + 1.0 - (x0 - 1.4), d: deskFront + 0.5 - (z0 - 1.7), color: RUGS[v % RUGS.length] })
   // meeting corner on the right if there is room, otherwise a huddle spot by the windows
   const rx1 = blockEnd + 1.4, rx2 = W / 2 - 0.7
   let meet = { x: x0 + 1.3, z: D / 2 - 2.0 }
@@ -113,17 +126,38 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true } = {})
     decor.push({ type: 'plant', x: rx2 - 0.2, z: meet.z + 2.6, k: 0 })
   }
   // extra front space: a cosy corner with bean bags and plants
+  const extraPois = []
   const frontFree = D / 2 - deskFront
   if (furniture && frontFree > 6.2) {
     const cz = deskFront + (frontFree - 3.5) / 2
-    decor.push({ type: 'rug', x: x0 + 1.2, z: cz, w: 3.4, d: 2.6, color: '#f1e7d8', round: true })
-    decor.push({ type: 'beanbag', x: x0 + 0.4, z: cz - 0.3, c: '#8F59F9' })
-    decor.push({ type: 'beanbag', x: x0 + 2.0, z: cz + 0.3, c: '#F5B70A' })
-    decor.push({ type: 'plant', x: x0 + 3.3, z: cz - 0.8, k: 1 })
+    const kind = (v >> 3) % 4
+    if (kind === 0) {
+      // bean bags around a round rug
+      decor.push({ type: 'rug', x: x0 + 1.2, z: cz, w: 3.4, d: 2.6, color: RUGS[(v >> 5) % RUGS.length], round: true })
+      decor.push({ type: 'beanbag', x: x0 + 0.4, z: cz - 0.3, c: '#8F59F9' })
+      decor.push({ type: 'beanbag', x: x0 + 2.0, z: cz + 0.3, c: '#F5B70A' })
+      decor.push({ type: 'plant', x: x0 + 3.3, z: cz - 0.8, k: 1 })
+    } else if (kind === 1) {
+      // ping-pong table
+      decor.push({ type: 'pingpong', x: x0 + 1.4, z: cz })
+      extraPois.push({ kind: 'arcade', x: x0 + 1.4 - 1.75, z: cz, yaw: Math.PI / 2 })
+      decor.push({ type: 'plant', x: x0 + 3.6, z: cz + 0.9, k: 0 })
+    } else if (kind === 2) {
+      // reading nook: two armchairs, a bookshelf and a lamp
+      decor.push({ type: 'rug', x: x0 + 1.4, z: cz, w: 3.2, d: 2.2, color: RUGS[(v >> 6) % RUGS.length], round: false })
+      decor.push({ type: 'armchair', x: x0 + 0.6, z: cz + 0.2, c: '#d9c7b0' })
+      decor.push({ type: 'armchair', x: x0 + 2.1, z: cz + 0.2, c: '#b9cbe0' })
+      decor.push({ type: 'lamp', x: x0 + 2.9, z: cz - 0.2 })
+      extraPois.push({ kind: 'armchair', x: x0 + 0.6, z: cz + 0.2, az: cz - 0.8, yaw: 0, sit: true })
+    } else {
+      // little indoor garden with a bench
+      decor.push({ type: 'bench', x: x0 + 1.4, z: cz + 0.2 })
+      for (let i = 0; i < 4; i++) decor.push({ type: 'plant', x: x0 - 0.2 + i * 1.1, z: cz - 0.9 + (i % 2) * 0.25, k: (i + v) % 2 })
+      extraPois.push({ kind: 'sofa', x: x0 + 1.4, z: cz + 0.2, az: cz + 1.0, yaw: Math.PI, sit: true })
+    }
   }
   if (rx2 - rx1 >= 1.6) decor.push({ type: 'plant', x: W / 2 - 0.9, z: (deskFront + D / 2 - 4.6) / 2, k: 0 })
   // --- more furniture for the open space, each with something bots can do there
-  const extraPois = []
   // snack machine against the left wall, near the front
   if (furniture) {
     decor.push({ type: 'vending', x: -W / 2 + 0.55, z: lw.vendingZ })
@@ -136,7 +170,7 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true } = {})
   const az1 = z0 + (rx2 - rx1 >= 3.4 ? 2.8 : 0.4), az2 = D / 2 - 4.9
   if (furniture && W / 2 - blockEnd > 2.6 && az2 - az1 > 1.2) {
     const z = (az1 + az2) / 2
-    decor.push({ type: 'arcade', x: W / 2 - 0.9, z })
+    decor.push({ type: (v >> 8) % 2 ? 'foosball' : 'arcade', x: W / 2 - 0.9, z })
     decor.push({ type: 'lamp', x: W / 2 - 0.8, z: z + 1.3 })
     extraPois.push({ kind: 'arcade', x: W / 2 - 1.9, z, yaw: Math.PI / 2 })
   }
@@ -170,6 +204,7 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true } = {})
   const blockCx = x0 + ((cols - 1) * sx) / 2
   const blockCz = z0 + ((rowsN - 1) * sz) / 2
   return {
+    own, variant: v,
     W, D, seats, rows: leadRow ? [...rows, leadRow] : rows, xL, cols, x0, z0, decor, meet,
     pois: pois.map((p) => ({ ...p, az: p.az ?? p.z })),
     elevator: lw.elevator,

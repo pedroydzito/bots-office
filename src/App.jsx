@@ -166,7 +166,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         W = Math.max(W, n.W)
         D = Math.max(D, n.D)
       }
-      return Object.fromEntries(floors.map((f) => [f.key, f.key === CORTEX_KEY ? cortexLayout(W, D) : floorLayout(f.bots.length, W, D, { lead: !!f.lead, furniture: look.furniture })]))
+      return Object.fromEntries(floors.map((f) => [f.key, f.key === CORTEX_KEY ? cortexLayout(W, D) : floorLayout(f.bots.length, W, D, { lead: !!f.lead, furniture: look.furniture, seed: f.key })]))
     },
     [floors, look.furniture],
   )

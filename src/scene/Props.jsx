@@ -66,15 +66,18 @@ export const Chair = memo(function Chair({ x, z, owner, hiddenOwner }) {
   )
 })
 
-export function DeskRow({ row }) {
+/** Desk finishes: every floor picks one (white, oak, walnut, black). */
+export const DESK_FINISH = [M.desk, sharedMat('#d8b48a', 0.55), sharedMat('#8a6446', 0.5), sharedMat('#2d3036', 0.45)]
+
+export function DeskRow({ row, mat = M.desk }) {
   const w = row.x2 - row.x1
   const cx = (row.x1 + row.x2) / 2
   const z = row.z + 0.82
   return (
     <group>
-      <RoundedBox args={[w, 0.06, 0.88]} radius={0.025} position={[cx, 0.72, z]} material={M.desk} castShadow receiveShadow />
+      <RoundedBox args={[w, 0.06, 0.88]} radius={0.025} position={[cx, 0.72, z]} material={mat} castShadow receiveShadow />
       {[row.x1 + 0.05, row.x2 - 0.05].map((x, i) => (
-        <mesh key={i} position={[x, 0.35, z]} material={M.desk} castShadow receiveShadow>
+        <mesh key={i} position={[x, 0.35, z]} material={mat} castShadow receiveShadow>
           <boxGeometry args={[0.05, 0.7, 0.8]} />
         </mesh>
       ))}
@@ -1101,6 +1104,83 @@ export function WallShelf({ position, rotation, w = 1.4 }) {
             </group>
           ))}
         </group>
+      ))}
+    </group>
+  )
+}
+
+
+/** A complete personal setup for a desk of its own: rug, drawer unit, second screen, desk lamp. */
+export function SoloSetup({ row, rug = '#e9e4f5', seed = 0 }) {
+  const cx = (row.x1 + row.x2) / 2
+  const z = row.z + 0.82
+  return (
+    <group>
+      <Rug x={cx} z={row.z + 0.2} w={2.3} d={2.5} color={rug} round={seed % 2 === 0} />
+      {/* drawer unit under the right side */}
+      <mesh position={[row.x2 - 0.3, 0.3, z - 0.05]} material={M.grey} castShadow>
+        <boxGeometry args={[0.42, 0.58, 0.6]} />
+      </mesh>
+      {[0.12, 0.3, 0.48].map((y) => (
+        <mesh key={y} position={[row.x2 - 0.3, y, z - 0.36]} material={M.metal}>
+          <boxGeometry args={[0.16, 0.02, 0.02]} />
+        </mesh>
+      ))}
+      {/* second, angled screen */}
+      <group position={[cx - 0.5, 0.75, z + 0.12]} rotation={[0, Math.PI + 0.45, 0]}>
+        <mesh position={[0, 0.1, 0.05]} material={M.metal}><boxGeometry args={[0.04, 0.2, 0.03]} /></mesh>
+        <RoundedBox args={[0.46, 0.3, 0.03]} radius={0.01} position={[0, 0.3, 0.04]} material={M.black} />
+      </group>
+      {/* desk lamp */}
+      <group position={[row.x1 + 0.18, 0.75, z + 0.25]}>
+        <mesh position={[0, 0.01, 0]} material={M.dark}><cylinderGeometry args={[0.07, 0.07, 0.02, 16]} /></mesh>
+        <mesh position={[0.04, 0.17, 0]} rotation={[0, 0, -0.25]} material={M.dark}><cylinderGeometry args={[0.008, 0.008, 0.34, 6]} /></mesh>
+        <mesh position={[0.1, 0.33, -0.02]} rotation={[0.5, 0, 0]} material={sharedMat(['#F5B70A', '#1E86FC', '#E5484D', '#2FB36B'][seed % 4], 0.4)}>
+          <coneGeometry args={[0.06, 0.09, 14, 1, true]} />
+        </mesh>
+      </group>
+    </group>
+  )
+}
+
+/** Ping-pong table (games corner). */
+export function PingPong({ x, z }) {
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, 0.74, 0]} material={sharedMat('#2a6fd6', 0.5)} castShadow receiveShadow><boxGeometry args={[2.6, 0.05, 1.45]} /></mesh>
+      <mesh position={[0, 0.767, 0]} material={M.white}><boxGeometry args={[2.6, 0.002, 0.03]} /></mesh>
+      <mesh position={[0, 0.83, 0]} material={sharedMat('#f4f4f6', 0.7)}><boxGeometry args={[0.02, 0.15, 1.55]} /></mesh>
+      {[[-1.1, -0.6], [1.1, -0.6], [-1.1, 0.6], [1.1, 0.6]].map(([lx, lz], i) => (
+        <mesh key={i} position={[lx, 0.36, lz]} material={M.dark}><boxGeometry args={[0.06, 0.72, 0.06]} /></mesh>
+      ))}
+      <mesh position={[0.5, 0.8, 0.3]} rotation={[0, 0.4, 0]} material={sharedMat('#E5484D', 0.5)}><cylinderGeometry args={[0.08, 0.08, 0.015, 16]} /></mesh>
+    </group>
+  )
+}
+
+/** Foosball table. */
+export function Foosball({ x, z }) {
+  return (
+    <group position={[x, 0, z]} rotation={[0, Math.PI / 2, 0]}>
+      <mesh position={[0, 0.78, 0]} material={sharedMat('#6b4a33', 0.6)} castShadow><boxGeometry args={[1.3, 0.22, 0.75]} /></mesh>
+      <mesh position={[0, 0.895, 0]} material={sharedMat('#2FB36B', 0.8)}><boxGeometry args={[1.2, 0.01, 0.65]} /></mesh>
+      {[-0.42, -0.14, 0.14, 0.42].map((rx, i) => (
+        <mesh key={i} position={[rx, 0.95, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.metal}><cylinderGeometry args={[0.012, 0.012, 1.0, 6]} /></mesh>
+      ))}
+      {[-0.5, 0.5].map((lx) => [-0.3, 0.3].map((lz) => (
+        <mesh key={`${lx}${lz}`} position={[lx, 0.34, lz]} material={M.dark}><boxGeometry args={[0.07, 0.68, 0.07]} /></mesh>
+      )))}
+    </group>
+  )
+}
+
+/** Wooden bench (indoor garden). */
+export function Bench({ x, z }) {
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, 0.42, 0]} material={sharedMat('#c49a6c', 0.6)} castShadow><boxGeometry args={[1.6, 0.06, 0.45]} /></mesh>
+      {[-0.65, 0.65].map((lx) => (
+        <mesh key={lx} position={[lx, 0.2, 0]} material={M.dark}><boxGeometry args={[0.06, 0.4, 0.4]} /></mesh>
       ))}
     </group>
   )
