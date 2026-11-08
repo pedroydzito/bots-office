@@ -765,10 +765,10 @@ export const DeskDecor = memo(function DeskDecor({ seat, items, name, trophies =
   }
   return (
     <group position={[seat.x - 0.55, 0.75, seat.z + 0.95]}>
-      {/* personal touch: a name plaque on the front edge (the mug is in the bot's colour) */}
-      <group position={[0.55, 0, -0.5]}>
-        <mesh position={[0, 0.035, 0]} rotation={[-0.5, Math.PI, 0]} material={M.dark}><boxGeometry args={[0.34, 0.07, 0.02]} /></mesh>
-        <mesh position={[0, 0.036, -0.012]} rotation={[-0.5, Math.PI, 0]}>
+      {/* name plaque on the visitor edge of the desk (far from the chair), facing the room — not in front of the keyboard */}
+      <group position={[0.55, 0, 0.3]}>
+        <mesh position={[0, 0.035, 0]} rotation={[-0.4, 0, 0]} material={M.dark}><boxGeometry args={[0.34, 0.07, 0.02]} /></mesh>
+        <mesh position={[0, 0.036, 0.012]} rotation={[-0.4, 0, 0]}>
           <planeGeometry args={[0.32, 0.055]} />
           <meshBasicMaterial map={namePlate(name)} transparent toneMapped={false} />
         </mesh>

@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import Sky from './Sky'
 import { useStore } from '../lib/createStore'
 import { prefs, prefStore } from '../lib/notify'
-import { pipStore } from '../lib/pip'
+import { pipGrabFrame, pipStore } from '../lib/pip'
 import { resetTextureCaches } from './textures'
 import { Environment, Lightformer, OrbitControls, PerformanceMonitor } from '@react-three/drei'
 import * as THREE from 'three'
@@ -313,7 +313,8 @@ function IdleSaver({ cap = false }) {
         // floating window open: browsers pause animation frames in hidden tabs, so drive frames ourselves
         clearInterval(tick)
         setFrameloop('never')
-        tick = setInterval(() => advance(performance.now()), 100)
+        // ~24 fps to match the PiP stream
+        tick = setInterval(() => advance(performance.now()), 1000 / 24)
       } else if (document.hidden) (clearInterval(tick), setFrameloop('never'))
       else (clearInterval(tick), (idle = false), wake())
       if (!document.hidden) setFrameloop('always')
@@ -360,6 +361,16 @@ function Precompile() {
   return null
 }
 
+/** After each drawn frame, feed the PiP stream (needs preserveDrawingBuffer on the GL context). */
+function PipFeed() {
+  const { gl } = useThree()
+  const on = useStore(pipStore, (p) => p.on)
+  useFrame(() => {
+    if (on) pipGrabFrame(gl.domElement)
+  }, 1000)
+  return null
+}
+
 export default function Scene(props) {
   const { night, nightness, weather, tour, floorIdx, focus, selectedBot, onPointerMissed, onUserMove } = props
   // Adaptive quality: phones start light; any device drops resolution and shadows if FPS falls.
@@ -396,7 +407,8 @@ export default function Scene(props) {
       key={glKey}
       shadows={q === 'alta' && !MOBILE ? 'soft' : false}
       dpr={effDpr}
-      gl={{ antialias: true, powerPreference: 'high-performance', stencil: false }}
+      // preserveDrawingBuffer: PiP copies the canvas each frame; without it the buffer is cleared and the window goes black
+      gl={{ antialias: true, powerPreference: 'high-performance', stencil: false, preserveDrawingBuffer: true }}
       camera={{ fov: 30, position: [12, 10 + floorIdx * FLOOR_H, 12], near: 1, far: 160 }}
       onPointerMissed={onPointerMissed}
       onCreated={({ gl }) => {
@@ -425,6 +437,7 @@ export default function Scene(props) {
         </Suspense>
       )}
       <Precompile />
+      <PipFeed />
       <PerformanceMonitor
         flipflops={3}
         onFallback={() => {
