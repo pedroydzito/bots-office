@@ -1156,12 +1156,12 @@ export function SoloSetup({ row, rug = '#e9e4f5', seed = 0 }) {
           <boxGeometry args={[0.16, 0.02, 0.02]} />
         </mesh>
       ))}
-      {/* second monitor, same make as the main one, angled towards the bot */}
-      <group position={[cx - 0.62, 0.75, row.z + 0.98]} rotation={[0, Math.PI - 0.38, 0]}>
+      {/* second monitor: same size as the main one, right next to it, angled towards the bot */}
+      <group position={[cx - 0.5, 0.75, row.z + 0.95]} rotation={[0, Math.PI - 0.3, 0]}>
         <mesh position={[0, 0.11, 0.06]} material={M.metal}><boxGeometry args={[0.05, 0.22, 0.03]} /></mesh>
         <mesh position={[0, 0.01, 0.04]} material={M.metal}><boxGeometry args={[0.22, 0.015, 0.14]} /></mesh>
-        <RoundedBox args={[0.5, 0.31, 0.035]} radius={0.012} position={[0, 0.33, 0.04]} material={M.white} castShadow />
-        <mesh position={[0, 0.33, 0.06]} material={secondScreenMat}><planeGeometry args={[0.46, 0.27]} /></mesh>
+        <RoundedBox args={[0.6, 0.37, 0.035]} radius={0.012} position={[0, 0.34, 0.04]} material={M.white} castShadow />
+        <mesh position={[0, 0.34, 0.06]} material={secondScreenMat}><planeGeometry args={[0.55, 0.32]} /></mesh>
       </group>
       {/* desk lamp */}
       <group position={[row.x2 - 0.2, 0.75, z + 0.25]}>
