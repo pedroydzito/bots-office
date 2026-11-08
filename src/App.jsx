@@ -112,7 +112,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     lookStore.set(look)
     document.documentElement.style.setProperty('--accent', (ACCENTS[look.accentColor] || ACCENTS.roxo)[1])
   }, [look])
-  const now = useNow(2000)
+  const now = useNow(5000) // panels only need ~5 s precision; fewer re-renders of the whole interface
   // replaying the timeline shows the office as it was at that moment
   const data = useMemo(() => (replayT ? { ...live, bots: botsAt(live, replayT), talks: {} } : live), [live, replayT])
   const nightness = lightMode === 'night' ? 1 : lightMode === 'day' ? 0 : autoNightness(new Date(now))
@@ -538,7 +538,6 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
           <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} mode={lightMode} setMode={setLightMode} onOffices={() => setOfficesOpen(true)} onHealth={() => setHealthOpen(true)} onKeys={() => setKeysOpen(true)} onOfficeSettings={() => setOfficeCfg(true)} readonly={readonly} />
         </div>
         <div className="top-center">
-          <Pills counts={counts} />
           <Toast bot={toastBot} onView={() => view(toastBot.name)} onApprove={() => approve(toastBot.name)} />
         </div>
         <LeftPanel

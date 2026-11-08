@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import Sky from './Sky'
 import { useStore } from '../lib/createStore'
-import { prefStore } from '../lib/notify'
+import { prefs, prefStore } from '../lib/notify'
 import { resetTextureCaches } from './textures'
 import { Environment, Lightformer, OrbitControls, PerformanceMonitor } from '@react-three/drei'
 import * as THREE from 'three'
@@ -320,6 +320,14 @@ function IdleSaver({ cap = false }) {
 
 export const perfFlags = { idle: false }
 
+/** Few CPU cores or little memory: start in Leve (desktop browsers only report these roughly). */
+function weakHardware() {
+  if (typeof navigator === 'undefined') return false
+  const cores = navigator.hardwareConcurrency || 8
+  const mem = navigator.deviceMemory || 8
+  return cores <= 4 || mem <= 4
+}
+
 // desktop-only post effects live in their own chunk: phones never download them
 const Effects = lazy(() => import('./Effects'))
 
@@ -364,7 +372,7 @@ export default function Scene(props) {
   const [dpr, setDpr] = useState(MOBILE ? Math.min(2, window.devicePixelRatio || 1) : Math.min(1.5, window.devicePixelRatio || 1))
   // graphics quality: Auto picks Leve on machines without a real GPU (software / basic renderer)
   const gfxPref = useStore(prefStore, (p) => p.gfx || 'auto')
-  const [weakGpu, setWeakGpu] = useState(false)
+  const [weakGpu, setWeakGpu] = useState(() => prefs.get('gfxAutoWeak', false) || weakHardware())
   const q = gfxPref === 'auto' ? (weakGpu ? 'leve' : MOBILE || low ? 'media' : 'alta') : gfxPref
   useEffect(() => {
     document.documentElement.classList.toggle('gfx-leve', q === 'leve')
@@ -388,7 +396,8 @@ export default function Scene(props) {
           const ctx = gl.getContext()
           const ext = ctx.getExtension('WEBGL_debug_renderer_info')
           const r = String(ext ? ctx.getParameter(ext.UNMASKED_RENDERER_WEBGL) : ctx.getParameter(ctx.RENDERER))
-          if (/swiftshader|llvmpipe|softpipe|basic render|microsoft basic|software/i.test(r)) setWeakGpu(true)
+          // software rendering, or a laptop's built-in graphics (Intel HD/UHD, AMD Radeon Graphics/Vega, older Iris)
+          if (/swiftshader|llvmpipe|softpipe|basic render|microsoft basic|software|intel\(r\) (hd|uhd)|intel.*(hd|uhd) graphics|radeon\(tm\) graphics|radeon graphics|vega \d|mali-[gt]\d{2}\b|adreno \(tm\) [1-5]\d\d/i.test(r)) setWeakGpu(true)
         } catch {
           /* unknown: keep auto */
         }
@@ -408,6 +417,9 @@ export default function Scene(props) {
         onFallback={() => {
           setLow(true)
           setDpr(MOBILE ? 1.15 : 1)
+          // Auto: this device can't keep up -> Leve from now on (remembered)
+          setWeakGpu(true)
+          prefs.set('gfxAutoWeak', true)
           // struggling device: drop the frosted-glass blur on the interface too
           document.documentElement.classList.add('lowfx')
         }}
