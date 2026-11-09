@@ -419,10 +419,12 @@ export function simBot(ctx, T) {
   }
   const seated = arrived && goal && goal.kind === 'seat'
   // smooth sit down / stand up from the arrival/departure times
+  // sofa / armchair need a higher perch so the body sits on the cushion, not inside it
+  const sitY = goal?.kind === 'sofa' ? 0.58 : goal?.kind === 'armchair' ? 0.5 : 0.42
   let y = 0
   if (seated) y = SEAT_Y * Math.min(1, (T - arrivedT) / 350 + (arrivedT === -Infinity ? 1 : 0))
   else if (cur.rising) y = SEAT_Y * Math.max(0, 1 - (T - departT) / (RISE * 1000))
-  else if (arrived && goal?.sit) y = 0.42 * Math.min(1, (T - arrivedT) / 400)
+  else if (arrived && goal?.sit) y = sitY * Math.min(1, (T - arrivedT) / 400)
   return {
     x: cur.x, z: cur.z, y, yaw: cur.yaw, moving: !arrived && !cur.rising,
     hidden, gone, at: arrived ? goal : null, seated, sitting: arrived && !!goal?.sit,

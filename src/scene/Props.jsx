@@ -736,41 +736,53 @@ const starGeo = (() => {
 const starMat = new THREE.MeshStandardMaterial({ color: '#f5b70a', metalness: 0.5, roughness: 0.3, emissive: '#f5b70a', emissiveIntensity: 0.15 })
 
 const plates = new Map()
-/** Small engraved name plate texture (cached per name). */
+/**
+ * Engraved name plate texture + world width (cached per name).
+ * Width grows with the label so long names ("Diretor Comercial") are never clipped.
+ */
 function namePlate(name) {
   if (plates.has(name)) return plates.get(name)
   const c = document.createElement('canvas')
-  c.width = 256
-  c.height = 44
   const g = c.getContext('2d')
-  g.fillStyle = '#e8eaee'
-  g.font = '700 28px -apple-system, Segoe UI, Roboto, sans-serif'
+  const font = '700 28px -apple-system, Segoe UI, Roboto, sans-serif'
+  g.font = font
+  const tw = Math.ceil(g.measureText(String(name || '')).width)
+  const pad = 28
+  c.width = Math.max(96, tw + pad * 2)
+  c.height = 44
+  g.font = font
   g.textAlign = 'center'
   g.textBaseline = 'middle'
-  let t = name
-  while (g.measureText(t).width > 240 && t.length > 3) t = t.slice(0, -1)
-  g.fillText(t, 128, 23)
-  const tx = new THREE.CanvasTexture(c)
-  tx.colorSpace = THREE.SRGBColorSpace
-  plates.set(name, tx)
-  return tx
+  g.fillStyle = '#e8eaee'
+  g.fillText(String(name || ''), c.width / 2, 23)
+  const map = new THREE.CanvasTexture(c)
+  map.colorSpace = THREE.SRGBColorSpace
+  // 256px ≈ 0.34 world units (old fixed size); keep a floor so short names still look like a plaque
+  const w = Math.min(1.05, Math.max(0.3, (c.width / 256) * 0.34))
+  const out = { map, w }
+  plates.set(name, out)
+  return out
 }
 
-export const DeskDecor = memo(function DeskDecor({ seat, items, name, trophies = 0, color = '#8F59F9' }) {
+export const DeskDecor = memo(function DeskDecor({ seat, items, name, trophies = 0, color = '#8F59F9', vip = false }) {
   let list = items
   if (!list || !list.length) {
     let h = 0
     for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0
     list = [DECOR_ITEMS[h % DECOR_ITEMS.length]]
   }
+  const plate = namePlate(name)
+  const pw = plate.w
   return (
     <group position={[seat.x - 0.55, 0.75, seat.z + 0.95]}>
       {/* name plaque on the visitor edge of the desk (far from the chair), facing the room — not in front of the keyboard */}
       <group position={[0.55, 0, 0.3]}>
-        <mesh position={[0, 0.035, 0]} rotation={[-0.4, 0, 0]} material={M.dark}><boxGeometry args={[0.34, 0.07, 0.02]} /></mesh>
+        <mesh position={[0, 0.035, 0]} rotation={[-0.4, 0, 0]} material={vip ? sharedMat('#d4a72c', 0.3, 0.7) : M.dark}>
+          <boxGeometry args={[pw + 0.02, 0.07, 0.02]} />
+        </mesh>
         <mesh position={[0, 0.036, 0.012]} rotation={[-0.4, 0, 0]}>
-          <planeGeometry args={[0.32, 0.055]} />
-          <meshBasicMaterial map={namePlate(name)} transparent toneMapped={false} />
+          <planeGeometry args={[pw, 0.055]} />
+          <meshBasicMaterial map={plate.map} transparent toneMapped={false} />
         </mesh>
       </group>
       {list.slice(0, 2).map((it, i) => (
@@ -1222,7 +1234,8 @@ export function Bench({ x, z }) {
 /** The main bot of the company (roster "role": "ceo" / "principal"). */
 export const isVip = (b) => !!b && /^(ceo|principal|founder|fundador|dono|owner)$/i.test(b.role || '')
 
-/** Executive desk for a team lead: wider desk, rug, plant and a name plaque (local coords: seat at 0,0, facing +z). */
+/** Executive desk for a team lead: wider desk, rug and plant (local coords: seat at 0,0, facing +z).
+ *  Name plaque lives in DeskDecor (sized to the name) so VIP gold + label don't stack as two plates. */
 export function ExecDesk({ mat, vip }) {
   const w = vip ? 2.2 : 1.9
   return (
@@ -1234,8 +1247,6 @@ export function ExecDesk({ mat, vip }) {
       {[-w / 2 + 0.25, w / 2 - 0.25].map((x) => (
         <mesh key={x} position={[x, 0.35, 0.85]} material={mat} castShadow><boxGeometry args={[0.46, 0.7, 0.92]} /></mesh>
       ))}
-      {/* name plaque facing the team */}
-      <mesh position={[0, 0.8, 1.28]} rotation={[-0.35, 0, 0]} material={vip ? sharedMat('#d4a72c', 0.3, 0.7) : M.dark}><boxGeometry args={[0.36, 0.08, 0.02]} /></mesh>
       <Plant position={[-(w / 2 + 0.45), 0, 0.3]} scale={0.95} kind={vip ? 0 : 1} />
     </group>
   )
