@@ -736,29 +736,32 @@ const starGeo = (() => {
 const starMat = new THREE.MeshStandardMaterial({ color: '#f5b70a', metalness: 0.5, roughness: 0.3, emissive: '#f5b70a', emissiveIntensity: 0.15 })
 
 const plates = new Map()
+const PLATE_H = 0.055
 /**
  * Engraved name plate texture + world width (cached per name).
- * Width grows with the label so long names ("Diretor Comercial") are never clipped.
+ * Width follows the text (no clip). Plane aspect always matches the canvas so
+ * short names like "Lima_" stay proportional — never horizontally stretched.
  */
 function namePlate(name) {
   if (plates.has(name)) return plates.get(name)
+  const label = String(name || '')
   const c = document.createElement('canvas')
   const g = c.getContext('2d')
   const font = '700 28px -apple-system, Segoe UI, Roboto, sans-serif'
   g.font = font
-  const tw = Math.ceil(g.measureText(String(name || '')).width)
+  const tw = Math.ceil(g.measureText(label).width)
   const pad = 28
-  c.width = Math.max(96, tw + pad * 2)
+  // canvas wide enough for the glyphs; plane width = height * (cw/ch) keeps 1:1 pixels
+  c.width = Math.max(1, tw + pad * 2)
   c.height = 44
   g.font = font
   g.textAlign = 'center'
   g.textBaseline = 'middle'
   g.fillStyle = '#e8eaee'
-  g.fillText(String(name || ''), c.width / 2, 23)
+  g.fillText(label, c.width / 2, 23)
   const map = new THREE.CanvasTexture(c)
   map.colorSpace = THREE.SRGBColorSpace
-  // 256px ≈ 0.34 world units (old fixed size); keep a floor so short names still look like a plaque
-  const w = Math.min(1.05, Math.max(0.3, (c.width / 256) * 0.34))
+  const w = Math.min(1.05, PLATE_H * (c.width / c.height))
   const out = { map, w }
   plates.set(name, out)
   return out
@@ -781,7 +784,7 @@ export const DeskDecor = memo(function DeskDecor({ seat, items, name, trophies =
           <boxGeometry args={[pw + 0.02, 0.07, 0.02]} />
         </mesh>
         <mesh position={[0, 0.036, 0.012]} rotation={[-0.4, 0, 0]}>
-          <planeGeometry args={[pw, 0.055]} />
+          <planeGeometry args={[pw, PLATE_H]} />
           <meshBasicMaterial map={plate.map} transparent toneMapped={false} />
         </mesh>
       </group>
