@@ -761,7 +761,7 @@ function namePlate(name) {
   g.fillText(label, c.width / 2, 23)
   const map = new THREE.CanvasTexture(c)
   map.colorSpace = THREE.SRGBColorSpace
-  const w = Math.min(1.05, Math.max(0.18, PLATE_H * (c.width / c.height)))
+  const w = Math.min(1.05, PLATE_H * (c.width / c.height))
   const out = { map, w }
   plates.set(name, out)
   return out
