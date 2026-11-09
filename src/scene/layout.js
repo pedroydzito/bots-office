@@ -381,9 +381,9 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true, seed =
     { kind: 'cooler', x: -W / 2 + 1.45, z: lw.coolerZ, yaw: -Math.PI / 2 },
     { kind: 'view', x: x0 + 0.4, z: D / 2 - 1.1, yaw: 0 },
     { kind: 'view', x: x0 + 1.9, z: D / 2 - 1.1, yaw: 0.3 },
-    // sofa seats in the lounge (lounge centre: W/2-2.4, D/2-2.3)
-    { kind: 'sofa', x: W / 2 - 2.75, z: D / 2 - 3.05, az: D / 2 - 2.5, yaw: 0, sit: true },
-    { kind: 'sofa', x: W / 2 - 1.55, z: D / 2 - 3.05, az: D / 2 - 2.5, yaw: 0, sit: true },
+    // sofa seats on the cushions (lounge centre: W/2-2.4, D/2-2.3) — z a bit forward of the backrest so bots don't sink into it
+    { kind: 'sofa', x: W / 2 - 2.9, z: D / 2 - 2.95, az: D / 2 - 2.45, yaw: 0, sit: true },
+    { kind: 'sofa', x: W / 2 - 1.7, z: D / 2 - 2.95, az: D / 2 - 2.45, yaw: 0, sit: true },
     { kind: 'plant', x: W / 2 - 1.85, z: -D / 2 + 1.5, yaw: Math.PI / 2 },
     { kind: 'phone', x: x0 + 3.3, z: D / 2 - 1.6, yaw: 0.2 },
     // a stroll along the windows with a few stops
@@ -517,6 +517,11 @@ export function buildWalkGrid(L) {
   {
     const ax = W / 2 - 0.7, az = -D / 2 + 4.6
     markRect(hard, nx, nz, W, D, C, ax - 0.75, az - 0.45, ax + 0.45, az + 0.45)
+  }
+  // lounge sofa + coffee table (not in decor[]): bots walk around, only sit endpoints may enter
+  if (L.lounge) {
+    const { x, z } = L.lounge
+    markRect(hard, nx, nz, W, D, C, x - 1.55, z - 1.65, x + 1.65, z + 0.85)
   }
   return { hard, nx, nz, C, W, D }
 }
