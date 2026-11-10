@@ -12,7 +12,7 @@ import Campus from './Campus'
 import Weather from './Weather'
 import { botWorld, ridePositions, sceneSignals } from './registry'
 
-const DAY_BG = new THREE.Color('#eceef2')
+const DAY_BG = new THREE.Color('#f3f6f9')
 const NIGHT_BG = new THREE.Color('#0c1120')
 
 const C = (h) => new THREE.Color(h)
@@ -239,7 +239,7 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove, bounds }) {
     }
     // panning reaches every corner of the storey but never drags the building off screen
     if (bounds) {
-      const mx = bounds.W / 2 + 0.5, mz = bounds.D / 2 + 0.5
+      const mx = bounds.W / 2 + 4, mz = bounds.D / 2 + 4
       const cx = THREE.MathUtils.clamp(target.x, -mx, mx), cz = THREE.MathUtils.clamp(target.z, -mz, mz)
       if (cx !== target.x || cz !== target.z) {
         camera.position.x += cx - target.x
@@ -352,8 +352,8 @@ function CampusFog() {
   useFrame(() => {
     if (!scene.fog || !controls) return
     const d = camera.position.distanceTo(controls.target)
-    scene.fog.near = d + 12
-    scene.fog.far = d + 70
+    scene.fog.near = d + 25
+    scene.fog.far = d + 130
     if (scene.background?.isColor) scene.fog.color.copy(scene.background)
   })
   return null
@@ -447,7 +447,7 @@ export default function Scene(props) {
       shadows={q === 'alta' && !MOBILE ? 'soft' : false}
       dpr={effDpr}
       gl={{ antialias: true, powerPreference: 'high-performance', stencil: false }}
-      camera={{ fov: 30, position: [12, 10, 12], near: 1, far: 160 }}
+      camera={{ fov: 30, position: [12, 10, 12], near: 1, far: 400 }}
       onPointerMissed={onPointerMissed}
       onCreated={({ gl }) => {
         glRef.current = gl
@@ -510,7 +510,7 @@ export default function Scene(props) {
         enableDamping
         dampingFactor={0.08}
         minDistance={4}
-        maxDistance={45}
+        maxDistance={props.campus ? Math.max(45, Math.max(props.campus.W, props.campus.D) * 2.2) : 45}
         minPolarAngle={0.3}
         maxPolarAngle={1.3}
         enableZoom={MOBILE}
@@ -519,7 +519,7 @@ export default function Scene(props) {
         onStart={onUserMove}
       />
       <CameraRig floorIdx={floorIdx} focus={focus} selectedBot={selectedBot} tour={tour} onUserMove={onUserMove} bounds={props.campus} />
-      <Campus {...props} low={low} />
+      <Campus {...props} low={q === 'leve'} />
     </Canvas>
   )
 }

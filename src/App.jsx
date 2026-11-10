@@ -19,7 +19,7 @@ import { Login, Settings } from './ui/Login'
 import { Celebration, MobileFloors, MobileTabs, Search, Timeline, TvExit } from './ui/Extras'
 import { EmptyOffice, HealthModal, LookModal, Modal, OfficesModal, QueueModal, SendStatus, ShortcutsModal } from './ui/Ops'
 import { buzz, HoverTip, MiniMap, QuickMenu, SearchField, Welcome } from './ui/Interact'
-import { campusPath, placeCampus } from './scene/layout'
+import { campusPath, placeCampus, toWorld } from './scene/layout'
 import { ACCENTS, DEFAULT_LOOK, lookStore } from './lib/look'
 import { botsAt } from './lib/metrics'
 import { notifyWaiting, prefs, prefStore } from './lib/notify'
@@ -239,7 +239,8 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const focus = useMemo(() => {
     if (overview) return { x: 0, z: 0, y: 0.6, dist: Math.max(26, Math.max(campus.W, campus.D) * 1.05) }
     if (!lay) return { x: 0, z: 0, dist: 12 }
-    return { x: (lay.ox || 0) + lay.focus.x, z: (lay.oz || 0) + lay.focus.z, dist: lay.dist }
+    const c = toWorld(lay, 0, 0)
+    return { x: c.x, z: c.z, dist: Math.max(lay.dist, Math.max(lay.W, lay.D) * 1.05) }
   }, [lay, overview, campus])
 
   // The shared simulation needs to know who sits where on which floor (identical on every screen).
@@ -258,6 +259,13 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     setFloorKey(k)
     setSelectedBot(null)
   }, [])
+  // the rooms menu: picking the room that is already open goes back to the whole campus
+  const menuFloor = useCallback((k) => {
+    if (!overview && k === floors[floorIdx]?.key) {
+      setOverview(true)
+      setSelectedBot(null)
+    } else goFloor(k)
+  }, [overview, floors, floorIdx, goFloor])
 
   // ---- derived counts
   const counts = { working: 0, waiting_user: 0, error: 0, resting: 0, done: 0, talks: 0 }
@@ -647,7 +655,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         <div className="top-left">
           <Brand conn={conn} now={now} name={live.office?.name} onClick={() => setOfficesOpen(true)} />
           <SearchField onOpen={() => setSearchOpen(true)} />
-          <ModeToggles mode={lightMode} setMode={setLightMode} tour={tour} setTour={setTour} overview={overview} setOverview={setOverview} onSearch={() => setSearchOpen(true)} />
+          <ModeToggles mode={lightMode} setMode={setLightMode} tour={tour} setTour={setTour} onSearch={() => setSearchOpen(true)} />
           <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} mode={lightMode} setMode={setLightMode} onOffices={() => setOfficesOpen(true)} onHealth={() => setHealthOpen(true)} onKeys={() => setKeysOpen(true)} onOfficeSettings={() => setOfficeCfg(true)} readonly={readonly} />
         </div>
         {/* one stack for every notice, under the top bar: they line up, never on top of each other */}
@@ -669,7 +677,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
           data={data}
           now={now}
           selectedKey={selKey}
-          onFloor={goFloor}
+          onFloor={menuFloor}
           waiting={waiting}
           onApprove={approve}
           onPickBot={pickBot}
@@ -697,7 +705,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
           <Timeline history={live.history} talkLog={live.talkLog} value={replayT} onChange={setReplayT} open={tlOpen} setOpen={setTlOpen} />
           <Hints />
         </div>
-        <MobileFloors floors={floors} data={data} now={now} selectedKey={selKey} onFloor={goFloor} open={mfOpen} setOpen={setMfOpen} />
+        <MobileFloors floors={floors} data={data} now={now} selectedKey={selKey} onFloor={menuFloor} open={mfOpen} setOpen={setMfOpen} />
         <MobileTabs
           cur={floor}
           waiting={waiting.length}

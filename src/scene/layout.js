@@ -631,49 +631,194 @@ export const CAMPUS_GAP = 3.2 // corridor width between rooms (and around the ca
  * the left edge; the whole campus is centred on the origin. Mutates each layout with ox/oz (its offset)
  * and returns the campus bounds and the corridor geometry used to walk between rooms.
  */
+/** Room-local point -> campus world (rooms can be turned so their door faces the centre). */
+export function toWorld(l, x, z) {
+  const a = l.rot || 0
+  const c = Math.cos(a), s = Math.sin(a)
+  return { x: (l.ox || 0) + x * c + z * s, z: (l.oz || 0) - x * s + z * c }
+}
+
+/**
+ * Lay the rooms out around the centre: the Cortex and the room closest to it (order[1]) side by
+ * side in the middle, every other room packed around them, each turned so its door faces the middle.
+ */
 export function placeCampus(order, layouts) {
   const G = CAMPUS_GAP
-  const list = order.map((k) => [k, layouts[k]]).filter(([, l]) => l)
-  const area = list.reduce((a, [, l]) => a + (l.W + G) * (l.D + G), 0)
-  const target = Math.max(28, Math.sqrt(area) * 1.25) // row width that keeps the campus roughly square
-  const rows = []
-  let row = { items: [], w: 0, d: 0 }
-  for (const [k, l] of list) {
-    if (row.items.length && row.w + l.W > target) (rows.push(row), (row = { items: [], w: 0, d: 0 }))
-    row.items.push([k, l])
-    row.w += l.W + (row.items.length > 1 ? G : 0)
-    row.d = Math.max(row.d, l.D)
+  const list = order.map((k) => layouts[k]).filter(Boolean)
+  const placed = []
+  const overlaps = (x, z, w, d) => placed.some((p) => Math.abs(p.x - x) * 2 < p.w + w + 2 * G - 0.01 && Math.abs(p.z - z) * 2 < p.d + d + 2 * G - 0.01)
+  const put = (l, x, z, rot) => {
+    const odd = Math.abs(Math.sin(rot)) > 0.5
+    l.rot = rot
+    l.fw = odd ? l.D : l.W
+    l.fd = odd ? l.W : l.D
+    l.ox = x
+    l.oz = z
+    placed.push({ x, z, w: l.fw, d: l.fd })
   }
-  if (row.items.length) rows.push(row)
-  const totalW = Math.max(...rows.map((r) => r.w)), totalD = rows.reduce((a, r) => a + r.d, 0) + G * (rows.length - 1)
-  const x0 = -totalW / 2, z0 = -totalD / 2
-  let z = z0
-  const rowInfo = []
-  rows.forEach((r, ri) => {
-    let x = x0
-    for (const [, l] of r.items) {
-      l.ox = x + l.W / 2
-      l.oz = z + l.D / 2 // rooms align on the row's top edge (back walls in one line)
-      l.row = ri
-      l.campusTop = z
-      x += l.W + G
+  if (!list.length) return { minX: -10, maxX: 10, minZ: -10, maxZ: 10, W: 20, D: 20 }
+  // the heart: Cortex, and the nearest room right next to it (both doors facing each other's corridor)
+  const [c0, c1] = list
+  if (c1) {
+    const w = c0.W + c1.W + G
+    put(c0, -w / 2 + c0.W / 2, 0, 0)
+    put(c1, w / 2 - c1.W / 2, 0, 0) // its door (left wall) opens onto the corridor by the Cortex
+  } else put(c0, 0, 0, 0)
+  const ROTS = [0, Math.PI / 2, Math.PI, -Math.PI / 2]
+  const c0x = placed.length > 1 ? (placed[0].x - placed[0].w / 2 + placed[1].x + placed[1].w / 2) / 2 : 0
+  for (const l of list.slice(2)) {
+    let best = null
+    for (const rot of ROTS) {
+      const odd = rot === Math.PI / 2 || rot === -Math.PI / 2
+      const w = odd ? l.D : l.W, d = odd ? l.W : l.D
+      const cands = []
+      for (const p of placed) {
+        const xs = [p.x - p.w / 2 + w / 2, p.x, p.x + p.w / 2 - w / 2]
+        const zs = [p.z - p.d / 2 + d / 2, p.z, p.z + p.d / 2 - d / 2]
+        for (const zz of zs) cands.push([p.x - p.w / 2 - G - w / 2, zz], [p.x + p.w / 2 + G + w / 2, zz])
+        for (const xx of xs) cands.push([xx, p.z - p.d / 2 - G - d / 2], [xx, p.z + p.d / 2 + G + d / 2])
+      }
+      for (const [x, z] of cands) {
+        if (overlaps(x, z, w, d)) continue
+        // bounding box after adding it: keep the campus compact and roughly square
+        let x1 = x - w / 2, x2 = x + w / 2, z1 = z - d / 2, z2 = z + d / 2
+        for (const p of placed) (x1 = Math.min(x1, p.x - p.w / 2)), (x2 = Math.max(x2, p.x + p.w / 2)), (z1 = Math.min(z1, p.z - p.d / 2)), (z2 = Math.max(z2, p.z + p.d / 2))
+        const bw = x2 - x1, bd = z2 - z1
+        // the door (room-local -x) should look toward the middle
+        const dx = -Math.cos(rot), dz = Math.sin(rot)
+        const len = Math.hypot(x, z) || 1
+        const facing = (dx * -x + dz * -z) / len
+        // back walls toward the far side read best from the default camera (south-east)
+        const view = rot === 0 || rot === Math.PI / 2 ? 0 : 2
+        const score = Math.max(bw, bd) * 2 + bw + bd + Math.hypot(x, z) * 0.6 - facing * 6 + view + Math.abs(bw - bd) * 0.5 + Math.hypot((x1 + x2) / 2 - c0x, (z1 + z2) / 2) * 3
+        if (!best || score < best.score) best = { score, x, z, rot }
+      }
     }
-    rowInfo.push({ top: z, bottom: z + r.d })
-    z += r.d + G
-  })
-  return { minX: x0 - G, maxX: x0 + totalW + G, minZ: z0 - G, maxZ: z0 + totalD + G, W: totalW + 2 * G, D: totalD + 2 * G, spineX: x0 - G / 2, rows: rowInfo }
+    put(l, best.x, best.z, best.rot)
+  }
+  // centre the whole campus on the origin
+  let x1 = Infinity, x2 = -Infinity, z1 = Infinity, z2 = -Infinity
+  for (const p of placed) (x1 = Math.min(x1, p.x - p.w / 2)), (x2 = Math.max(x2, p.x + p.w / 2)), (z1 = Math.min(z1, p.z - p.d / 2)), (z2 = Math.max(z2, p.z + p.d / 2))
+  const cx = (x1 + x2) / 2, cz = (z1 + z2) / 2
+  for (const l of list) (l.ox -= cx), (l.oz -= cz)
+  const W = x2 - x1 + 2 * G, D = z2 - z1 + 2 * G
+  const campus = { minX: -W / 2, maxX: W / 2, minZ: -D / 2, maxZ: D / 2, W, D, rooms: list }
+  campus.nav = campusNav(campus)
+  return campus
+}
+
+// ---- corridors: a coarse grid over the campus with every room blocked, A* door to door
+function campusNav(campus) {
+  const C = 0.5
+  const W = campus.W, D = campus.D
+  const nx = Math.ceil(W / C), nz = Math.ceil(D / C)
+  const hard = new Uint8Array(nx * nz)
+  for (const l of campus.rooms) {
+    const i0 = Math.max(0, Math.floor((l.ox - l.fw / 2 - 0.35 + W / 2) / C)), i1 = Math.min(nx - 1, Math.floor((l.ox + l.fw / 2 + 0.35 + W / 2) / C))
+    const j0 = Math.max(0, Math.floor((l.oz - l.fd / 2 - 0.35 + D / 2) / C)), j1 = Math.min(nz - 1, Math.floor((l.oz + l.fd / 2 + 0.35 + D / 2) / C))
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) hard[j * nx + i] = 1
+  }
+  return { hard, nx, nz, C, W, D, cache: new Map() }
+}
+
+function heapPush(h, f, k) {
+  h.push([f, k])
+  let i = h.length - 1
+  while (i > 0) {
+    const p = (i - 1) >> 1
+    if (h[p][0] <= h[i][0]) break
+    ;[h[p], h[i]] = [h[i], h[p]]
+    i = p
+  }
+}
+function heapPop(h) {
+  const top = h[0], last = h.pop()
+  if (h.length) {
+    h[0] = last
+    let i = 0
+    for (;;) {
+      const a = 2 * i + 1, b = a + 1
+      let m = i
+      if (a < h.length && h[a][0] < h[m][0]) m = a
+      if (b < h.length && h[b][0] < h[m][0]) m = b
+      if (m === i) break
+      ;[h[m], h[i]] = [h[i], h[m]]
+      i = m
+    }
+  }
+  return top
+}
+
+function navGridPath(nav, a, b) {
+  const { hard, nx, nz, C, W, D } = nav
+  const cell = (p) => [Math.max(0, Math.min(nx - 1, Math.floor((p.x + W / 2) / C))), Math.max(0, Math.min(nz - 1, Math.floor((p.z + D / 2) / C)))]
+  const [si, sj] = cell(a), [gi, gj] = cell(b)
+  const S = sj * nx + si, T = gj * nx + gi
+  const g = new Float32Array(nx * nz).fill(Infinity)
+  const came = new Int32Array(nx * nz).fill(-1)
+  const h = []
+  g[S] = 0
+  heapPush(h, 0, S)
+  const DIRS = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]]
+  while (h.length) {
+    const [, k] = heapPop(h)
+    if (k === T) break
+    const i = k % nx, j = (k / nx) | 0
+    for (const [di, dj, c] of DIRS) {
+      const ni = i + di, nj = j + dj
+      if (ni < 0 || nj < 0 || ni >= nx || nj >= nz) continue
+      const n = nj * nx + ni
+      if (hard[n] && n !== T) continue
+      if (di && dj && (hard[j * nx + ni] || hard[nj * nx + i])) continue
+      const t = g[k] + c
+      if (t >= g[n]) continue
+      g[n] = t
+      came[n] = k
+      heapPush(h, t + Math.hypot(gi - ni, gj - nj), n)
+    }
+  }
+  if (came[T] < 0) return [[a.x, a.z], [b.x, b.z]]
+  const cells = []
+  for (let k = T; k >= 0 && k !== S; k = came[k]) cells.push(k)
+  cells.push(S)
+  cells.reverse()
+  const pts = cells.map((k) => [(k % nx) * C - W / 2 + C / 2, ((k / nx) | 0) * C - D / 2 + C / 2])
+  // string-pull: keep only turns whose shortcut would cross a room
+  const clear = (p, q) => {
+    const n = Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / (C / 2))
+    for (let s = 1; s < n; s++) {
+      const x = p[0] + ((q[0] - p[0]) * s) / n, z = p[1] + ((q[1] - p[1]) * s) / n
+      const i = Math.floor((x + W / 2) / C), j = Math.floor((z + D / 2) / C)
+      if (hard[j * nx + i]) return false
+    }
+    return true
+  }
+  const out = [[a.x, a.z]]
+  let anchor = [a.x, a.z]
+  for (let i = 1; i < pts.length; i++) {
+    if (!clear(anchor, pts[i])) {
+      anchor = pts[i - 1]
+      out.push(anchor)
+    }
+  }
+  out.push([b.x, b.z])
+  return out
 }
 
 /** World path from room A's door to room B's door, along the corridors (never through a room). */
 export function campusPath(a, b, campus) {
   const G = CAMPUS_GAP
-  const door = (l) => ({ x: l.ox + l.elevator.x, z: l.oz + l.elevator.z }) // the door sits where the old elevator was
-  const out = (l) => ({ x: l.ox - l.W / 2 - G / 2, z: l.oz + l.elevator.z }) // just outside its left wall
-  const corr = (l) => l.campusTop - G / 2 // corridor above its row
+  const door = (l) => toWorld(l, l.elevator.x, l.elevator.z)
+  const out = (l) => toWorld(l, -l.W / 2 - G * 0.55, l.elevator.z)
   const A = door(a), B = door(b), oa = out(a), ob = out(b)
-  const pts = [[A.x, A.z], [oa.x, oa.z], [oa.x, corr(a)]]
-  if (a.row !== b.row) pts.push([campus.spineX, corr(a)], [campus.spineX, corr(b)])
-  pts.push([ob.x, corr(b)], [ob.x, ob.z], [B.x, B.z])
+  const key = `${a.ox},${a.oz}|${b.ox},${b.oz}`
+  const nav = campus.nav
+  let mid = nav?.cache.get(key)
+  if (!mid) {
+    mid = nav ? navGridPath(nav, oa, ob) : [[oa.x, oa.z], [ob.x, ob.z]]
+    nav?.cache.set(key, mid)
+  }
+  const pts = [[A.x, A.z], ...mid, [B.x, B.z]]
   const outp = [pts[0]]
   for (const p of pts.slice(1)) {
     const q = outp[outp.length - 1]

@@ -59,3 +59,6 @@ export const labelSpots = new Map()
 
 /** Where each bot is on the campus (world coordinates: room offset included). */
 export const botWorld = new Map()
+
+/** Room layouts frozen while another room is in focus: their bots and pet stop animating. */
+export const frozenRooms = new Set()

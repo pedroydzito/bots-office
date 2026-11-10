@@ -29,7 +29,8 @@ const WORK_KIND = (step) => {
   return kindCache.get(step)
 }
 import { isDark, resolveColor, STATUS } from '../lib/constants'
-import { botPositions, labelSpots, poiKey, seatYaw, sitting, botWorld } from './registry'
+import { toWorld } from './layout'
+import { botPositions, labelSpots, poiKey, seatYaw, sitting, botWorld, frozenRooms } from './registry'
 import { isSleepy, rnd, simBot, statusAt, syncNow } from './sim'
 import { Clap, Heart, Laugh, Party, ThumbUp } from '../ui/Icons'
 import { useStore } from '../lib/createStore'
@@ -336,7 +337,11 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     [bot.name],
   )
 
+  const ranOnce = useRef(false)
   useFrame(({ camera, size, clock }, rawDt) => {
+    // another room is in focus: stay frozen where we are (after placing ourselves once)
+    if (ranOnce.current && !selected && frozenRooms.has(layout)) return
+    ranOnce.current = true
     const dt = Math.min(rawDt, 0.05)
     const p = P.current
     const v = V.current
@@ -427,7 +432,8 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
       bp.set(sim.x, floorY + sim.y + 0.6, sim.z)
       botPositions.set(p.name, bp)
       const bw = botWorld.get(p.name) || new THREE.Vector3()
-      bw.set(sim.x + (p.layout.ox || 0), floorY + sim.y + 0.6, sim.z + (p.layout.oz || 0))
+      const w = toWorld(p.layout, sim.x, sim.z)
+      bw.set(w.x, floorY + sim.y + 0.6, w.z)
       botWorld.set(p.name, bw)
     }
     if (sim.sitting && sim.at) sitting.add(poiKey(sim.at))

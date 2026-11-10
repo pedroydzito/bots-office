@@ -1,7 +1,7 @@
 import { memo, useEffect, useState } from 'react'
 import Avatar from './Avatar'
 import { Clap, Heart, Laugh, Mail, Party, ThumbUp, Trophy } from './Icons'
-import { Arrow, Auto, Building2, Search as SearchIco, Brain, Chat, Check, Close, Doc, Down, Minus, Moon, Pause, Play, Plus, Sun, Up } from './Icons'
+import { Arrow, Auto, Search as SearchIco, Brain, Chat, Check, Close, Doc, Down, Minus, Moon, Pause, Play, Plus, Sun, Up } from './Icons'
 import { CORTEX_KEY, durationShort, effStatus, hhmm, isApproval, resolveColor, STATUS, talkActive } from '../lib/constants'
 import { sceneSignals } from '../scene/registry'
 import { botMetrics, fmtDuration, taskStats } from '../lib/metrics'
@@ -26,13 +26,12 @@ export function Brand({ conn, now, name, onClick }) {
   )
 }
 
-export function ModeToggles({ mode, setMode, tour, setTour, overview, setOverview, onSearch }) {
+export function ModeToggles({ mode, setMode, tour, setTour, onSearch }) {
   return (
     <div className="card toggles">
       <button className={`light-btn ${mode === 'day' ? 'on' : ''}`} aria-pressed={mode === 'day'} onClick={(e) => setMode('day', e)} title="Dia"><Sun /> <span className="lbl">Dia</span></button>
       <button className={`light-btn ${mode === 'night' ? 'on' : ''}`} aria-pressed={mode === 'night'} onClick={(e) => setMode('night', e)} title="Noite"><Moon /> <span className="lbl">Noite</span></button>
       <button className={`light-btn ${mode === 'auto' ? 'on' : ''}`} aria-pressed={mode === 'auto'} onClick={(e) => setMode('auto', e)} title="Automático (hora real)"><Auto /> <span className="lbl">Auto</span></button>
-      <button className={overview ? 'on' : ''} aria-pressed={overview} onClick={() => setOverview(!overview)} title={overview ? "Ver só uma sala (B)" : "Ver todas as salas (B)"}><Building2 /> <span className="lbl">{overview ? "Uma sala" : "Todas as salas"}</span></button>
       {pipSupported() && (
         <button className="pip-btn" onClick={() => togglePiP().catch(() => {})} title="Janela flutuante (P): o escritório num cantinho da tela" aria-label="Abrir janela flutuante">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" /><rect x="12" y="12" width="7" height="5" rx="1.2" fill="currentColor" stroke="none" /></svg>

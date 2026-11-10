@@ -49,8 +49,8 @@ const NORMALS = { back: [0, -1], left: [-1, 0], right: [1, 0], front: [0, 1] }
 function nearSide(obj, camera, side) {
   const room = obj.parent
   if (!room) return false
-  room.getWorldPosition(_org)
-  _cam.copy(camera.position).sub(_org)
+  _cam.copy(camera.position)
+  room.worldToLocal(_cam)
   const [nx, nz] = NORMALS[side]
   return nx * _cam.x + nz * _cam.z > 0
 }
@@ -111,9 +111,16 @@ export function Shell({ layout, title, subtitle, accent }) {
       <mesh position={[0, 0.06, -D / 2 + 0.265]} material={wallMat}>
         <boxGeometry args={[W, 0.12, 0.03]} />
       </mesh>
-      <mesh position={[-W / 2 + 0.265, 0.06, 0]} material={wallMat}>
-        <boxGeometry args={[0.03, 0.12, D]} />
-      </mesh>
+      {/* left baseboard in two pieces: none across the doorway (it flickered through the frame) */}
+      {(() => {
+        const dz = layout.elevator?.z ?? -D / 2 + 2.3
+        const a1 = -D / 2, a2 = dz - 0.72, b1 = dz + 0.72, b2 = D / 2
+        return [[a1, a2], [b1, b2]].filter(([u, v]) => v - u > 0.05).map(([u, v]) => (
+          <mesh key={u} position={[-W / 2 + 0.265, 0.06, (u + v) / 2]} material={wallMat}>
+            <boxGeometry args={[0.03, 0.12, v - u]} />
+          </mesh>
+        ))
+      })()}
       <WallMount side="back">
         {/* a single vertical line in the team colour, as tall as the floor name */}
         {accent && (

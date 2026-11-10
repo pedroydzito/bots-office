@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { frozenRooms } from './registry'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { simPet, syncNow } from './sim'
@@ -18,7 +19,10 @@ export default function Pet({ layout, floorIdx, kind = 'cat' }) {
   const root = useRef(), body = useRef(), head = useRef(), tail = useRef(), legs = useRef([])
   const [here, setHere] = useState(false)
   const yaw = useRef(0)
+  const ranOnce = useRef(false)
   useFrame((_, rawDt) => {
+    if (ranOnce.current && frozenRooms.has(layout)) return
+    ranOnce.current = true
     const dt = Math.min(rawDt, 0.05)
     const T = syncNow()
     const t = (T % 1e7) / 1000
