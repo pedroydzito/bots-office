@@ -12,7 +12,7 @@ import { TALK_TIMEOUT_MS } from '../lib/constants'
 
 export const SPEED = 1.4 // units per second
 export const RISE = 0.45 // seconds to get up from a chair before walking
-export const SLOT = 80000 // ms per wander slot
+export const SLOT = 420000 // ms per wander slot (~7 min): long stretches at the desk between outings
 export const clock = { offset: 0 }
 export const syncNow = () => Date.now() + clock.offset
 
@@ -49,7 +49,9 @@ export function pointAt(pts, d) {
   const p = pts[pts.length - 1]
   return { x: p[0], z: p[1], yaw: null }
 }
-const walkMs = (from, to, layout, seated) => (pathLen(planPath(from, to, layout)) / SPEED + (seated ? RISE : 0)) * 1000
+/** Path bias from the bot's name so two bots rarely take the exact same route. */
+export const pathBias = (name) => (rnd(name, 'path') - 0.5) * 2
+const walkMs = (from, to, layout, seated, name = '') => (pathLen(planPath(from, to, layout, name ? pathBias(name) : 0)) / SPEED + (seated ? RISE : 0)) * 1000
 export const rideMs = (a, b) => 1800 + 1000 * Math.abs(a - b)
 /** Walking time between two rooms along the campus corridors (door to door). */
 export function hallMs(la, lb) {
@@ -66,15 +68,15 @@ export function statusAt(history, name, t) {
   return null
 }
 const isBusy = (h) => h && (h.status === 'working' || h.status === 'waiting_user' || h.status === 'error')
-/** Late at night (22h–7h local): free bots doze at their desk instead of wandering. */
+/** Late at night (22h–7h local): free bots sleep at their desk instead of wandering. */
 export function isLate(t) {
   const hr = new Date(t).getHours()
   return hr >= 22 || hr < 7
 }
 export function isSleepy(h, t) {
   if (isBusy(h)) return false
-  // during the day a free bot keeps doing its routines (coffee, water, chats, the pet...)
-  return isLate(t) && (!h || t - h.t > 3600e3)
+  // night (22h–7h): free bots sleep at the chair. Daytime they can wander (coffee, view, rare game...)
+  return isLate(t)
 }
 
 // ------------------------------------------------------------------ conversations
@@ -115,11 +117,11 @@ function meetSpot(layout, people, who) {
 export function rideFor(s) {
   const a = world.seatOf(s.from), b = world.seatOf(s.to)
   if (!a || !b || a.floorIdx === b.floorIdx) return null
-  const wh = walkMs({ ...a.seat }, a.layout.elevator, a.layout, true)
+  const wh = walkMs({ ...a.seat }, a.layout.elevator, a.layout, true, s.from)
   const goStart = s.t0 + wh
   const goEnd = goStart + hallMs(a.layout, b.layout)
   const spot = talkSpots(b.seat).visitor
-  const wv = walkMs({ x: spot.x, z: spot.z, az: spot.az }, b.layout.elevator, b.layout, false)
+  const wv = walkMs({ x: spot.x, z: spot.z, az: spot.az }, b.layout.elevator, b.layout, false, s.from)
   const backStart = s.endT + wv
   const backEnd = backStart + hallMs(b.layout, a.layout)
   return { from: a.floorIdx, to: b.floorIdx, goStart, goEnd, backStart, backEnd, la: a.layout, lb: b.layout }
@@ -127,14 +129,28 @@ export function rideFor(s) {
 
 // ------------------------------------------------------------------ wandering
 const KINDS = ['pingpong', 'pool', 'foosball', 'pet', 'coffee', 'cooler', 'sofa', 'view', 'books', 'plant', 'phone', 'chat', 'vending', 'printer', 'arcade', 'armchair', 'stroll']
+const GAME = new Set(['pingpong', 'pool', 'foosball'])
 const tripCache = new Map()
+const GAME_COOLDOWN_SLOTS = 3 // after a game, sit out a few slots before another match
+
 /** Who leaves their desk in this slot on this floor, where to, and until when (conflict-free). */
 function tripsFor(floorKey, names, layout, slot, data, all) {
   const key = `${floorKey}|${slot}|${data.rev}`
   if (tripCache.has(key)) return tripCache.get(key)
   if (tripCache.size > 400) tripCache.clear()
+  // ensure the cooldown window is already cached before we read it (oldest first, no deep recursion)
+  for (let s = Math.max(0, slot - GAME_COOLDOWN_SLOTS); s < slot; s++) {
+    const pk = `${floorKey}|${s}|${data.rev}`
+    if (!tripCache.has(pk)) buildTrips(floorKey, names, layout, s, data, all, pk)
+  }
+  return buildTrips(floorKey, names, layout, slot, data, all, key)
+}
+
+function buildTrips(floorKey, names, layout, slot, data, all, key) {
+  if (tripCache.has(key)) return tripCache.get(key)
   const slotStart = slot * SLOT
-  const cap = Math.max(1, Math.round(names.length / (isLate(slotStart) ? 4 : 2.2)))
+  // at night almost nobody wanders; by day most bots stay put for long stretches
+  const cap = Math.max(1, Math.round(names.length / (isLate(slotStart) ? 8 : 3.5)))
   const taken = new Set()
   const trips = {}
   const order = [...names].sort((a, b) => rnd(a, slot, 'o') - rnd(b, slot, 'o'))
@@ -142,21 +158,33 @@ function tripsFor(floorKey, names, layout, slot, data, all) {
     const h = statusAt(data.history || [], n, t)
     return !isBusy(h) && !isSleepy(h, t) && !all.some((s) => (s.from === n || s.to === n) && s.t0 < t + SLOT && s.endT > t - 5000)
   }
-  const GAME = new Set(['pingpong', 'pool', 'foosball'])
   const gameSpots = layout.pois.filter((p) => GAME.has(p.kind))
-  if (gameSpots.length >= 2 && names.length >= 2 && rnd(floorKey, slot, 'game') < 0.4) {
-    const depart = slotStart + 2500 + rnd(floorKey, slot, 'gd') * 9000
-    const pair = order.filter((n) => freeAt(n, depart)).slice(0, 2)
+  const cooled = new Set()
+  for (let s = Math.max(0, slot - GAME_COOLDOWN_SLOTS); s < slot; s++) {
+    const prev = tripCache.get(`${floorKey}|${s}|${data.rev}`) || {}
+    for (const [n, t] of Object.entries(prev)) if (GAME.has(t.poi?.kind)) cooled.add(n)
+  }
+  // rare table game: not every slot, and never the same pair right after they just played
+  if (!isLate(slotStart) && gameSpots.length >= 2 && names.length >= 2 && rnd(floorKey, slot, 'game') < 0.18) {
+    const pair = order.filter((n) => freeAt(n, slotStart + 8000) && !cooled.has(n)).slice(0, 2)
     if (pair.length === 2) {
-      const play = 30000 + rnd(floorKey, slot, 'gp') * 22000
+      const play = 90000 + rnd(floorKey, slot, 'gp') * 150000 // 1.5–4 min of play
+      // each bot leaves on its own clock; the farther one usually leaves a bit earlier
+      const walks = pair.map((n, k) => walkMs(layout.seats[names.indexOf(n)], gameSpots[k], layout, true, n))
+      const base = slotStart + 12000 + rnd(floorKey, slot, 'gd') * 60000
+      const departs = pair.map((n, k) => {
+        // stagger: longer walk → leave sooner, plus a personal offset so they don't sync
+        const lag = Math.max(0, Math.max(...walks) - walks[k])
+        return base - lag * 0.85 + rnd(n, slot, 'depart') * 18000
+      })
+      const arrivals = pair.map((_, k) => departs[k] + walks[k])
+      const start = Math.max(...arrivals) // play begins when the second arrives; no paired escort walk
       pair.forEach((n, k) => {
         const spot = gameSpots[k]
-        const seat = layout.seats[names.indexOf(n)]
-        const go = walkMs(seat, spot, layout, true)
-        // both start playing when the slower one arrives
-        const start = depart + Math.max(...pair.map((m, j) => walkMs(layout.seats[names.indexOf(m)], gameSpots[j], layout, true)))
-        const back = Math.min(start + play, slotStart + SLOT - 1500)
-        if (back - depart > go + 6000) {
+        const go = walks[k]
+        const depart = departs[k]
+        const back = Math.min(start + play, slotStart + SLOT - 8000)
+        if (back - depart > go + 25000) {
           trips[n] = { depart, back, poi: { ...spot, playFrom: start, variant: rnd(n, slot, 'v') } }
           taken.add(`${spot.kind}:${spot.x},${spot.z}`)
         }
@@ -166,9 +194,10 @@ function tripsFor(floorKey, names, layout, slot, data, all) {
   for (const n of order) {
     if (trips[n]) continue
     if (Object.keys(trips).length >= cap) break
-    const personality = 0.22 + 0.5 * rnd(n, 'personality')
+    // most of the time a free bot just stays at the desk (cochilando / no computador)
+    const personality = 0.12 + 0.28 * rnd(n, 'personality')
     if (rnd(n, slot, 'go') > personality) continue
-    const depart = slotStart + 2000 + rnd(n, slot, 'd') * 22000
+    const depart = slotStart + 8000 + rnd(n, slot, 'd') * 180000
     const h = statusAt(data.history || [], n, depart)
     if (isBusy(h) || isSleepy(h, depart)) continue
     if (all.some((s) => (s.from === n || s.to === n) && s.t0 < depart + SLOT && s.endT > depart - 5000)) continue
@@ -176,7 +205,7 @@ function tripsFor(floorKey, names, layout, slot, data, all) {
     // a quick chat at a colleague's desk is also an option (if that colleague is free)
     const mates = names.filter((m) => m !== n && !trips[m] && !isBusy(statusAt(data.history || [], m, depart)))
     const extra = []
-    if (mates.length) {
+    if (mates.length && rnd(n, slot, 'chat?') < 0.45) {
       const m = mates[Math.floor(rnd(n, slot, 'mate') * mates.length)]
       const ms = layout.seats[names.indexOf(m)]
       if (ms) extra.push({ kind: 'chat', x: ms.x + 0.5, z: ms.az, az: ms.az, yaw: Math.atan2(-0.5, ms.z - ms.az), mate: m })
@@ -188,17 +217,23 @@ function tripsFor(floorKey, names, layout, slot, data, all) {
       const pp = simPet(depart + 9000, fi, layout, petKind)
       if (pp && pp.mode !== 'walk') extra.push({ kind: 'pet', x: pp.x + 0.6, z: pp.z, az: pp.z, yaw: -Math.PI / 2 })
     }
-    const pois = [...layout.pois, ...extra].filter((p) => !GAME.has(p.kind) && !taken.has(`${p.kind}:${p.x},${p.z}`))
+    // solo games are rare and skip anyone in game cooldown
+    const pois = [...layout.pois, ...extra].filter((p) => {
+      if (taken.has(`${p.kind}:${p.x},${p.z}`)) return false
+      if (GAME.has(p.kind)) return false // games are pair-only above
+      return true
+    })
     // favourites weigh more, but any spot can win (so it isn't always the same thing)
     const score = (p) => (likes.indexOf(p.kind) >= 0 ? 0.55 : 0) + rnd(n, slot, p.kind, p.x)
     const pick = [...pois].sort((a, b) => score(b) - score(a))[0]
     if (!pick) continue
     taken.add(`${pick.kind}:${pick.x},${pick.z}`)
     const seat = layout.seats[names.indexOf(n)]
-    const go = walkMs(seat, pick, layout, true) + (pick.route ? pick.route.length * 6500 : 0)
-    const stay = 12000 + rnd(n, slot, 's') * 26000
-    const back = Math.min(depart + go + stay, slotStart + SLOT - 1500)
-    if (back - depart < go + 4000) continue
+    const go = walkMs(seat, pick, layout, true, n) + (pick.route ? pick.route.length * 6500 : 0)
+    // long stays: 1–4 minutes at the POI, so the desk stretches in between feel real
+    const stay = 60000 + rnd(n, slot, 's') * 180000
+    const back = Math.min(depart + go + stay, slotStart + SLOT - 8000)
+    if (back - depart < go + 20000) continue
     trips[n] = { depart, back, poi: { ...pick, variant: rnd(n, slot, 'v', pick.kind) } }
   }
   tripCache.set(key, trips)
@@ -293,14 +328,14 @@ function eventsFor(ctx, T) {
       ev.push({ t: trip.depart, goal: g0 })
       if (trip.poi.route) {
         // a stroll: walk on to the next stops, pausing a few seconds at each
-        let tcur = trip.depart + walkMs(seat, g0, layout, true)
+        let tcur = trip.depart + walkMs(seat, g0, layout, true, name)
         let prev = g0
         for (const [x, z] of trip.poi.route) {
           const g = { kind: 'stroll', x, z, az: z, yaw: rnd(name, x, z) - 0.5, poi: true }
           tcur += 3500
           if (tcur > trip.back) break
           ev.push({ t: tcur, goal: g })
-          tcur += walkMs({ x: prev.x, z: prev.z, az: prev.az ?? prev.z }, g, layout, false)
+          tcur += walkMs({ x: prev.x, z: prev.z, az: prev.az ?? prev.z }, g, layout, false, name)
           prev = g
         }
       }
@@ -324,7 +359,8 @@ function eventsFor(ctx, T) {
 const stateCache = new WeakMap()
 
 export function simBot(ctx, T) {
-  const { role, seat, layout } = ctx
+  const { role, seat, layout, name } = ctx
+  const bias = name ? pathBias(name) : 0
   const ev = eventsFor(ctx, T)
   let cache = stateCache.get(ev)
   if (!cache || cache.seat !== seat || cache.layout !== layout) {
@@ -367,7 +403,7 @@ export function simBot(ctx, T) {
       atSeat = false
     }
     const from = atSeat && seat ? seat : { x: pos.x, z: pos.z, az: pos.z }
-    const pts = planPath(from, e.goal, layout)
+    const pts = planPath(from, e.goal, layout, bias)
     cache.states.push({
       pos, atSeat: false, hidden: e.teleport || e.goal.kind !== 'elevator' ? (e.teleport ? false : false) || hidden && e.goal.kind === 'elevator' : hidden,
       path: { pts, len: pathLen(pts) }, pathT0: e.t + (atSeat ? RISE * 1000 : 0), goal: e.goal, talk: e.talk || null, departT: e.t,
@@ -388,10 +424,12 @@ export function simBot(ctx, T) {
   }
   const seated = arrived && goal && goal.kind === 'seat'
   // smooth sit down / stand up from the arrival/departure times
+  // sofa / armchair need a higher perch so the body sits on the cushion, not inside it
+  const sitY = goal?.kind === 'sofa' ? 0.58 : goal?.kind === 'armchair' ? 0.5 : 0.42
   let y = 0
   if (seated) y = SEAT_Y * Math.min(1, (T - arrivedT) / 350 + (arrivedT === -Infinity ? 1 : 0))
   else if (cur.rising) y = SEAT_Y * Math.max(0, 1 - (T - departT) / (RISE * 1000))
-  else if (arrived && goal?.sit) y = 0.42 * Math.min(1, (T - arrivedT) / 400)
+  else if (arrived && goal?.sit) y = sitY * Math.min(1, (T - arrivedT) / 400)
   return {
     x: cur.x, z: cur.z, y, yaw: cur.yaw, moving: !arrived && !cur.rising,
     hidden, gone, at: arrived ? goal : null, seated, sitting: arrived && !!goal?.sit,
@@ -440,3 +478,5 @@ export function simPet(T, floorIdx, layout, kind = 'cat') {
   const mode = resting ? ['sit', 'groom', 'nap'][hash(`cat|${slot}|${leg}|m`) % 3] : 'walk'
   return { x: p.x, z: p.z, yaw: p.yaw, mode }
 }
+
+// pet paths also go around furniture (planPath above already uses the walk grid)

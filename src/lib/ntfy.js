@@ -117,13 +117,13 @@ export function connectNtfy(topic, { onMessages, onStatus }) {
     }
   }
 
-  // back from background / sleep: fetch what was missed and tell the UI
+  // back from background / sleep: fetch what was missed (no toast: the scene already shows it)
   let hiddenAt = 0
   const onVis = () => {
     if (document.hidden) hiddenAt = Date.now()
     else if (hiddenAt && Date.now() - hiddenAt > 30000) {
       hiddenAt = 0
-      poll(lastSec ? Math.floor(lastSec) : '12h').then(() => !closed && window.dispatchEvent(new Event('botoffice:resynced')))
+      poll(lastSec ? Math.floor(lastSec) : '12h')
     }
   }
   document.addEventListener('visibilitychange', onVis)

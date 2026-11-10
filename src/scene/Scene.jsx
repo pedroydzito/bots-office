@@ -4,7 +4,7 @@ import Sky from './Sky'
 import { LabelLayer } from './Labels'
 import { useStore } from '../lib/createStore'
 import { prefs, prefStore } from '../lib/notify'
-import { pipStore } from '../lib/pip'
+import { pipGrabFrame, pipStore } from '../lib/pip'
 import { resetTextureCaches } from './textures'
 import { Environment, Lightformer, OrbitControls, PerformanceMonitor } from '@react-three/drei'
 import * as THREE from 'three'
@@ -386,6 +386,30 @@ function Precompile() {
   return null
 }
 
+/**
+ * Feed PiP after each real WebGL present.
+ * Must NOT use useFrame with priority > 0: that puts R3F into manual render mode, and when
+ * Effects aren't mounted (Leve / Auto on weak GPU) nothing calls gl.render — the office goes
+ * white while Html labels keep floating. Wrapping gl.render avoids that and still copies the
+ * buffer in the same turn (no preserveDrawingBuffer, which stalls the GPU).
+ */
+function PipFeed() {
+  const { gl } = useThree()
+  const on = useStore(pipStore, (p) => p.on)
+  useEffect(() => {
+    if (!on) return
+    const orig = gl.render.bind(gl)
+    gl.render = (scene, camera) => {
+      orig(scene, camera)
+      pipGrabFrame(gl.domElement)
+    }
+    return () => {
+      gl.render = orig
+    }
+  }, [gl, on])
+  return null
+}
+
 export default function Scene(props) {
   const { night, nightness, weather, tour, floorIdx, focus, selectedBot, onPointerMissed, onUserMove } = props
   // Adaptive quality: phones start light; any device drops resolution and shadows if FPS falls.
@@ -448,6 +472,7 @@ export default function Scene(props) {
       <LabelLayer />
       {/* no post-processing: the look comes from colours, soft shadows and fog (much lighter) */}
       <Precompile />
+      <PipFeed />
       <PerformanceMonitor
         flipflops={3}
         onFallback={() => {

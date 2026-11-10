@@ -94,7 +94,9 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
       .catch(() => {})
     t.finished.finally(() => delete document.documentElement.dataset.transicao)
   }, [])
-  useEffect(() => prefs.set('light', lightMode), [lightMode])
+  useEffect(() => {
+    prefs.set('light', lightMode)
+  }, [lightMode])
   const [replayT, setReplayT] = useState(null) // timeline replay (ms) or null = live
   const [tv, setTv] = useState(() => new URLSearchParams(window.location.search).has('tv'))
   const [celebration, setCelebration] = useState(null)
@@ -119,11 +121,6 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
       }),
     [],
   )
-  useEffect(() => {
-    const on = () => pushNotice({ t: Date.now(), title: 'Atualizado agora', sub: 'Recuperamos o que aconteceu enquanto você estava fora' })
-    window.addEventListener('botoffice:resynced', on)
-    return () => window.removeEventListener('botoffice:resynced', on)
-  }, [pushNotice])
   const [overview, setOverview] = useState(true) // all rooms side by side (default) or one room in focus
   const [searchOpen, setSearchOpen] = useState(false)
   const [tour, setTour] = useState(false)
@@ -336,12 +333,17 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const [guideClosed, setGuideClosed] = useState(false)
   const pip = useStore(pipStore, (p) => p)
   const compactUi = useStore(prefStore, (p) => p.compact)
-  useEffect(() => document.documentElement.classList.toggle('compact-ui', !!compactUi), [compactUi])
+  useEffect(() => {
+    document.documentElement.classList.toggle('compact-ui', !!compactUi)
+  }, [compactUi])
   const [mfOpen, setMfOpen] = useState(false)
   // only say "offline" after a few seconds of trying (short blips don't deserve a note)
   const [offlineLong, setOfflineLong] = useState(false)
   useEffect(() => {
-    if (conn !== 'reconnecting') return setOfflineLong(false)
+    if (conn !== 'reconnecting') {
+      setOfflineLong(false)
+      return
+    }
     const id = setTimeout(() => setOfflineLong(true), 8000)
     return () => clearTimeout(id)
   }, [conn])
@@ -377,7 +379,10 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     } catch {
       /* private mode */
     }
-    if (seen) return prefs.set('welcomed', true)
+    if (seen) {
+      prefs.set('welcomed', true)
+      return
+    }
     const id = setTimeout(() => setWelcome(true), 1200)
     return () => clearTimeout(id)
   }, [])

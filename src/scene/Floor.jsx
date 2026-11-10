@@ -330,7 +330,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
               <ExecDesk mat={deskMat} vip={isVip(data.bots[n])} />
               <Chair x={0} z={0} owner={n} hiddenOwner={data.bots[n]?.hidden ? n : null} yawBase={seat.yaw || 0} />
               <Workstation seat={{ x: 0, z: 0 }} idx={i} status={data.bots[n]?.hidden ? 'resting' : effStatus(data.bots[n], now)} night={night} step={data.bots[n]?.step} color={resolveColor(data.bots[n]?.color)} />
-              <DeskDecor seat={{ x: 0, z: 0 }} items={data.bots[n]?.desk} name={n} trophies={data.stats?.[n]?.got?.length || 0} color={resolveColor(data.bots[n]?.color)} />
+              <DeskDecor seat={{ x: 0, z: 0 }} items={data.bots[n]?.desk} name={n} trophies={data.stats?.[n]?.got?.length || 0} color={resolveColor(data.bots[n]?.color)} vip={isVip(data.bots[n])} />
             </group>
           )
         return (
