@@ -32,7 +32,7 @@ export function ModeToggles({ mode, setMode, tour, setTour, overview, setOvervie
       <button className={`light-btn ${mode === 'day' ? 'on' : ''}`} aria-pressed={mode === 'day'} onClick={(e) => setMode('day', e)} title="Dia"><Sun /> <span className="lbl">Dia</span></button>
       <button className={`light-btn ${mode === 'night' ? 'on' : ''}`} aria-pressed={mode === 'night'} onClick={(e) => setMode('night', e)} title="Noite"><Moon /> <span className="lbl">Noite</span></button>
       <button className={`light-btn ${mode === 'auto' ? 'on' : ''}`} aria-pressed={mode === 'auto'} onClick={(e) => setMode('auto', e)} title="Automático (hora real)"><Auto /> <span className="lbl">Auto</span></button>
-      <button className={overview ? 'on' : ''} aria-pressed={overview} onClick={() => setOverview(!overview)} title="Prédio inteiro (B)"><Building2 /> <span className="lbl">Prédio</span></button>
+      <button className={overview ? 'on' : ''} aria-pressed={overview} onClick={() => setOverview(!overview)} title={overview ? "Ver só uma sala (B)" : "Ver todas as salas (B)"}><Building2 /> <span className="lbl">{overview ? "Uma sala" : "Todas as salas"}</span></button>
       {pipSupported() && (
         <button className="pip-btn" onClick={() => togglePiP().catch(() => {})} title="Janela flutuante (P): o escritório num cantinho da tela" aria-label="Abrir janela flutuante">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" /><rect x="12" y="12" width="7" height="5" rx="1.2" fill="currentColor" stroke="none" /></svg>
@@ -116,7 +116,7 @@ export function LeftPanel({ floors, data, now, selectedKey, onFloor, waiting, on
     <div className="left">
       <div className="card floors">
         <div className="hd">
-          <span>Andares</span>
+          <span>Salas</span>
           <em>{floors.length}</em>
           {onCollapse && (
             <button className="panel-ico" onClick={onCollapse} title="Esconder painel ( [ )" aria-label="Esconder painel lateral">
@@ -324,7 +324,7 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
     return (
       <div className="right card">
         <div className="fh" style={{ background: 'var(--accent)' }}>
-          <div className="r1"><b>Cortex</b><span>Andar {floor.num} · Biblioteca</span></div>
+          <div className="r1"><b>Cortex</b><span>Biblioteca</span></div>
           <div className="big"><b>{c ? c.notes.toLocaleString('pt-BR') : 0}</b> notas</div>
         </div>
         <div className="list">
@@ -345,7 +345,7 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
   return (
     <div className="right card">
       <div className="fh" style={{ background: headerColor(sts) }}>
-        <div className="r1"><b>{floor.name}</b><span>Andar {floor.num} · {floor.bots.length} bots</span></div>
+        <div className="r1"><b>{floor.name}</b><span>Sala · {floor.bots.length} bots</span></div>
         <div className="big"><b>{working}</b> trabalhando</div>
       </div>
       <div className="list">
@@ -383,7 +383,7 @@ const FILTERS = [
   ['all', 'Tudo'],
   ['errors', 'Erros'],
   ['talks', 'Conversas'],
-  ['floor', 'Este andar'],
+  ['floor', 'Esta sala'],
 ]
 export const Activity = memo(function Activity({ data, onPick, floorBots = [] }) {
   const [f, setF] = useState('all')
@@ -523,7 +523,7 @@ export function Hints() {
       <span><b>Botão direito</b> mover</span>
       <span><b>WASD</b> andar</span>
       <span><b>Rolar</b> zoom</span>
-      <span><b><Up size={11} /><Down size={11} /></b> andares</span>
+      <span><b><Up size={11} /><Down size={11} /></b> salas</span>
     </div>
   )
 }

@@ -17,7 +17,7 @@ export const clock = { offset: 0 }
 export const syncNow = () => Date.now() + clock.offset
 
 /** Shared context set by the app: who sits where on which floor. */
-export const world = { seatOf: () => null, layoutOfIdx: () => null, floorsCount: 1 }
+export const world = { seatOf: () => null, layoutOfIdx: () => null, floorsCount: 1, hallPath: null }
 
 // ------------------------------------------------------------------ hashing
 export function hash(str) {
@@ -51,6 +51,11 @@ export function pointAt(pts, d) {
 }
 const walkMs = (from, to, layout, seated) => (pathLen(planPath(from, to, layout)) / SPEED + (seated ? RISE : 0)) * 1000
 export const rideMs = (a, b) => 1800 + 1000 * Math.abs(a - b)
+/** Walking time between two rooms along the campus corridors (door to door). */
+export function hallMs(la, lb) {
+  const pts = world.hallPath ? world.hallPath(la, lb) : null
+  return pts ? Math.max(1500, (pathLen(pts) / SPEED) * 1000) : rideMs(0, 1)
+}
 
 // ------------------------------------------------------------------ statuses
 export function statusAt(history, name, t) {
@@ -112,12 +117,12 @@ export function rideFor(s) {
   if (!a || !b || a.floorIdx === b.floorIdx) return null
   const wh = walkMs({ ...a.seat }, a.layout.elevator, a.layout, true)
   const goStart = s.t0 + wh
-  const goEnd = goStart + rideMs(a.floorIdx, b.floorIdx)
+  const goEnd = goStart + hallMs(a.layout, b.layout)
   const spot = talkSpots(b.seat).visitor
   const wv = walkMs({ x: spot.x, z: spot.z, az: spot.az }, b.layout.elevator, b.layout, false)
   const backStart = s.endT + wv
-  const backEnd = backStart + rideMs(a.floorIdx, b.floorIdx)
-  return { from: a.floorIdx, to: b.floorIdx, goStart, goEnd, backStart, backEnd }
+  const backEnd = backStart + hallMs(b.layout, a.layout)
+  return { from: a.floorIdx, to: b.floorIdx, goStart, goEnd, backStart, backEnd, la: a.layout, lb: b.layout }
 }
 
 // ------------------------------------------------------------------ wandering

@@ -29,7 +29,7 @@ const WORK_KIND = (step) => {
   return kindCache.get(step)
 }
 import { isDark, resolveColor, STATUS } from '../lib/constants'
-import { botPositions, labelSpots, poiKey, seatYaw, sitting } from './registry'
+import { botPositions, labelSpots, poiKey, seatYaw, sitting, botWorld } from './registry'
 import { isSleepy, rnd, simBot, statusAt, syncNow } from './sim'
 import { Clap, Heart, Laugh, Party, ThumbUp } from '../ui/Icons'
 import { useStore } from '../lib/createStore'
@@ -414,11 +414,14 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
 
     root.current.position.set(sim.x, sim.y, sim.z)
     root.current.rotation.y = v.yaw
-    if (sim.hidden) botPositions.delete(p.name)
+    if (sim.hidden) (botPositions.delete(p.name), botWorld.delete(p.name))
     else {
       const bp = botPositions.get(p.name) || new THREE.Vector3()
       bp.set(sim.x, floorY + sim.y + 0.6, sim.z)
       botPositions.set(p.name, bp)
+      const bw = botWorld.get(p.name) || new THREE.Vector3()
+      bw.set(sim.x + (p.layout.ox || 0), floorY + sim.y + 0.6, sim.z + (p.layout.oz || 0))
+      botWorld.set(p.name, bw)
     }
     if (sim.sitting && sim.at) sitting.add(poiKey(sim.at))
 
@@ -898,7 +901,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
         {focused && <Accessory kind="headphones" asset={asset} color={color} />}
         {snowy && bot.accessory !== 'scarf' && <Accessory kind="scarf" asset={asset} color={color} />}
       </group>
-      {!hidden && !view.off && (!p_compact || selected || spotlight) && (
+      {!hidden && !view.off && (!p_compact || selected || spotlight || status === 'waiting_user' || status === 'error' || talking) && (
         <Label anchor={root} y={iconY}>
           <div className={`bot-tag${selected ? ' sel' : ''}${bot.hidden ? ' is-hidden' : ''}${/^(ceo|principal|founder|fundador|dono|owner)$/i.test(bot.role || '') ? ' vip' : ''}`}>
             {speechText && (

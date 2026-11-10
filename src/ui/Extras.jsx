@@ -104,7 +104,7 @@ export function Celebration({ c, onDismiss }) {
       <Party size={18} />
       <div>
         <b>{c.title || `${c.name} concluiu tudo!`}</b>
-        <span>{c.sub || 'Todos os bots do andar terminaram'}</span>
+        <span>{c.sub || 'Todos os bots da sala terminaram'}</span>
       </div>
     </div>
   )

@@ -4,7 +4,7 @@ import { RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
 import { Shell, WallMount } from './Floor'
 import StaticMerge from './StaticMerge'
-import { Armchair, BeanBag, Bookshelf, Clock, FloorLamp, GlassElevator, InfoBoard, MATS, MeetingTable, Plant, Poster, Rug, WallShelf } from './Props'
+import { Armchair, BeanBag, Bookshelf, Clock, FloorLamp, Door, InfoBoard, MATS, MeetingTable, Plant, Poster, Rug, WallShelf } from './Props'
 import { makeCardTexture } from './textures'
 import { durationShort } from '../lib/constants'
 
@@ -119,7 +119,7 @@ export default function Cortex({ layout, cortex, floorNum, floorY, night }) {
   return (
     <group>
       <StaticMerge key={`${W}|${D}|${night}`}>
-      <Shell layout={layout} title="Cortex" subtitle={`Andar ${floorNum} · Biblioteca`} />
+      <Shell layout={layout} title="Cortex" subtitle="Biblioteca" />
       {backShelves.map((x, i) => (
         <Bookshelf key={i} position={[x, 0, -D / 2 + 0.47]} width={1.7} shelves={4} seed={i + 11} />
       ))}
@@ -175,7 +175,7 @@ export default function Cortex({ layout, cortex, floorNum, floorY, night }) {
       <Poster position={[-W / 2 + 0.27, 1.85, 2.6]} rotation={[0, Math.PI / 2, 0]} seed={31} w={0.85} h={1.1} />
       <WallShelf position={[-W / 2 + 0.25, 1.3, -2.0]} rotation={[0, Math.PI / 2, 0]} w={1.2} />
       </WallMount>
-      <GlassElevator layout={layout} night={night} />
+      <WallMount side="left"><Door layout={layout} /></WallMount>
       {!cortex && <CardSprite title="Sem dados do Cortex" sub='envie {"cortex":…}' scale={0.32} position={[0, 4.1, 0]} />}
     </group>
   )

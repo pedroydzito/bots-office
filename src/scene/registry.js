@@ -56,3 +56,6 @@ export function tickCodeScroll(t, textures) {
 
 /** Where each bot's label sits on screen (for decluttering names). */
 export const labelSpots = new Map()
+
+/** Where each bot is on the campus (world coordinates: room offset included). */
+export const botWorld = new Map()

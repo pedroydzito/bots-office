@@ -11,7 +11,7 @@ import StaticMerge from './StaticMerge'
 
 let mergeGen = 0
 import {
-  Aquarium, Arcade, Bench, MeetingTopic, PoolTable, DESK_FINISH, ExecDesk, isVip, Foosball, PingPong, SoloSetup, Armchair, BeanBag, Poster, WallShelf, Bookshelf, FloorLamp, Printer, Vending, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, GlassElevator, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
+  Aquarium, Arcade, Bench, MeetingTopic, PoolTable, DESK_FINISH, ExecDesk, isVip, Foosball, PingPong, SoloSetup, Armchair, BeanBag, Poster, WallShelf, Bookshelf, FloorLamp, Printer, Vending, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, Door, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
   StickyWall, TVScreen, WallTitle, WaterCooler, Workstation,
 } from './Props'
 import { durationShort, effStatus, resolveColor, STATUS, talkActive } from '../lib/constants'
@@ -145,7 +145,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   const petKind0 = data.pets?.[floor.key] || ['cat', 'dog', 'fish'][hash(floor.key) % 3]
   const look = useStore(lookStore, (l) => l)
   const deskMat = DESK_FINISH[(layout.variant >>> 10) % DESK_FINISH.length]
-  const petKind = look.pet && !compact ? petKind0 : 'none'
+  const petKind = look.pet ? petKind0 : 'none'
   const homeSet = useMemo(() => new Set(home), [home])
   const seatOf = useMemo(() => {
     const m = {}
@@ -216,7 +216,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   const staticRoom = useMemo(
     () => (
       <StaticMerge key={mergeKey}>
-      <Shell layout={layout} title={floor.name} subtitle={`Andar ${floor.num}`} accent={look.accent ? floor.color : null} />
+      <Shell layout={layout} title={floor.name} subtitle={`${floor.bots.length} bots`} accent={look.accent ? floor.color : null} />
       <WallMount side="back">
       <Clock position={[-W / 2 + 1.55, 2.45, -D / 2 + 0.28]} />
       <CoffeeCorner position={[-W / 2 + 3.0, 0, -D / 2 + 0.52]} />
@@ -243,7 +243,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       <WaterCooler position={[-W / 2 + 0.6, 0, layout.wall.coolerZ]} rotation={[0, Math.PI / 2, 0]} />
       {layout.wall.shelfZ != null && <Bookshelf position={[-W / 2 + 0.47, 0, layout.wall.shelfZ]} rotation={[0, Math.PI / 2, 0]} seed={floor.num} />}
       <Lounge position={[layout.lounge?.x ?? W / 2 - 2.4, 0, layout.lounge?.z ?? D / 2 - 2.3]} night={night} seats={layout.pois.filter((q) => q.kind === 'sofa' && Math.abs(q.x - (layout.lounge?.x ?? W / 2 - 2.4)) < 2 && Math.abs(q.z - (layout.lounge?.z ?? D / 2 - 2.3)) < 1.6)} />
-      <GlassElevator layout={layout} night={night} floorY={floorY} />
+      <WallMount side="left"><Door layout={layout} /></WallMount>
       {layout.decor.map((d, i) =>
         d.type === 'rug' ? (look.rugs ? <Rug key={i} {...d} /> : null) :
         d.type === 'meeting' ? <MeetingTable key={i} x={d.x} z={d.z} /> :
@@ -269,7 +269,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       ))}
       <group userData={{ dynamic: true }}>{petKind !== 'fish' && petKind !== 'none' && <Pet layout={layout} floorIdx={floorIdx} kind={petKind} />}</group>
       {petKind === 'fish' && <Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} />}
-      <group userData={{ dynamic: true }}>{look.seasonal && !compact && <Seasonal layout={layout} seed={floor.key} />}</group>
+      <group userData={{ dynamic: true }}>{look.seasonal && <Seasonal layout={layout} seed={floor.key} />}</group>
       {/* wall art keeps both walls lively: posters high above the left-wall furniture, art + shelf on the back wall */}
       {/* pictures sit in the gaps between the left-wall furniture, at one shared height */}
       <WallMount side="left">
@@ -337,13 +337,13 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
           <group key={n}>
             <Chair x={seat.x} z={seat.z} owner={n} hiddenOwner={data.bots[n]?.hidden ? n : null} />
             <Workstation seat={seat} idx={i} status={data.bots[n]?.hidden ? 'resting' : effStatus(data.bots[n], now)} night={night} step={data.bots[n]?.step} color={resolveColor(data.bots[n]?.color)} />
-            <DeskDecor seat={seat} items={data.bots[n]?.desk} name={n} trophies={data.stats?.[n]?.got?.length || 0} color={resolveColor(data.bots[n]?.color)} />
+            {!compact && <DeskDecor seat={seat} items={data.bots[n]?.desk} name={n} trophies={data.stats?.[n]?.got?.length || 0} color={resolveColor(data.bots[n]?.color)} />}
             {data.bots[n]?.birthday === today && <Cake seat={seat} />}
           </group>
         )
       })}
       {/* lights stay mounted (intensity 0 by day): adding/removing lights recompiles every shader */}
-      {!compact &&
+      {false &&
         layout.rows.slice(0, 2).map((r, i) => (
           <pointLight key={i} position={[(r.x1 + r.x2) / 2, 2.6, r.z + 0.6]} intensity={night && !allResting ? 5 : 0} distance={7} decay={1.5} color="#ffe2b8" />
         ))}

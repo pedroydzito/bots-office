@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import Sky from './Sky'
 import { LabelLayer } from './Labels'
@@ -8,10 +8,9 @@ import { pipStore } from '../lib/pip'
 import { resetTextureCaches } from './textures'
 import { Environment, Lightformer, OrbitControls, PerformanceMonitor } from '@react-three/drei'
 import * as THREE from 'three'
-import Building from './Building'
+import Campus from './Campus'
 import Weather from './Weather'
-import { FLOOR_H } from './layout'
-import { botPositions, floorOffset, ridePositions, sceneSignals } from './registry'
+import { botWorld, ridePositions, sceneSignals } from './registry'
 
 const DAY_BG = new THREE.Color('#eceef2')
 const NIGHT_BG = new THREE.Color('#0c1120')
@@ -21,7 +20,7 @@ const DUSK_SUN = C('#ffad6b'), MOON = C('#9fb4ff'), SUN = C('#fff8ef'), DUSK_BG 
 const tmpC = new THREE.Color()
 
 /** nightness: 0 day … 1 night (fractions = dawn/dusk, warm tones). weather dims and greys the sky. */
-function Lights({ nightness, weather, low }) {
+function Lights({ nightness, weather, low, span }) {
   const { scene } = useThree()
   const hemi = useRef(), sun = useRef(), amb = useRef()
   const k = useRef(nightness)
@@ -51,13 +50,23 @@ function Lights({ nightness, weather, low }) {
     <>
       <hemisphereLight ref={hemi} args={['#ffffff', '#d4d7de', 1.15]} />
       <ambientLight ref={amb} intensity={0.35} />
-      <SunWithTarget sunRef={sun} low={low} />
+      <SunWithTarget sunRef={sun} low={low} span={span} />
     </>
   )
 }
 
 /** Directional light that follows the camera target so shadows stay crisp on the current floor. */
-function SunWithTarget({ sunRef, low }) {
+function SunWithTarget({ sunRef, low, span = 11 }) {
+  useEffect(() => {
+    const c = sunRef.current?.shadow?.camera
+    if (!c) return
+    c.left = -span
+    c.right = span
+    c.top = span
+    c.bottom = -span
+    c.far = 45 + span
+    c.updateProjectionMatrix()
+  }, [span, sunRef])
   const controls = useThree((s) => s.controls)
   const target = useRef()
   useEffect(() => {
@@ -119,7 +128,7 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove, bounds }) {
   const desired = useRef(new THREE.Vector3(0, 0.6, 0))
   const zoomGoal = useRef(null)
   const placed = useRef(false)
-  const fy = focus.y ?? floorIdx * FLOOR_H + 1.2
+  const fy = focus.y ?? 1.2
   // narrow screens (phones) need to back off so the whole room fits
   const fit = Math.max(1, Math.pow(1.25 / Math.max(0.3, size.width / size.height), 0.7))
   const goalDist = focus.dist * fit
@@ -220,9 +229,9 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove, bounds }) {
     // follow selected bot
     if (selectedBot) {
       const r = ridePositions.get(selectedBot)
-      const p = botPositions.get(selectedBot)
+      const p = botWorld.get(selectedBot)
       if (r) desired.current.copy(r)
-      else if (p) desired.current.set(p.x + floorOffset.x, p.y, p.z + floorOffset.z)
+      else if (p) desired.current.set(p.x, p.y, p.z)
     }
     if (dragging.current) {
       // while the user drags, follow their hand (and damping) instead of pulling back
@@ -333,6 +342,23 @@ function IdleSaver({ cap = false }) {
 
 export const perfFlags = { idle: false }
 
+/** Fog follows the zoom: the ground fades out past the campus instead of ending in an edge. */
+function CampusFog() {
+  const { scene, camera, controls } = useThree()
+  useEffect(() => {
+    scene.fog = new THREE.Fog('#dfe3e8', 60, 140)
+    return () => (scene.fog = null)
+  }, [scene])
+  useFrame(() => {
+    if (!scene.fog || !controls) return
+    const d = camera.position.distanceTo(controls.target)
+    scene.fog.near = d + 12
+    scene.fog.far = d + 70
+    if (scene.background?.isColor) scene.fog.color.copy(scene.background)
+  })
+  return null
+}
+
 /** Few CPU cores or little memory: start in Leve (desktop browsers only report these roughly). */
 function weakHardware() {
   if (typeof navigator === 'undefined') return false
@@ -342,7 +368,6 @@ function weakHardware() {
 }
 
 // desktop-only post effects live in their own chunk: phones never download them
-const Effects = lazy(() => import('./Effects'))
 
 // compile every shader once the office is up, so the first visit to another floor / the
 // building view doesn't stutter while materials compile
@@ -382,7 +407,7 @@ export default function Scene(props) {
       window.removeEventListener('pageshow', check)
     }
   }, [])
-  const [dpr, setDpr] = useState(MOBILE ? Math.min(2, window.devicePixelRatio || 1) : Math.min(1.5, window.devicePixelRatio || 1))
+  const [dpr, setDpr] = useState(MOBILE ? Math.min(1.6, window.devicePixelRatio || 1) : Math.min(1.5, window.devicePixelRatio || 1))
   // graphics quality: Auto picks Leve on machines without a real GPU (software / basic renderer)
   const gfxPref = useStore(prefStore, (p) => p.gfx || 'auto')
   const [weakGpu, setWeakGpu] = useState(() => prefs.get('gfxAutoWeak', false) || weakHardware())
@@ -398,7 +423,7 @@ export default function Scene(props) {
       shadows={q === 'alta' && !MOBILE ? 'soft' : false}
       dpr={effDpr}
       gl={{ antialias: true, powerPreference: 'high-performance', stencil: false }}
-      camera={{ fov: 30, position: [12, 10 + floorIdx * FLOOR_H, 12], near: 1, far: 160 }}
+      camera={{ fov: 30, position: [12, 10, 12], near: 1, far: 160 }}
       onPointerMissed={onPointerMissed}
       onCreated={({ gl }) => {
         glRef.current = gl
@@ -421,11 +446,7 @@ export default function Scene(props) {
     >
       <IdleSaver cap={q === 'leve'} />
       <LabelLayer />
-      {!MOBILE && q === 'alta' && (
-        <Suspense fallback={null}>
-          <Effects night={!!props.night} overview={!!props.overview} />
-        </Suspense>
-      )}
+      {/* no post-processing: the look comes from colours, soft shadows and fog (much lighter) */}
       <Precompile />
       <PerformanceMonitor
         flipflops={3}
@@ -451,7 +472,7 @@ export default function Scene(props) {
           setDpr((d) => Math.min(MOBILE ? Math.min(2, window.devicePixelRatio || 1) : Math.min(2, window.devicePixelRatio || 1), d + 0.25))
         }}
       />
-      <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={low || q !== 'alta'} />
+      <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={low || q !== 'alta'} span={props.overview && props.campus ? Math.max(props.campus.W, props.campus.D) * 0.55 : 11} />
       {q !== 'leve' && <Sky nightness={nightness ?? (night ? 1 : 0)} weather={weather} desktop={!MOBILE && q === 'alta'} />}
       {q !== 'leve' && <Weather kind={weather} low={low || q === 'media'} />}
       <Environment resolution={32} frames={1}>
@@ -472,8 +493,8 @@ export default function Scene(props) {
         panSpeed={MOBILE ? 1.5 : 1}
         onStart={onUserMove}
       />
-      <CameraRig floorIdx={floorIdx} focus={focus} selectedBot={selectedBot} tour={tour} onUserMove={onUserMove} bounds={props.size} />
-      <Building {...props} low={low} />
+      <CameraRig floorIdx={floorIdx} focus={focus} selectedBot={selectedBot} tour={tour} onUserMove={onUserMove} bounds={props.campus} />
+      <Campus {...props} low={low} />
     </Canvas>
   )
 }

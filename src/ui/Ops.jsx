@@ -207,7 +207,7 @@ export function HealthModal({ conn, data, now, onClose, topic, onPickBot }) {
 }
 
 const KEYS = [
-  ['↑ / ↓', 'Trocar de andar'],
+  ['↑ / ↓', 'Trocar de sala'],
   ['W A S D', 'Andar com a câmera'],
   ['Arrastar', 'Girar · botão direito ou 2 dedos: mover'],
   ['Rolar / pinça', 'Zoom'],
@@ -327,7 +327,7 @@ export function LookModal({ look, onPreview, onSave, onClose, shared }) {
     ['art', 'Quadros e prateleiras'],
     ['furniture', 'Cantinhos (pufes, fliperama, poltronas)'],
     ['accent', 'Faixa com a cor do time'],
-    ['pet', 'Pet do andar'],
+    ['pet', 'Pet da sala'],
     ['seasonal', 'Decoração de datas especiais'],
   ]
   return (
@@ -403,7 +403,7 @@ export function EmptyOffice({ topic, hasRoster, hasStatus, onClose }) {
   const steps = [
     {
       title: 'Envie a lista de bots (roster)',
-      sub: 'Cada time vira um andar.',
+      sub: 'Cada time vira uma sala.',
       cmd: `curl -d '{"roster":[{"name":"Meu Bot","shape":"blob","color":"green","team":"Ops"}]}' https://ntfy.sh/${code}`,
       done: hasRoster,
     },

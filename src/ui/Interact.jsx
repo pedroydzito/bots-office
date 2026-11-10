@@ -100,10 +100,10 @@ export function MiniMap({ layout, floor, data, now, onPick, selected }) {
   const px = (x) => (x + W / 2) * S
   const pz = (z) => (z + D / 2) * S
   const dots = []
-  for (const [n, p] of botPositions) {
-    const b = data.bots[n]
-    if (!b) continue
-    dots.push({ n, x: p.x - floorOffset.x, z: p.z - floorOffset.z, c: STATUS[effStatus(b, now)].color })
+  for (const n of floor.bots || []) {
+    const p = botPositions.get(n), b = data.bots[n]
+    if (!b || !p) continue
+    dots.push({ n, x: p.x, z: p.z, c: STATUS[effStatus(b, now)].color })
   }
   return (
     <div className="card minimap" aria-label="Mini mapa">
@@ -127,7 +127,7 @@ export function MiniMap({ layout, floor, data, now, onPick, selected }) {
 }
 
 const STEPS = [
-  ['Bem-vindo ao seu escritório', 'Cada andar é um time. Os bots trabalham, conversam e circulam conforme as mensagens chegam — igual em todas as telas.'],
+  ['Bem-vindo ao seu escritório', 'Cada sala é um time. Os bots trabalham, conversam e circulam conforme as mensagens chegam — igual em todas as telas.'],
   ['Toque num bot', 'Abre o cartão com o que ele está fazendo, métricas e aprovações. Segure o dedo (ou clique e segure) para ações rápidas.'],
   ['Controles', 'Arraste para girar, use dois dedos (ou o botão direito) para mover e pinça/rolagem para zoom. Na engrenagem: sons, nomes, escritórios e mais.'],
 ]
@@ -238,7 +238,7 @@ export function useSwipeAway(onGone) {
 const TIPS = [
   ['tip-hold', 'Segure em cima de um bot para aprovar, reagir ou abrir o chat sem abrir o card.'],
   ['tip-j', 'Aperte J para pular direto para o próximo bot que precisa de você.', 'desktop'],
-  ['tip-swipe', 'Deslize a barra de baixo para o lado para trocar de andar.', 'touch'],
+  ['tip-swipe', 'Deslize a barra de baixo para o lado para trocar de sala.', 'touch'],
   ['tip-card', 'Arraste o card do bot para cima para ver tudo em tela cheia.', 'touch'],
   ['tip-look', 'Em Configurações → Personalizar escritório você muda o estilo, o piso e as cores.'],
 ]

@@ -622,3 +622,62 @@ export function talkSpots(seat, k = 0) {
 
 /** vertical gap between storeys in the overview (exploded) mode */
 export const OVERVIEW_GAP = 2.8
+
+// ---- campus: every team's room side by side on one ground, corridors between them ------------------
+export const CAMPUS_GAP = 3.2 // corridor width between rooms (and around the campus)
+
+/**
+ * Places rooms (already sized by their own team) in rows, left-aligned so a "spine" corridor runs down
+ * the left edge; the whole campus is centred on the origin. Mutates each layout with ox/oz (its offset)
+ * and returns the campus bounds and the corridor geometry used to walk between rooms.
+ */
+export function placeCampus(order, layouts) {
+  const G = CAMPUS_GAP
+  const list = order.map((k) => [k, layouts[k]]).filter(([, l]) => l)
+  const area = list.reduce((a, [, l]) => a + (l.W + G) * (l.D + G), 0)
+  const target = Math.max(28, Math.sqrt(area) * 1.25) // row width that keeps the campus roughly square
+  const rows = []
+  let row = { items: [], w: 0, d: 0 }
+  for (const [k, l] of list) {
+    if (row.items.length && row.w + l.W > target) (rows.push(row), (row = { items: [], w: 0, d: 0 }))
+    row.items.push([k, l])
+    row.w += l.W + (row.items.length > 1 ? G : 0)
+    row.d = Math.max(row.d, l.D)
+  }
+  if (row.items.length) rows.push(row)
+  const totalW = Math.max(...rows.map((r) => r.w)), totalD = rows.reduce((a, r) => a + r.d, 0) + G * (rows.length - 1)
+  const x0 = -totalW / 2, z0 = -totalD / 2
+  let z = z0
+  const rowInfo = []
+  rows.forEach((r, ri) => {
+    let x = x0
+    for (const [, l] of r.items) {
+      l.ox = x + l.W / 2
+      l.oz = z + l.D / 2 // rooms align on the row's top edge (back walls in one line)
+      l.row = ri
+      l.campusTop = z
+      x += l.W + G
+    }
+    rowInfo.push({ top: z, bottom: z + r.d })
+    z += r.d + G
+  })
+  return { minX: x0 - G, maxX: x0 + totalW + G, minZ: z0 - G, maxZ: z0 + totalD + G, W: totalW + 2 * G, D: totalD + 2 * G, spineX: x0 - G / 2, rows: rowInfo }
+}
+
+/** World path from room A's door to room B's door, along the corridors (never through a room). */
+export function campusPath(a, b, campus) {
+  const G = CAMPUS_GAP
+  const door = (l) => ({ x: l.ox + l.elevator.x, z: l.oz + l.elevator.z }) // the door sits where the old elevator was
+  const out = (l) => ({ x: l.ox - l.W / 2 - G / 2, z: l.oz + l.elevator.z }) // just outside its left wall
+  const corr = (l) => l.campusTop - G / 2 // corridor above its row
+  const A = door(a), B = door(b), oa = out(a), ob = out(b)
+  const pts = [[A.x, A.z], [oa.x, oa.z], [oa.x, corr(a)]]
+  if (a.row !== b.row) pts.push([campus.spineX, corr(a)], [campus.spineX, corr(b)])
+  pts.push([ob.x, corr(b)], [ob.x, ob.z], [B.x, B.z])
+  const outp = [pts[0]]
+  for (const p of pts.slice(1)) {
+    const q = outp[outp.length - 1]
+    if (Math.hypot(p[0] - q[0], p[1] - q[1]) > 0.02) outp.push(p)
+  }
+  return outp
+}

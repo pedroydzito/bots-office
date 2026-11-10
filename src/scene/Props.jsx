@@ -1308,3 +1308,29 @@ export function MeetingTopic({ d, D, topic, people }) {
     </mesh>
   )
 }
+
+
+/** The room's door to the corridors (on the left wall, where the elevator used to be). */
+export function Door({ layout }) {
+  const { W } = layout
+  const z = layout.elevator.z
+  const frame = sharedMat('#8a6446', 0.5)
+  const leaf = sharedMat('#c8996a', 0.55)
+  return (
+    <group position={[-W / 2, 0, z]} userData={{ dynamic: true }}>
+      {/* doormat inside */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0.75, 0.02, 0]} material={sharedMat('#6b7280', 0.95)}>
+        <planeGeometry args={[0.8, 1.3]} />
+      </mesh>
+      {/* frame + open leaf, seen from inside and out (the wall box sits at x 0..0.25) */}
+      {[-0.62, 0.62].map((dz) => (
+        <mesh key={dz} position={[0.125, 1.1, dz]} material={frame}><boxGeometry args={[0.32, 2.2, 0.08]} /></mesh>
+      ))}
+      <mesh position={[0.125, 2.24, 0]} material={frame}><boxGeometry args={[0.32, 0.1, 1.32]} /></mesh>
+      <mesh position={[0.27, 1.06, 0]} material={sharedMat('#2a2f3a', 0.7)}><boxGeometry args={[0.02, 2.1, 1.16]} /></mesh>
+      <mesh position={[-0.02, 1.06, 0]} material={leaf}><boxGeometry args={[0.02, 2.1, 1.16]} /></mesh>
+      <mesh position={[-0.05, 1.05, 0.42]} material={MATS_METAL}><sphereGeometry args={[0.04, 10, 8]} /></mesh>
+    </group>
+  )
+}
+const MATS_METAL = new THREE.MeshStandardMaterial({ color: '#c8ccd3', roughness: 0.25, metalness: 0.7 })

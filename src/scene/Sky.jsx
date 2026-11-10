@@ -100,9 +100,6 @@ export default function Sky({ nightness = 0, weather, desktop }) {
       stars.current.visible = starMat.opacity > 0.01
     }
     // hazy: the buildings take the horizon colour so they read as distant silhouettes
-    winMat.opacity = Math.max(0, n - 0.3) * 0.75
-    if (win.current) win.current.visible = winMat.opacity > 0.01
-    cityMat.color.copy(u.mid.value).lerp(tmp.set(n > 0.5 ? '#1b2440' : '#aeb8c8'), 0.35)
     if (dust.current) {
       const t = clock.elapsedTime
       const tg = controls?.target
@@ -116,33 +113,6 @@ export default function Sky({ nightness = 0, weather, desktop }) {
     <>
       <mesh ref={dome} geometry={skyGeo} material={skyMat} renderOrder={-10} frustumCulled={false} />
       <points ref={stars} geometry={starGeo} material={starMat} frustumCulled={false} renderOrder={-9} />
-      <instancedMesh
-        ref={(im) => {
-          city.current = im
-          if (im && !im.userData.done) {
-            matrices.forEach((m, i) => im.setMatrixAt(i, m))
-            im.instanceMatrix.needsUpdate = true
-            im.userData.done = true
-          }
-        }}
-        args={[boxGeo, cityMat, count]}
-        frustumCulled={false}
-      />
-      {/* lit windows: a second, additive layer that only shows after dark */}
-      <instancedMesh
-        ref={(im) => {
-          win.current = im
-          if (im && !im.userData.done) {
-            const o = new THREE.Matrix4().makeScale(1.012, 0.994, 1.012)
-            matrices.forEach((m, i) => im.setMatrixAt(i, m.clone().multiply(o)))
-            im.instanceMatrix.needsUpdate = true
-            im.userData.done = true
-          }
-        }}
-        args={[boxGeo, winMat, count]}
-        frustumCulled={false}
-        visible={false}
-      />
       <Clouds nightness={nightness} />
       <Birds nightness={nightness} />
       {desktop && <points ref={dust} geometry={dustGeo} material={dustMat} frustumCulled={false} />}

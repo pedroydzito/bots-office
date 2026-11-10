@@ -18,8 +18,8 @@ import { Activity, Brand, PanelIcon, ConnectBanner, Hints, LeftPanel, ModeToggle
 import { Login, Settings } from './ui/Login'
 import { Celebration, MobileFloors, MobileTabs, Search, Timeline, TvExit } from './ui/Extras'
 import { EmptyOffice, HealthModal, LookModal, Modal, OfficesModal, QueueModal, SendStatus, ShortcutsModal } from './ui/Ops'
-import { buzz, FirstTip, HoverTip, MiniMap, QuickMenu, SearchField, Welcome } from './ui/Interact'
-import { FLOOR_H, OVERVIEW_GAP } from './scene/layout'
+import { buzz, HoverTip, MiniMap, QuickMenu, SearchField, Welcome } from './ui/Interact'
+import { campusPath, placeCampus } from './scene/layout'
 import { ACCENTS, DEFAULT_LOOK, lookStore } from './lib/look'
 import { botsAt } from './lib/metrics'
 import { notifyWaiting, prefs, prefStore } from './lib/notify'
@@ -124,7 +124,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     window.addEventListener('botoffice:resynced', on)
     return () => window.removeEventListener('botoffice:resynced', on)
   }, [pushNotice])
-  const [overview, setOverview] = useState(false) // whole building, every floor live
+  const [overview, setOverview] = useState(true) // all rooms side by side (default) or one room in focus
   const [searchOpen, setSearchOpen] = useState(false)
   const [tour, setTour] = useState(false)
   const [floorKey, setFloorKey] = useState(null)
@@ -192,17 +192,24 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   }, [sig])
   const layouts = useMemo(
     () => {
-      // every storey has the size of the largest room
-      let W = 13, D = 12
-      for (const f of floors) if (f.key !== CORTEX_KEY) {
-        const n = naturalSize(f.bots.length)
-        W = Math.max(W, n.W)
-        D = Math.max(D, n.D)
-      }
-      return Object.fromEntries(floors.map((f) => [f.key, f.key === CORTEX_KEY ? cortexLayout(W, D) : floorLayout(f.bots.length, W, D, { lead: !!f.lead, furniture: look.furniture, seed: f.key })]))
+      // campus: each room has the size its own team needs (small team = small room)
+      return Object.fromEntries(
+        floors.map((f) => {
+          if (f.key === CORTEX_KEY) return [f.key, cortexLayout(13, 12)]
+          const n = naturalSize(f.bots.length)
+          return [f.key, floorLayout(f.bots.length, n.W + 1, n.D + 1, { lead: !!f.lead, furniture: look.furniture, seed: f.key })]
+        }),
+      )
     },
     [floors, look.furniture],
   )
+  // rooms side by side: the Cortex first, then the teams in roster order
+  const campus = useMemo(() => {
+    const order = [CORTEX_KEY, ...floors.filter((f) => f.key !== CORTEX_KEY).reverse().map((f) => f.key)]
+    const c = placeCampus(order, layouts)
+    world.hallPath = (la, lb) => campusPath(la, lb, c)
+    return c
+  }, [floors, layouts])
   const size = useMemo(() => {
     const ls = Object.values(layouts)
     return { W: Math.max(...ls.map((l) => l.W)), D: Math.max(...ls.map((l) => l.D)) }
@@ -233,14 +240,10 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     return () => clearInterval(id)
   }, [selectedBot])
   const focus = useMemo(() => {
-    if (overview) {
-      const h = floors.length * (FLOOR_H + OVERVIEW_GAP)
-      return { x: 0, z: 0, y: h / 2 - 1, dist: Math.max(30, h * 1.35) }
-    }
+    if (overview) return { x: 0, z: 0, y: 0.6, dist: Math.max(26, Math.max(campus.W, campus.D) * 1.05) }
     if (!lay) return { x: 0, z: 0, dist: 12 }
-    // the room hugs the building's back-left corner (see Building)
-    return { x: lay.focus.x - (size.W - lay.W) / 2, z: lay.focus.z - (size.D - lay.D) / 2, dist: lay.dist }
-  }, [lay, size, overview, floors.length])
+    return { x: (lay.ox || 0) + lay.focus.x, z: (lay.oz || 0) + lay.focus.z, dist: lay.dist }
+  }, [lay, overview, campus])
 
   // The shared simulation needs to know who sits where on which floor (identical on every screen).
   useMemo(() => {
@@ -503,10 +506,10 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
       pushNotice({
         t: Date.now(),
         title: `${k} concluiu tudo!`,
-        sub: 'Todos os bots do andar terminaram',
+        sub: 'Todos os bots da sala terminaram',
         group: 'floordone',
         names: [k],
-        groupTitle: (ns) => (ns.length > 1 ? `${ns.length} andares concluíram tudo` : `${ns[0]} concluiu tudo!`),
+        groupTitle: (ns) => (ns.length > 1 ? `${ns.length} salas concluíram tudo` : `${ns[0]} concluiu tudo!`),
         groupSub: (ns) => ns.join(', '),
       })
     }
@@ -609,6 +612,8 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         weather={live.weather?.kind || null}
         celebrate={celebration}
         overview={overview}
+        campus={campus}
+        onPickRoom={goFloor}
         tour={tour}
         selectedBot={selectedBot}
         spotlight={spotlight}
@@ -640,8 +645,14 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
           <ModeToggles mode={lightMode} setMode={setLightMode} tour={tour} setTour={setTour} overview={overview} setOverview={setOverview} onSearch={() => setSearchOpen(true)} />
           <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} mode={lightMode} setMode={setLightMode} onOffices={() => setOfficesOpen(true)} onHealth={() => setHealthOpen(true)} onKeys={() => setKeysOpen(true)} onOfficeSettings={() => setOfficeCfg(true)} readonly={readonly} />
         </div>
-        <div className="top-center">
+        {/* one stack for every notice, under the top bar: they line up, never on top of each other */}
+        <div className="notice-stack" aria-live="polite">
           <Toast bot={toastBot} onView={() => view(toastBot.name)} onApprove={() => approve(toastBot.name)} onReply={() => { const l = chatLink(data, toastBot.name); l ? openLink(l) : view(toastBot.name) }} />
+          {notices[0] && <Celebration c={notices[0]} onDismiss={() => setNotices((l) => l.slice(1))} />}
+          <SendStatus s={sendStatus} onRetry={() => sendStatus && send(sendStatus.payload)} />
+          {conn === 'reconnecting' && offlineLong && <div className="card offline-note" role="status">Sem conexão agora · mostrando os últimos dados. Volta sozinho.</div>}
+        </div>
+        <div className="top-center">
         </div>
         {leftHidden && (
           <button className="card leftopen" onClick={() => setLeftHidden(false)} title="Mostrar painel ( [ )" aria-label="Mostrar painel lateral">
@@ -714,7 +725,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
             onFollow={pickBot}
           />
         )}
-        <MiniMap layout={lay} floor={floor} data={data} now={now} onPick={pickBot} selected={selectedBot} />
+        {!overview && <MiniMap layout={lay} floor={floor} data={data} now={now} onPick={pickBot} selected={selectedBot} />}
         {welcome && <Welcome onDone={() => (prefs.set('welcomed', true), setWelcome(false))} />}
         {officesOpen && <OfficesModal current={topic} onSwitch={onSwitch} onAdd={onSignIn} onClose={() => setOfficesOpen(false)} />}
         {officeCfg && (
@@ -735,10 +746,6 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
           <EmptyOffice topic={topic} hasRoster={live.order.length > 0} hasStatus={(live.history || []).length > 0} onClose={live.order.length ? () => setGuideClosed(true) : null} />
         )}
         <HoverTip />
-        <SendStatus s={sendStatus} onRetry={() => sendStatus && send(sendStatus.payload)} />
-        {!toastBot && notices[0] && <Celebration c={notices[0]} onDismiss={() => setNotices((l) => l.slice(1))} />}
-        <FirstTip blocked={welcome || (!!topic && live.order.length === 0)} />
-        {conn === 'reconnecting' && offlineLong && <div className="card offline-note" role="status">Sem conexão agora · mostrando os últimos dados. Volta sozinho.</div>}
         {searchOpen && <Search data={data} now={now} onPick={(n) => { setOverview(false); pickBot(n) }} onClose={() => setSearchOpen(false)} />}
       </div>}
       {tv && <TvExit onExit={() => setTv(false)} />}

@@ -1028,3 +1028,40 @@ html[data-transicao='onda']::view-transition-new(root) { z-index: 1; }
 .pip-cover .dark { background: #fff; color: #111; }
 .searchfield span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .searchfield kbd { flex: none; white-space: nowrap; }
+
+/* campus room chips */
+.room-chip { pointer-events: auto; display: flex; align-items: center; gap: 7px; padding: 5px 10px 5px 8px; border-radius: 999px !important; background: var(--card-solid, #fff); color: var(--ink); box-shadow: 0 2px 10px rgba(0,0,0,.18); font-size: 12.5px; white-space: nowrap; border: 1px solid var(--line); transition: opacity .3s, transform .15s var(--curva); }
+.room-chip i { width: 9px; height: 9px; border-radius: 50%; background: var(--team); box-shadow: 0 0 0 3px color-mix(in srgb, var(--team) 25%, transparent); }
+.room-chip b { font-weight: 700; }
+.room-chip em { font-style: normal; color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.room-chip .rc-wait { min-width: 18px; height: 18px; border-radius: 9px; background: #f5a524; color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; padding: 0 5px; }
+.room-chip.dim { opacity: .45; }
+@media (hover: hover) { .room-chip:hover { transform: translateY(-2px); } }
+
+/* ---------- notices: one stack under the top bar (desktop: centred and compact; phone: full width) */
+.notice-stack { position: absolute; top: calc(66px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(400px, calc(100vw - 600px)); min-width: 300px; display: flex; flex-direction: column; gap: 8px; z-index: 40; pointer-events: none; }
+.notice-stack > * { pointer-events: auto; position: static !important; left: auto !important; right: auto !important; top: auto !important; bottom: auto !important; transform: none !important; width: 100% !important; max-width: 100% !important; margin: 0 !important; box-sizing: border-box; }
+.notice-stack .toast { padding: 7px 7px 7px 9px; }
+.notice-stack .toast .tx { flex: 1; min-width: 0; }
+.notice-stack .toast .tx b, .notice-stack .toast .tx span { display: block; max-width: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.notice-stack .toast .tx b { font-size: 12.5px; }
+.notice-stack .toast button { flex: none; }
+.notice-stack .celebration { padding: 9px 12px; font-size: 12.5px; }
+.notice-stack .sendstatus { justify-content: center; }
+.notice-stack .offline-note { white-space: normal; text-align: center; }
+@media (max-width: 1100px) { .notice-stack { width: min(400px, calc(100vw - 340px)); } }
+@media (max-width: 860px) {
+  .notice-stack { top: calc(64px + env(safe-area-inset-top)); left: 12px; right: 12px; transform: none; width: auto; min-width: 0; gap: 6px; }
+  .notice-stack > * { border-radius: 14px !important; }
+  .notice-stack .toast { padding: 5px 5px 5px 7px !important; gap: 8px !important; font-size: 12px !important; }
+  .notice-stack .toast .tx b { font-size: 12px !important; }
+  .notice-stack .toast .tx span { font-size: 11px !important; }
+  .notice-stack .toast button { padding: 5px 10px !important; font-size: 12px !important; }
+  .notice-stack .toast img, .notice-stack .toast .av { width: 26px !important; height: 26px !important; }
+  .notice-stack .celebration { padding: 6px 10px !important; font-size: 12px !important; }
+  .notice-stack .celebration span, .notice-stack .celebration small { display: none !important; }
+  .notice-stack > :nth-child(n+3) { display: none !important; }
+}
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  .notice-stack { left: auto; right: 12px; transform: none; width: min(380px, 46vw); min-width: 0; top: 58px; }
+}

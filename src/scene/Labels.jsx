@@ -41,7 +41,7 @@ export function LabelLayer() {
       }
       if (el.style.display === 'none') el.style.display = ''
       const x = ((v.x + 1) / 2) * size.width, y = ((1 - v.y) / 2) * size.height
-      const s = e.factor / (2 * Math.tan(vFov / 2) * dist)
+      const s = e.fixed ? 1 : e.factor / (2 * Math.tan(vFov / 2) * dist)
       el.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) scale(${s.toFixed(3)}) translate(-50%,-50%)`
       el.style.zIndex = String(Math.round((1 - v.z) * 10000))
     }
@@ -51,13 +51,14 @@ export function LabelLayer() {
 
 /** A label that follows `anchor` (a ref to an Object3D), `y` units above it. Its content renders in its
  * own small React DOM root (the 3D renderer can't host DOM nodes); positioning is done by LabelLayer. */
-export function Label({ anchor, y = 0, factor = 10, children }) {
+export function Label({ anchor, y = 0, factor = 10, fixed = false, children }) {
   const [host, setHost] = useState(root.el)
   const entry = useRef({ anchor, y, factor, el: null })
   const rootRef = useRef(null)
   entry.current.anchor = anchor
   entry.current.y = y
   entry.current.factor = factor
+  entry.current.fixed = fixed
   useEffect(() => {
     root.listeners.add(setHost)
     setHost(root.el)
