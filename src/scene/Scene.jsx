@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import Sky from './Sky'
+import { LabelLayer } from './Labels'
 import { useStore } from '../lib/createStore'
 import { prefs, prefStore } from '../lib/notify'
 import { pipStore } from '../lib/pip'
@@ -419,6 +420,7 @@ export default function Scene(props) {
       }}
     >
       <IdleSaver cap={q === 'leve'} />
+      <LabelLayer />
       {!MOBILE && q === 'alta' && (
         <Suspense fallback={null}>
           <Effects night={!!props.night} overview={!!props.overview} />

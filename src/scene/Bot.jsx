@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Html } from '@react-three/drei'
+import { Label } from './Labels'
 import * as THREE from 'three'
 import { getBotAsset } from './shapes'
 import { screenKind } from './textures'
@@ -899,7 +899,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
         {snowy && bot.accessory !== 'scarf' && <Accessory kind="scarf" asset={asset} color={color} />}
       </group>
       {!hidden && !view.off && (!p_compact || selected || spotlight) && (
-        <Html position={[0, iconY, 0]} center distanceFactor={10} zIndexRange={[30, 0]} pointerEvents="none">
+        <Label anchor={root} y={iconY}>
           <div className={`bot-tag${selected ? ' sel' : ''}${bot.hidden ? ' is-hidden' : ''}${/^(ceo|principal|founder|fundador|dono|owner)$/i.test(bot.role || '') ? ' vip' : ''}`}>
             {speechText && (
               <div className={`speech ${talking ? 'talk' : ''}`}>
@@ -916,7 +916,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
             {showNames && !speechText && !(hover || selected) && !view.crowded && <div className="name-mini">{bot.name}</div>}
             {(hover || selected) && !speechText && <div className="name-chip">{bot.name}</div>}
           </div>
-        </Html>
+        </Label>
       )}
       {confetti > 0 && !hidden && <Confetti key={confetti} y={asset.top + 0.2} />}
     </group>

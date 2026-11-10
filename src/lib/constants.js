@@ -113,5 +113,5 @@ export function isApproval(b) {
   if (!b) return false
   if (b.ask === 'approval') return true
   if (b.ask === 'reply') return false
-  return /aprov|autoriz|confirm|permiss|posso (publicar|enviar|postar|seguir|mandar|continuar)|pode (publicar|enviar|seguir|mandar)|ok\?|libera/i.test(b.step || '')
+  return /aprov|autoriz|confirm|permiss|posso (publicar|enviar|postar|seguir|mandar|continuar)|pode (publicar|enviar|seguir|mandar)|ok\?|libera|\bok\b|publicar|aprovação/i.test(b.step || '')
 }
