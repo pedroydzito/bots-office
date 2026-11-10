@@ -113,6 +113,7 @@ function fillEmpty({ W, D, v, decor, pois, rows, seats, xL, furniture, lounge, g
   }
   for (const p of pois) mark(p.x - 0.5, Math.min(p.z, p.az ?? p.z) - 0.5, p.x + 0.5, Math.max(p.z, p.az ?? p.z) + 0.5)
   mark(lounge.x - 2.0, lounge.z - 1.8, lounge.x + 2.0, D / 2) // lounge
+  mark(W / 2 - 1.9, -D / 2 + 3.6, W / 2, -D / 2 + 5.6) // aquarium corner (fish floors)
   // try kits in a per-floor order, at candidate points scanned in a per-floor order
   let seed = v || 1
   const rnd = () => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 4294967296)
@@ -122,11 +123,18 @@ function fillEmpty({ W, D, v, decor, pois, rows, seats, xL, furniture, lounge, g
   if (game && !decor.some((d) => GAME_SIZE[d.type])) {
     // free-standing tables only; an arcade cabinet belongs against a wall
     const tries = [...new Set([game, 'foosball'])].filter((g) => g !== 'arcade')
+    // prefer the open floor in front of the desks (people can stand all around), nearest first
+    const rx = rows.length ? rows.reduce((s2, r) => s2 + (r.x1 + r.x2) / 2, 0) / rows.length : 0
+    const rz = rows.length ? Math.max(...rows.map((r) => r.z)) + 3.2 : 0
+    const spots = []
+    for (let x = -W / 2 + 2; x < W / 2 - 1; x += 0.5) for (let z = -D / 2 + 2.5; z < D / 2 - 1.8; z += 0.5) spots.push([x, z, Math.hypot(x - rx, z - rz)])
+    spots.sort((p1, p2) => p1[2] - p2[2])
     for (const g of tries) {
       const [gw, gd] = GAME_SIZE[g]
       let done = false
-      for (let x = -W / 2 + 2; x < W / 2 - 1 && !done; x += 0.5)
-        for (let z = -D / 2 + 2.5; z < D / 2 - 1.8 && !done; z += 0.5) {
+      for (const [x, z] of spots) {
+        if (done) break
+        {
           // a clear meter all around: bots stand on every side to play
           if (!free(x - gw / 2 - 0.7, z - gd / 2 - 0.55, x + gw / 2 + 0.7, z + gd / 2 + 0.55)) continue
           decor.push({ type: g, x, z })
@@ -139,6 +147,7 @@ function fillEmpty({ W, D, v, decor, pois, rows, seats, xL, furniture, lounge, g
           mark(x - gw / 2 - 1.2, z - gd / 2 - 1.1, x + gw / 2 + 1.2, z + gd / 2 + 1.1)
           done = true
         }
+      }
       if (done) break
     }
     if (!decor.some((d) => GAME_SIZE[d.type]) && game === 'arcade') {
@@ -425,8 +434,162 @@ export function cortexLayout(W = 13, D = 12) {
   }
 }
 
-/** Polyline through the lanes: own lane -> left corridor -> target lane. */
+// ---- walking: a grid of what is taken on the floor, and A* around it ------------------------------
+// Bots never walk through furniture: every desk, game table, sofa, plant and machine is an obstacle;
+// paths go around them. Only when a spot can't be reached (it sits inside something) does the last
+// stretch cut through.
+const NAV_CELL = 0.25
+const NAV_FOOT = { meeting: [1.25, 0.95], vending: [0.45, 0.55], printer: [0.45, 0.4], pool: [1.3, 0.8], pingpong: [1.35, 0.8], foosball: [0.45, 0.7], arcade: [0.45, 0.45], bench: [0.85, 0.3], armchair: [0.45, 0.45], beanbag: [0.5, 0.5], plant: [0.28, 0.28], lamp: [0.2, 0.2], bookcase: [0.9, 0.25] }
+
+function buildNav(L) {
+  const { W, D } = L
+  const nx = Math.ceil(W / NAV_CELL), nz = Math.ceil(D / NAV_CELL)
+  const blocked = new Uint8Array(nx * nz)
+  const R = 0.22 // bot radius
+  const box = (x1, z1, x2, z2) => {
+    const i1 = Math.max(0, Math.floor((x1 - R + W / 2) / NAV_CELL)), i2 = Math.min(nx - 1, Math.floor((x2 + R + W / 2) / NAV_CELL))
+    const j1 = Math.max(0, Math.floor((z1 - R + D / 2) / NAV_CELL)), j2 = Math.min(nz - 1, Math.floor((z2 + R + D / 2) / NAV_CELL))
+    for (let j = j1; j <= j2; j++) for (let i = i1; i <= i2; i++) blocked[j * nx + i] = 1
+  }
+  const at = (x, z, hx, hz) => box(x - hx, z - hz, x + hx, z + hz)
+  // room edges, back wall counter / printer band, left wall furniture band (the elevator stays open)
+  box(-W / 2 - 1, -D / 2 - 1, W / 2 + 1, -D / 2 + 0.25)
+  box(-W / 2 - 1, D / 2 - 0.25, W / 2 + 1, D / 2 + 1)
+  box(-W / 2 - 1, -D / 2 - 1, -W / 2 + 0.25, D / 2 + 1)
+  box(W / 2 - 0.25, -D / 2 - 1, W / 2 + 1, D / 2 + 1)
+  box(-W / 2 + 2.0, -D / 2, -W / 2 + 4.0, -D / 2 + 0.75) // coffee counter
+  box(-W / 2, -D / 2 + 3.3, -W / 2 + 0.7, D / 2) // cooler, shelf, vending along the left wall
+  for (const r of L.rows) if (!r.lead) box(r.x1, r.z + 0.38, r.x2, r.z + 1.26)
+  for (const st of L.seats) {
+    if (st.lead) {
+      box(st.x + 0.3, st.z - 1.15, st.x + 1.4, st.z + 1.15) // executive desk (turned to face the team)
+      at(st.x + 0.3, st.z + 1.55, 0.3, 0.3) // its plant
+    }
+  }
+  for (const d of L.decor) {
+    if (d.type === 'rug' || d.type === 'whiteboard') continue
+    const f = NAV_FOOT[d.type]
+    if (f) at(d.x, d.z, f[0], f[1])
+  }
+  if (L.lounge) {
+    const { x, z } = L.lounge
+    box(x - 1.0, z - 1.35, x + 1.4, z - 0.45) // sofa
+    box(x - 0.35, z - 0.05, x + 0.75, z + 0.55) // coffee table
+  }
+  // fixed plants and the aquarium corner drawn by the floor itself
+  at(W / 2 - 1.0, -D / 2 + 0.9, 0.3, 0.3)
+  at(-W / 2 + 0.75, -D / 2 + 0.75, 0.3, 0.3)
+  at(-W / 2 + 0.7, D / 2 - 0.7, 0.3, 0.3)
+  if (D > 12) at(W / 2 - 0.9, -D / 2 + 5.5, 0.28, 0.28)
+  at(W / 2 - 0.7, -D / 2 + 4.6, 0.85, 0.45)
+  return { nx, nz, blocked, cache: new Map() }
+}
+
+function navPath(a, b, L) {
+  const N = (L._nav ||= buildNav(L))
+  const key = `${a.x.toFixed(2)},${a.z.toFixed(2)}>${b.x.toFixed(2)},${b.z.toFixed(2)}`
+  const hit = N.cache.get(key)
+  if (hit) return hit
+  const { nx, nz, blocked } = N
+  const W = L.W, D = L.D
+  const ci = (x) => Math.min(nx - 1, Math.max(0, Math.floor((x + W / 2) / NAV_CELL)))
+  const cj = (z) => Math.min(nz - 1, Math.max(0, Math.floor((z + D / 2) / NAV_CELL)))
+  const cx = (i) => -W / 2 + (i + 0.5) * NAV_CELL
+  const cz = (j) => -D / 2 + (j + 0.5) * NAV_CELL
+  // start / goal may sit inside furniture (a chair, a sofa seat): use the nearest free cell
+  const nearestFree = (i0, j0) => {
+    if (!blocked[j0 * nx + i0]) return [i0, j0]
+    for (let r = 1; r < 14; r++)
+      for (let dj = -r; dj <= r; dj++)
+        for (let di = -r; di <= r; di++) {
+          if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue
+          const i = i0 + di, j = j0 + dj
+          if (i >= 0 && j >= 0 && i < nx && j < nz && !blocked[j * nx + i]) return [i, j]
+        }
+    return [i0, j0]
+  }
+  const [si, sj] = nearestFree(ci(a.x), cj(a.z))
+  const [gi, gj] = nearestFree(ci(b.x), cj(b.z))
+  const S = sj * nx + si, G = gj * nx + gi
+  const g = new Float32Array(nx * nz).fill(Infinity)
+  const from = new Int32Array(nx * nz).fill(-1)
+  const open = [S]
+  const f = new Float32Array(nx * nz).fill(Infinity)
+  const h = (k) => {
+    const dx = Math.abs((k % nx) - gi), dz = Math.abs(((k / nx) | 0) - gj)
+    return Math.max(dx, dz) + 0.414 * Math.min(dx, dz)
+  }
+  g[S] = 0
+  f[S] = h(S)
+  const closed = new Uint8Array(nx * nz)
+  let found = S === G
+  while (open.length && !found) {
+    let bi = 0
+    for (let k = 1; k < open.length; k++) if (f[open[k]] < f[open[bi]]) bi = k
+    const cur = open[bi]
+    open[bi] = open[open.length - 1]
+    open.pop()
+    if (cur === G) {
+      found = true
+      break
+    }
+    closed[cur] = 1
+    const i = cur % nx, j = (cur / nx) | 0
+    for (let dj = -1; dj <= 1; dj++)
+      for (let di = -1; di <= 1; di++) {
+        if (!di && !dj) continue
+        const ni = i + di, nj = j + dj
+        if (ni < 0 || nj < 0 || ni >= nx || nj >= nz) continue
+        const k = nj * nx + ni
+        if (blocked[k] || closed[k]) continue
+        if (di && dj && (blocked[j * nx + ni] || blocked[nj * nx + i])) continue // no corner cutting
+        const ng = g[cur] + (di && dj ? 1.414 : 1)
+        if (ng < g[k]) {
+          if (g[k] === Infinity) open.push(k)
+          g[k] = ng
+          f[k] = ng + h(k)
+          from[k] = cur
+        }
+      }
+  }
+  let cells = []
+  if (found) {
+    for (let k = G; k !== -1; k = from[k]) cells.push(k)
+    cells.reverse()
+  }
+  // string-pulling: keep a corner only when the straight line to the next one would cross something
+  const clear = (x1, z1, x2, z2) => {
+    const n = Math.ceil(Math.hypot(x2 - x1, z2 - z1) / (NAV_CELL * 0.5))
+    for (let t = 1; t < n; t++) if (blocked[cj(z1 + ((z2 - z1) * t) / n) * nx + ci(x1 + ((x2 - x1) * t) / n)]) return false
+    return true
+  }
+  const pts = [[a.x, a.z]]
+  const mid = cells.map((k) => [cx(k % nx), cz((k / nx) | 0)])
+  if (mid.length) {
+    pts.push(mid[0])
+    let anchor = mid[0]
+    for (let k = 1; k < mid.length; k++) {
+      if (!clear(anchor[0], anchor[1], mid[k][0], mid[k][1])) {
+        anchor = mid[k - 1]
+        pts.push(anchor)
+      }
+    }
+    pts.push(mid[mid.length - 1])
+  }
+  pts.push([b.x, b.z])
+  const out = [pts[0]]
+  for (const p of pts.slice(1)) {
+    const q = out[out.length - 1]
+    if (Math.hypot(p[0] - q[0], p[1] - q[1]) > 0.02) out.push(p)
+  }
+  if (N.cache.size > 3000) N.cache.clear()
+  N.cache.set(key, out)
+  return out
+}
+
+/** Path from a to b: around every obstacle (A*), or the old lane walk on floors without a grid. */
 export function planPath(a, b, L) {
+  if (L.seats && L.decor && L.W) return navPath(a, b, L)
   const pts = [[a.x, a.z]]
   if (a.ex != null) pts.push([a.ex, a.z], [a.ex, a.az])
   else pts.push([a.x, a.az])
