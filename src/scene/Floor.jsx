@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import Bot from './Bot'
 import MailFlights from './Mail'
@@ -41,6 +42,56 @@ export function setBandGlow(n) {
   for (const m of bands.values()) m.emissiveIntensity = n * 1.6
 }
 
+// ---- cutaway walls (like a management game): the walls between the camera and the room sink to a
+// low curb, the far ones stay up; whatever hangs on a sunk wall hides with it
+const _cam = new THREE.Vector3(), _org = new THREE.Vector3()
+const NORMALS = { back: [0, -1], left: [-1, 0], right: [1, 0], front: [0, 1] }
+function nearSide(obj, camera, side) {
+  const room = obj.parent
+  if (!room) return false
+  room.getWorldPosition(_org)
+  _cam.copy(camera.position).sub(_org)
+  const [nx, nz] = NORMALS[side]
+  return nx * _cam.x + nz * _cam.z > 0
+}
+
+function CutWall({ side, W, D, T = 0.25, H = 3.2 }) {
+  const ref = useRef()
+  const LOW = 0.32
+  useFrame(({ camera }, dt) => {
+    const g = ref.current
+    if (!g) return
+    const want = nearSide(g, camera, side) ? LOW / H : 1
+    const s = g.scale.y + (want - g.scale.y) * Math.min(1, dt * 7)
+    if (Math.abs(s - g.scale.y) > 0.0005) g.scale.y = s
+  })
+  const horiz = side === 'back' || side === 'front'
+  const pos = side === 'back' ? [0, 0, -D / 2 + T / 2] : side === 'front' ? [0, 0, D / 2 - T / 2] : side === 'left' ? [-W / 2 + T / 2, 0, 0] : [W / 2 - T / 2, 0, 0]
+  return (
+    <group ref={ref} position={pos} userData={{ dynamic: true }}>
+      <mesh position={[0, H / 2, 0]} material={wallMat} receiveShadow castShadow>
+        <boxGeometry args={horiz ? [W, H, T] : [T, H, D]} />
+      </mesh>
+    </group>
+  )
+}
+
+/** Things hung on a wall: hidden while that wall is sunk (the camera looks from that side). */
+export function WallMount({ side, children }) {
+  const ref = useRef()
+  useFrame(({ camera }) => {
+    const g = ref.current
+    if (!g) return
+    const v = !nearSide(g, camera, side)
+    if (g.visible !== v) g.visible = v
+  })
+  return (
+    <group ref={ref} userData={{ dynamic: true }}>
+      {children}
+    </group>
+  )
+}
+
 export function Shell({ layout, title, subtitle, accent }) {
   const { W, D } = layout
   return (
@@ -52,12 +103,10 @@ export function Shell({ layout, title, subtitle, accent }) {
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]} material={floorMat} receiveShadow>
         <planeGeometry args={[W, D]} />
       </mesh>
-      <mesh position={[0, 1.6, -D / 2 + 0.125]} material={wallMat} receiveShadow castShadow>
-        <boxGeometry args={[W, 3.2, 0.25]} />
-      </mesh>
-      <mesh position={[-W / 2 + 0.125, 1.6, 0]} material={wallMat} receiveShadow castShadow>
-        <boxGeometry args={[0.25, 3.2, D]} />
-      </mesh>
+      <CutWall side="back" W={W} D={D} />
+      <CutWall side="left" W={W} D={D} />
+      <CutWall side="right" W={W} D={D} />
+      <CutWall side="front" W={W} D={D} />
       {/* baseboards */}
       <mesh position={[0, 0.06, -D / 2 + 0.265]} material={wallMat}>
         <boxGeometry args={[W, 0.12, 0.03]} />
@@ -65,13 +114,15 @@ export function Shell({ layout, title, subtitle, accent }) {
       <mesh position={[-W / 2 + 0.265, 0.06, 0]} material={wallMat}>
         <boxGeometry args={[0.03, 0.12, D]} />
       </mesh>
-      {/* a single vertical line in the team colour, as tall as the floor name */}
-      {accent && (
-        <mesh position={[-W / 2 + 3.1, 2.355, -D / 2 + 0.262]} material={bandMat(accent)}>
-          <boxGeometry args={[0.05, 0.34, 0.01]} />
-        </mesh>
-      )}
-      <WallTitle title={title} subtitle={subtitle} position={[-W / 2 + 5.0, 2.28, -D / 2 + 0.26]} />
+      <WallMount side="back">
+        {/* a single vertical line in the team colour, as tall as the floor name */}
+        {accent && (
+          <mesh position={[-W / 2 + 3.1, 2.355, -D / 2 + 0.262]} material={bandMat(accent)}>
+            <boxGeometry args={[0.05, 0.34, 0.01]} />
+          </mesh>
+        )}
+        <WallTitle title={title} subtitle={subtitle} position={[-W / 2 + 5.0, 2.28, -D / 2 + 0.26]} />
+      </WallMount>
     </group>
   )
 }
@@ -166,6 +217,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
     () => (
       <StaticMerge key={mergeKey}>
       <Shell layout={layout} title={floor.name} subtitle={`Andar ${floor.num}`} accent={look.accent ? floor.color : null} />
+      <WallMount side="back">
       <Clock position={[-W / 2 + 1.55, 2.45, -D / 2 + 0.28]} />
       <CoffeeCorner position={[-W / 2 + 3.0, 0, -D / 2 + 0.52]} />
       <TVScreen
@@ -183,6 +235,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
           return { working: sts.filter((x) => x === 'working').length, waiting: sts.filter((x) => x === 'waiting_user').length, errors: sts.filter((x) => x === 'error').length, total: home.length, last }
         }}
       />
+      </WallMount>
       <Plant position={[-W / 2 + 0.75, 0, -D / 2 + 0.75]} scale={1.15} />
       {look.plants && <Plant position={[W / 2 - 1.0, 0, -D / 2 + 0.9]} scale={1.3} kind={1} />}
       {look.plants && D > 12 && <Plant position={[W / 2 - 0.9, 0, -D / 2 + 5.5]} scale={0.9} />}
@@ -219,9 +272,12 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       <group userData={{ dynamic: true }}>{look.seasonal && !compact && <Seasonal layout={layout} seed={floor.key} />}</group>
       {/* wall art keeps both walls lively: posters high above the left-wall furniture, art + shelf on the back wall */}
       {/* pictures sit in the gaps between the left-wall furniture, at one shared height */}
+      <WallMount side="left">
       {look.art && layout.wall.artZ.map((z, i) => (
         <Poster key={i} position={[-W / 2 + 0.27, 1.75, z]} rotation={[0, Math.PI / 2, 0]} seed={(hash(floor.key) % 97) + i * 3} w={0.85} h={1.05} />
       ))}
+      </WallMount>
+      <WallMount side="back">
       {look.art && layout.artX != null && (layout.artKind === 'plants' ? (
         <group>
           <WallShelf position={[(layout.artX ?? 0) - 0.2, 1.55, -D / 2 + 0.25]} w={1.6} />
@@ -233,6 +289,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
           <WallShelf position={[(layout.artX ?? 0) + 0.75, 1.3, -D / 2 + 0.25]} w={1.0} />
         </group>
       ))}
+      </WallMount>
       </StaticMerge>
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -243,14 +300,14 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
     <group>
       {staticRoom}
       {layout.wall.stickyZ != null && (
-        <InfoBoard
+        <WallMount side="left"><InfoBoard
           position={[-W / 2 + 0.29, 1.75, layout.wall.boardZ]}
           rotation={[0, Math.PI / 2, 0]}
           title="Destaques de hoje"
           accent="#8F59F9"
           empty="Sem atividade ainda"
           lines={highlights}
-        />
+        /></WallMount>
       )}
 
       <MailFlights mail={data.mail} floorIdx={floorIdx} layout={layout} />
