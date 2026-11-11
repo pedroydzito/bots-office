@@ -411,6 +411,19 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true, seed =
     p.x = Math.min(W / 2 - 0.7, Math.max(-W / 2 + 0.7, p.x))
     p.z = Math.min(D / 2 - 0.7, Math.max(-D / 2 + 0.7, p.z))
   }
+  // a seat spot must have its seat: snap armchair spots onto the nearest armchair, drop orphans
+  // (after moving / dropping furniture a bot could end up 'sitting' in the air next to it)
+  for (let i = pois.length - 1; i >= 0; i--) {
+    const p = pois[i]
+    if (p.kind !== 'armchair') continue
+    let best = null, bd = 1.2
+    for (const d of decor) if (d.type === 'armchair') {
+      const dd = Math.hypot(d.x - p.x, d.z - p.z)
+      if (dd < bd) (bd = dd), (best = d)
+    }
+    if (!best) pois.splice(i, 1)
+    else (p.x = best.x), (p.z = best.z)
+  }
   const blockCx = x0 + ((cols - 1) * sx) / 2
   const blockCz = z0 + ((rowsN - 1) * sz) / 2
   return {
@@ -730,7 +743,7 @@ function heapPop(h) {
   return top
 }
 
-function navGridPath(nav, a, b) {
+export function navGridPath(nav, a, b) {
   const { hard, nx, nz, C, W, D } = nav
   const cell = (p) => [Math.max(0, Math.min(nx - 1, Math.floor((p.x + W / 2) / C))), Math.max(0, Math.min(nz - 1, Math.floor((p.z + D / 2) / C)))]
   const [si, sj] = cell(a), [gi, gj] = cell(b)

@@ -131,7 +131,7 @@ export function Clouds({ nightness = 0 }) {
   useFrame(({ clock }) => {
     const im = ref.current
     if (!im) return
-    cloudMat.opacity = 0.7 * (1 - nightness)
+    cloudMat.opacity = 0.35 * (1 - nightness)
     im.visible = cloudMat.opacity > 0.02
     if (!im.visible) return
     const t = clock.elapsedTime

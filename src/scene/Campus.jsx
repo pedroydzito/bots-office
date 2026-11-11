@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { useStore } from '../lib/createStore'
+import { lookStore } from '../lib/look'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import Floor, { focusRoom } from './Floor'
 import { Building } from './Lot'
+import OfficePets from './OfficePets'
 import { effStatus, resolveColor } from '../lib/constants'
 import { frozenRooms, ridePositions } from './registry'
 import { pathLen, pointAt, rideFor, sessions, syncNow, world } from './sim'
@@ -130,6 +133,7 @@ function Cover({ l, on, order }) {
 
 export default function Campus({ floors, selectedIdx, layouts, campus, data, now, night, nightness = 0, low, selectedBot, spotlight, onSelect, onLongPress, celebrate, overview, onPickRoom }) {
   const sel = floors[selectedIdx]
+  const look = useStore(lookStore, (l) => l)
   sceneFlags.compact = true // no point lights per lamp: many rooms on screen
   // freeze what doesn't need to move: rooms off screen, and (one room open) every other room.
   // Their bots and pets keep their pose and skip all per-frame work.
@@ -164,6 +168,24 @@ export default function Campus({ floors, selectedIdx, layouts, campus, data, now
     return () => (focusRoom.layout = null)
   }, [overview, sel?.key, layouts])
   const lightsOn = !low
+  // opening: the rooms build up from the floor one after another (back-out spring), then stop
+  const roomGroups = useRef([])
+  const born = useRef(0)
+  const built = useRef(false)
+  useFrame(() => {
+    if (built.current) return
+    const now = performance.now()
+    if (!born.current) born.current = now
+    let done = true
+    roomGroups.current.forEach((g, i) => {
+      if (!g) return
+      const k = Math.min(1, Math.max(0, (now - born.current - 150 - i * 110) / 650))
+      if (k < 1) done = false
+      const e = k === 1 ? 1 : 1 + 2.2 * Math.pow(k - 1, 3) + 1.2 * Math.pow(k - 1, 2) // ease-out with a little overshoot
+      g.scale.set(1, Math.max(0.001, e), 1)
+    })
+    if (done && roomGroups.current.length) built.current = true
+  })
   return (
     <group>
       {/* one room open: only that room is drawn. Everything else stays mounted but hidden (not
@@ -172,12 +194,13 @@ export default function Campus({ floors, selectedIdx, layouts, campus, data, now
         <Building campus={campus} />
         <Walkers data={data} followed={selectedBot} />
       </group>
+      {look?.pet !== false && <OfficePets campus={campus} layouts={layouts} floors={floors} data={data} overview={overview} focusLayout={!overview && sel ? layouts[sel.key] : null} />}
       {floors.map((f) => {
         const l = layouts[f.key]
         if (!l) return null
         const focus = !overview && sel?.key === f.key
         return (
-          <group key={f.key} visible={overview || focus}>
+          <group key={f.key} visible={overview || focus} ref={(g) => { roomGroups.current[floors.indexOf(f)] = g; if (g && !built.current && !g.userData.seen) (g.userData.seen = true), g.scale.set(1, 0.001, 1) }}>
             <group
               position={[l.ox, 0, l.oz]}
               rotation={[0, l.rot || 0, 0]}

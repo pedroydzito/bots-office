@@ -464,11 +464,13 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     const act = sim.at && sim.at.poi ? sim.at.kind : null
     if (moving) {
       // a springy little walk: hop, stretch on the way up, squash on landing, lean into the step
-      const hop = Math.abs(Math.sin(t * 11 + phase))
-      by = hop * 0.1
-      sy = 0.94 + hop * 0.11
-      rx = 0.09
-      rz = Math.sin(t * 11 + phase) * 0.1
+      const ph = t * 10 + phase
+      const hop = Math.abs(Math.sin(ph))
+      const land = Math.pow(1 - hop, 6) // sharp squash right at the contact
+      by = hop * 0.14
+      sy = 1 + hop * 0.16 - land * 0.16
+      rx = 0.12 + Math.cos(ph * 2) * 0.03
+      rz = Math.sin(ph) * 0.12
       hl = Math.sin(t * 11) * 0.06
       hr = -hl
     } else if (isTalking) {

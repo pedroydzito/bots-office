@@ -1,4 +1,4 @@
-import { Bloom, EffectComposer, HueSaturation, Vignette } from '@react-three/postprocessing'
+import { Bloom, EffectComposer, HueSaturation, N8AO, Vignette } from '@react-three/postprocessing'
 
 /**
  * The "storybook" finish (highest graphics only): soft bloom on bright things (screens, lamps,
@@ -7,7 +7,9 @@ import { Bloom, EffectComposer, HueSaturation, Vignette } from '@react-three/pos
  */
 export default function Effects({ night }) {
   return (
-    <EffectComposer multisampling={4} disableNormalPass>
+    <EffectComposer multisampling={0} disableNormalPass>
+      {/* contact shadows where things meet: furniture on the floor, walls in the corners, bots on chairs */}
+      <N8AO halfRes quality="performance" aoRadius={0.9} distanceFalloff={1.2} intensity={2.4} color="#1b2236" />
       <Bloom mipmapBlur intensity={night ? 0.8 : 0.35} luminanceThreshold={night ? 0.9 : 1.6} luminanceSmoothing={0.3} radius={0.65} />
       <HueSaturation saturation={0.06} />
       <Vignette offset={0.32} darkness={0.42} />

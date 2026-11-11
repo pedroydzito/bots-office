@@ -383,6 +383,13 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const [quick, setQuick] = useState(null) // long-press menu on a bot
   // opening animation: the office fades in, then the interface arrives piece by piece
   const [intro, setIntro] = useState(true)
+  // loading cover until the 3D office has drawn its first frames (then the rooms build up)
+  const [sceneReady, setSceneReady] = useState(false)
+  useEffect(() => {
+    const on = () => setSceneReady(true)
+    window.addEventListener('botoffice:scene-ready', on)
+    return () => window.removeEventListener('botoffice:scene-ready', on)
+  }, [])
   useEffect(() => {
     const id = setTimeout(() => setIntro(false), 2600)
     return () => clearTimeout(id)
@@ -634,6 +641,15 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
 
   return (
     <div className={`app ${night ? 'night' : ''} ${tv ? 'tv' : ''} ${intro ? 'intro' : ''}`}>
+      <div className={`scene-loader ${sceneReady ? 'done' : ''}`} aria-hidden={sceneReady}>
+        <div className="sl-bots">
+          <i style={{ '--c': '#1E86FC', '--d': '0s' }} />
+          <i style={{ '--c': '#F93498', '--d': '0.12s' }} />
+          <i style={{ '--c': '#F5B70A', '--d': '0.24s' }} />
+          <i style={{ '--c': '#2FB36B', '--d': '0.36s' }} />
+        </div>
+        <span>Montando o escritório…</span>
+      </div>
       <Suspense fallback={null}>
       <Scene
         floors={floors}

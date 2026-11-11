@@ -5,7 +5,6 @@ import Bot from './Bot'
 import MailFlights from './Mail'
 import Seasonal from './Seasonal'
 import { hash } from './sim'
-import Pet from './Pet'
 import Confetti from './Confetti'
 import StaticMerge from './StaticMerge'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
@@ -538,7 +537,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       {layout.rows.map((r, i) => (
         <DeskRow key={i} row={r} mat={deskMat} />
       ))}
-      <group userData={{ dynamic: true }}>{petKind !== 'fish' && petKind !== 'none' && <Pet layout={layout} floorIdx={floorIdx} kind={petKind} />}</group>
+      {/* dogs and cats now roam the whole office (OfficePets); the aquarium stays in its room */}
       {petKind === 'fish' && <WallMount side="right"><Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} /></WallMount>}
       <group userData={{ dynamic: true }}>{look.seasonal && <Seasonal layout={layout} seed={floor.key} />}</group>
       {/* wall art keeps both walls lively: posters high above the left-wall furniture, art + shelf on the back wall */}

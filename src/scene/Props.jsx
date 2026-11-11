@@ -1206,14 +1206,19 @@ export function SoloSetup({ row, rug = '#e9e4f5', seed = 0 }) {
 
 
 // ---- games that are really played: pieces move only while two bots stand at the table
-function usePlayers(x, z, r = 2.0) {
+// a player stands (and has stopped) at each end of the table, where the game spots are
+function usePlayers(x, z, half) {
   const st = useRef({ k: 0, n: 0 })
   return () => {
     const s = st.current
-    if (s.k++ % 15 === 0) {
-      let n = 0
-      for (const q of botPositions.values()) if (Math.hypot(q.x - x, q.z - z) < r) n++
-      s.n = n
+    if (s.k++ % 12 === 0) {
+      let a = false, b = false
+      for (const q of botPositions.values()) {
+        if (Math.abs(q.z - z) > 0.7) continue
+        if (Math.abs(q.x - (x - half)) < 0.55) a = true
+        if (Math.abs(q.x - (x + half)) < 0.55) b = true
+      }
+      s.n = (a ? 1 : 0) + (b ? 1 : 0)
     }
     return s.n
   }
@@ -1222,7 +1227,7 @@ function usePlayers(x, z, r = 2.0) {
 /** Ping-pong ball rallying over the net, with a bounce on each half. */
 function PingPongRally({ x, z }) {
   const ball = useRef()
-  const players = usePlayers(x, z)
+  const players = usePlayers(x, z, 3.1 / 2 + 0.45)
   useFrame(({ clock }) => {
     const b = ball.current
     if (!b) return
@@ -1248,7 +1253,7 @@ function PingPongRally({ x, z }) {
 /** Pool: every few seconds the cue ball is struck, rolls, knocks a ball that rolls on and sinks. */
 function PoolShots({ x, z }) {
   const cue = useRef(), target = useRef()
-  const players = usePlayers(x, z, 2.2)
+  const players = usePlayers(x, z, 3.0 / 2 + 0.45)
   useFrame(({ clock }) => {
     if (!cue.current || !target.current) return
     const on = players() >= 2
@@ -1283,7 +1288,7 @@ function PoolShots({ x, z }) {
 /** Foosball: rods twist and slide, the little ball zips across. */
 function FoosballPlay({ x, z }) {
   const rods = useRef([]), ball = useRef()
-  const players = usePlayers(x, z, 1.8)
+  const players = usePlayers(x, z, 1.4 / 2 + 0.45)
   useFrame(({ clock }) => {
     const on = players() >= 2
     const t = clock.elapsedTime
