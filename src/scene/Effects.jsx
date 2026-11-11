@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { Bloom, EffectComposer, ToneMapping, Vignette } from '@react-three/postprocessing'
+import { Bloom, EffectComposer, ToneMapping } from '@react-three/postprocessing'
 import { ToneMappingMode } from 'postprocessing'
 
 /**
@@ -18,9 +18,8 @@ export default function Effects({ night }) {
   }, [gl])
   return (
     <EffectComposer multisampling={0} disableNormalPass>
-      <Bloom mipmapBlur intensity={night ? 0.7 : 0.25} luminanceThreshold={night ? 0.9 : 1.4} luminanceSmoothing={0.3} radius={0.6} />
+      <Bloom resolutionScale={0.5} mipmapBlur intensity={night ? 0.7 : 0.25} luminanceThreshold={night ? 0.9 : 1.4} luminanceSmoothing={0.3} radius={0.6} />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-      <Vignette offset={0.35} darkness={0.35} />
     </EffectComposer>
   )
 }

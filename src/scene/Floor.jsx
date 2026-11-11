@@ -273,6 +273,24 @@ function sunGeometry(W, D, windows) {
   g.computeVertexNormals()
   return g
 }
+// warm light the ceiling lamps throw on the floor at night (soft ellipse, additive: no light cost)
+let _ceilTex = null
+function ceilTexture() {
+  if (_ceilTex) return _ceilTex
+  const c = document.createElement('canvas')
+  c.width = c.height = 128
+  const g = c.getContext('2d')
+  const r = g.createRadialGradient(64, 64, 6, 64, 64, 64)
+  r.addColorStop(0, 'rgba(255,214,160,0.9)')
+  r.addColorStop(0.5, 'rgba(255,200,140,0.4)')
+  r.addColorStop(1, 'rgba(255,190,130,0)')
+  g.fillStyle = r
+  g.fillRect(0, 0, 128, 128)
+  _ceilTex = new THREE.CanvasTexture(c)
+  return _ceilTex
+}
+const ceilPoolMat = new THREE.MeshBasicMaterial({ map: ceilTexture(), transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
+
 /** A door to the corridor: frame and a half-open leaf (hidden with its wall). */
 function RoomDoor({ x, D, W, side = 'front', T = 0.25 }) {
   const frame = paint('#8a6446', 0.5)
@@ -493,8 +511,8 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
     () => (
       <StaticMerge key={mergeKey}>
       <Shell layout={layout} look={look} night={night} title={floor.name} subtitle={`${floor.bots.length} bots`} accent={look.accent ? floor.color : null} />
-      <WallMount side="back">
       <CoffeeCorner position={[-W / 2 + 3.0, 0, -D / 2 + 0.52]} />
+      <WallMount side="back">
       {/* the clock is not in the same spot in every room: each room has its own habits */}
       {(() => {
         const k = (layout.variant >>> 7) % 4
@@ -522,12 +540,13 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       {look.plants && <Plant still position={[W / 2 - 1.0, 0, -D / 2 + 0.9]} scale={1.3} kind={1} />}
       {look.plants && D > 12 && <Plant still position={[W / 2 - 0.9, 0, -D / 2 + 5.5]} scale={0.9} />}
       <WaterCooler position={[-W / 2 + 0.6, 0, layout.wall.coolerZ]} rotation={[0, Math.PI / 2, 0]} />
-      {layout.wall.shelfZ != null && <WallMount side="left"><Bookshelf position={[-W / 2 + 0.47, 0, layout.wall.shelfZ]} rotation={[0, Math.PI / 2, 0]} seed={floor.num} /></WallMount>}
+      {layout.wall.shelfZ != null && <Bookshelf position={[-W / 2 + 0.47, 0, layout.wall.shelfZ]} rotation={[0, Math.PI / 2, 0]} seed={floor.num} />}
       <Lounge position={[layout.lounge?.x ?? W / 2 - 2.4, 0, layout.lounge?.z ?? D / 2 - 2.3]} night={night} seats={layout.pois.filter((q) => q.kind === 'sofa' && Math.abs(q.x - (layout.lounge?.x ?? W / 2 - 2.4)) < 2 && Math.abs(q.z - (layout.lounge?.z ?? D / 2 - 2.3)) < 1.6)} />
       {/* furniture standing against a wall goes down and up with that wall */}
       {layout.decor.map((d, i) => {
         const el = decorEl(d, i)
         if (!el || d.type === 'rug' || d.type === 'plant' || d.type === 'lamp') return el
+        if (d.type !== 'whiteboard') return el
         const side = d.type === 'whiteboard' ? 'back' : d.x < -W / 2 + 1.2 ? 'left' : d.x > W / 2 - 1.2 ? 'right' : d.z < -D / 2 + 1.2 ? 'back' : d.z > D / 2 - 1.2 ? 'front' : null
         return side ? <WallMount key={i} side={side}>{el}</WallMount> : el
       })}
@@ -537,8 +556,18 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       {layout.rows.map((r, i) => (
         <DeskRow key={i} row={r} mat={deskMat} />
       ))}
+      {night && layout.rows.map((r, i) => (
+        <mesh key={'cl' + i} rotation={[-Math.PI / 2, 0, 0]} position={[(r.x1 + r.x2) / 2, 0.018, r.z + 0.7]} scale={[r.x2 - r.x1 + 2.6, 3.6, 1]} material={ceilPoolMat} renderOrder={2}>
+          <planeGeometry args={[1, 1]} />
+        </mesh>
+      ))}
+      {night && layout.lounge && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[layout.lounge.x, 0.018, layout.lounge.z - 0.3]} scale={[4.2, 3.4, 1]} material={ceilPoolMat} renderOrder={2}>
+          <planeGeometry args={[1, 1]} />
+        </mesh>
+      )}
       {/* dogs and cats now roam the whole office (OfficePets); the aquarium stays in its room */}
-      {petKind === 'fish' && <WallMount side="right"><Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} /></WallMount>}
+      {petKind === 'fish' && <Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} />}
       <group userData={{ dynamic: true }}>{look.seasonal && <Seasonal layout={layout} seed={floor.key} />}</group>
       {/* wall art keeps both walls lively: posters high above the left-wall furniture, art + shelf on the back wall */}
       {/* pictures sit in the gaps between the left-wall furniture, at one shared height */}

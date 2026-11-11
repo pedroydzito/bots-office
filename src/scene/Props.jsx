@@ -525,7 +525,11 @@ export function Lounge({ position, night, seats = [] }) {
           <coneGeometry args={[0.18, 0.2, 24, 1, true]} />
           <meshStandardMaterial color="#fff6e0" emissive="#ffd28a" emissiveIntensity={night ? 2.2 : 0.1} side={THREE.DoubleSide} />
         </mesh>
-        {!sceneFlags.compact && <pointLight position={[0, 1.5, 0]} intensity={night ? 7 : 0} distance={6} color="#ffcf8a" decay={1.6} />}
+        {night && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} material={lampPoolMat} renderOrder={2}>
+            <planeGeometry args={[3.6, 3.6]} />
+          </mesh>
+        )}
       </group>
     </group>
   )
@@ -907,30 +911,50 @@ export function GlassElevator({ layout, night, floorY = null }) {
 
 // ---------------------------------------------------------------- more furniture
 
-/** Snack machine: glowing glass front with rows of snacks. */
+/** Snack & soda machine: rounded red body, lit glass front with shelves of cans and snacks,
+ *  a logo band, a keypad with coin slot and the pickup tray at the bottom. */
+const VEND = ['#E5484D', '#F5B70A', '#1E86FC', '#2FB36B', '#F93498', '#FD690F', '#8F59F9', '#ffffff']
 export function Vending({ x, z }) {
-  const snacks = ['#E5484D', '#F5B70A', '#1E86FC', '#2FB36B', '#F93498', '#FD690F']
+  const body = sharedMat('#d93c42', 0.42)
+  const trim = sharedMat('#b02a31', 0.5)
+  const dark = sharedMat('#1d2129', 0.6)
+  const metal = sharedMat('#c9ced6', 0.3, 0.6)
   return (
     <group position={[x, 0, z]} rotation={[0, Math.PI / 2, 0]}>
-      <RoundedBox args={[0.8, 1.75, 0.6]} radius={0.05} smoothness={2} position={[0, 0.875, 0]} receiveShadow>
-        <meshStandardMaterial color="#e5484d" roughness={0.45} />
-      </RoundedBox>
-      <mesh position={[-0.08, 1.05, 0.305]}>
-        <planeGeometry args={[0.5, 1.15]} />
-        <meshStandardMaterial color="#20242c" emissive="#9fd3ff" emissiveIntensity={0.25} />
-      </mesh>
-      {Array.from({ length: 12 }, (_, i) => (
-        <mesh key={i} position={[-0.25 + (i % 3) * 0.17, 0.62 + Math.floor(i / 3) * 0.27, 0.29]}>
-          <boxGeometry args={[0.1, 0.13, 0.04]} />
-          <meshStandardMaterial color={snacks[i % snacks.length]} />
-        </mesh>
+      <RoundedBox args={[0.84, 1.8, 0.62]} radius={0.06} smoothness={3} position={[0, 0.9, 0]} material={body} castShadow receiveShadow />
+      {/* logo band on top */}
+      <RoundedBox args={[0.78, 0.2, 0.04]} radius={0.02} smoothness={2} position={[0, 1.66, 0.3]} material={trim} />
+      <mesh position={[-0.12, 1.66, 0.325]}><boxGeometry args={[0.36, 0.08, 0.005]} /><meshStandardMaterial color="#fff6e8" emissive="#fff1d6" emissiveIntensity={0.6} /></mesh>
+      {/* lit window with three shelves of goods */}
+      <mesh position={[-0.08, 1.02, 0.306]}><boxGeometry args={[0.54, 1.12, 0.01]} /><meshStandardMaterial color="#20262f" emissive="#a9d8ff" emissiveIntensity={0.18} /></mesh>
+      {[0.62, 0.92, 1.22, 1.5].map((y) => (
+        <mesh key={'s' + y} position={[-0.08, y - 0.1, 0.29]} material={metal}><boxGeometry args={[0.52, 0.015, 0.06]} /></mesh>
       ))}
-      <mesh position={[0.28, 1.15, 0.305]} material={M.dark}>
-        <boxGeometry args={[0.14, 0.4, 0.02]} />
-      </mesh>
-      <mesh position={[-0.08, 0.28, 0.305]} material={M.dark}>
-        <boxGeometry args={[0.45, 0.14, 0.02]} />
-      </mesh>
+      {Array.from({ length: 12 }, (_, i) => {
+        const col = i % 4, row = Math.floor(i / 4)
+        const can = row !== 1
+        return (
+          <mesh key={i} position={[-0.27 + col * 0.125, 0.6 + row * 0.3, 0.27]} material={sharedMat(VEND[(i * 3 + row) % VEND.length], 0.35, can ? 0.4 : 0)}>
+            {can ? <cylinderGeometry args={[0.035, 0.035, 0.12, 12]} /> : <boxGeometry args={[0.1, 0.13, 0.03]} />}
+          </mesh>
+        )
+      })}
+      {/* glass over the window */}
+      <mesh position={[-0.08, 1.02, 0.315]}><boxGeometry args={[0.56, 1.14, 0.01]} /><meshStandardMaterial color="#dff1ff" transparent opacity={0.16} roughness={0.05} metalness={0.2} /></mesh>
+      {/* keypad panel, coin slot, little display */}
+      <RoundedBox args={[0.17, 0.62, 0.03]} radius={0.015} smoothness={2} position={[0.3, 1.18, 0.31]} material={dark} />
+      <mesh position={[0.3, 1.42, 0.327]}><boxGeometry args={[0.12, 0.05, 0.004]} /><meshStandardMaterial color="#0f2a1c" emissive="#3dff9a" emissiveIntensity={0.7} /></mesh>
+      {Array.from({ length: 9 }, (_, i) => (
+        <mesh key={'k' + i} position={[0.265 + (i % 3) * 0.035, 1.32 - Math.floor(i / 3) * 0.04, 0.328]} material={metal}><boxGeometry args={[0.025, 0.025, 0.006]} /></mesh>
+      ))}
+      <mesh position={[0.3, 1.0, 0.328]} material={metal}><boxGeometry args={[0.06, 0.012, 0.006]} /></mesh>
+      {/* pickup tray */}
+      <RoundedBox args={[0.56, 0.16, 0.05]} radius={0.02} smoothness={2} position={[-0.08, 0.3, 0.3]} material={dark} />
+      <mesh position={[-0.08, 0.32, 0.33]} material={trim}><boxGeometry args={[0.5, 0.03, 0.01]} /></mesh>
+      {/* feet */}
+      {[-0.34, 0.34].map((fx) => (
+        <mesh key={fx} position={[fx, 0.02, 0]} material={dark}><boxGeometry args={[0.1, 0.04, 0.5]} /></mesh>
+      ))}
     </group>
   )
 }

@@ -20,12 +20,29 @@ const coverGeo = new THREE.BoxGeometry(1, 1, 1)
 const _pm = new THREE.Matrix4(), _fr = new THREE.Frustum()
 
 /** One warm ceiling light per room at night (fixed count: no shader recompiles). */
-function RoomLight({ l, nightness, on }) {
-  const ref = useRef()
+/**
+ * Ceiling lights at night: two real lights (fixed count: no shader recompiles), hung over the
+ * desks of the room being looked at (or the middle of the office). The rest of the light comes
+ * from the warm pools painted on the floor under each ceiling lamp.
+ */
+function CeilingLights({ target, nightness }) {
+  const a = useRef(), b = useRef()
   useFrame(() => {
-    if (ref.current) ref.current.intensity = on ? nightness * 9 : 0
+    const l = target
+    const k = nightness * 7
+    for (const [r, dx] of [[a, -0.25], [b, 0.25]]) {
+      if (!r.current) continue
+      r.current.intensity = k
+      if (l) r.current.position.set(l.ox + dx * l.W, 2.9, l.oz - l.D * 0.08)
+      r.current.distance = l ? Math.max(l.W, l.D) * 0.85 : 30
+    }
   })
-  return <pointLight ref={ref} position={[l.ox, 2.9, l.oz]} distance={Math.max(l.W, l.D) * 0.95} decay={1.2} color="#ffdcae" intensity={0} />
+  return (
+    <>
+      <pointLight ref={a} decay={1.1} color="#ffe2bd" intensity={0} castShadow={false} />
+      <pointLight ref={b} decay={1.1} color="#ffe2bd" intensity={0} castShadow={false} />
+    </>
+  )
 }
 
 /** Bots on their way between rooms, walking the corridors (same clock on every screen). */
@@ -190,6 +207,7 @@ export default function Campus({ floors, selectedIdx, layouts, campus, data, now
     <group>
       {/* one room open: only that room is drawn. Everything else stays mounted but hidden (not
           drawn, not in the shadow pass, bots frozen), so going back to the whole office is instant */}
+      {lightsOn && <CeilingLights target={!overview && sel ? layouts[sel.key] : null} nightness={nightness} />}
       <group visible={overview}>
         <Building campus={campus} />
         <Walkers data={data} followed={selectedBot} />
@@ -230,7 +248,6 @@ export default function Campus({ floors, selectedIdx, layouts, campus, data, now
                 />
               }
             </group>
-            {lightsOn && <RoomLight l={l} nightness={nightness} on={overview || focus} />}
             {(overview || focus) && <RoomChip f={f} l={l} data={data} now={now} dim={false} onPick={onPickRoom} />}
           </group>
         )

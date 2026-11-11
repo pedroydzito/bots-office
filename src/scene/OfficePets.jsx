@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { AISLE, navGridPath, toWorld } from './layout'
+import { AISLE, navGridPath, planPath, toWorld } from './layout'
 import { hash, pathLen, pointAt, syncNow } from './sim'
 import { botWorld } from './registry'
 import { Label } from './Labels'
@@ -35,37 +35,55 @@ function roomAt(rooms, x, z) {
   return null
 }
 
-/** Walkable route: through the doors and along the corridors. */
+/** Walk inside one room around the furniture (room-local planner, world points out). */
+function inRoom(l, a, b) {
+  const loc = (p) => ({ x: p.x - l.ox, z: p.z - l.oz })
+  return planPath(loc(a), loc(b), l).map(([x, z]) => [x + l.ox, z + l.oz])
+}
+
+/** Walkable route: around furniture, through the doors and along the corridors. */
 function route(campus, rooms, a, b) {
   const ra = roomAt(rooms, a.x, a.z), rb = roomAt(rooms, b.x, b.z)
-  if (ra && ra === rb) return [[a.x, a.z], [b.x, b.z]]
-  const pts = [[a.x, a.z]]
+  if (ra && ra === rb) return inRoom(ra, a, b)
   const out = (l) => toWorld(l, l.elevator.x, l.D / 2 + AISLE / 2)
   const inn = (l) => toWorld(l, l.elevator.x, l.elevator.z)
+  let pts = [[a.x, a.z]]
   let from = a
   if (ra) {
-    const i = inn(ra), o = out(ra)
-    pts.push([i.x, i.z], [o.x, o.z])
+    pts = inRoom(ra, a, inn(ra))
+    const o = out(ra)
+    pts.push([o.x, o.z])
     from = o
   }
   const to = rb ? out(rb) : b
   if (campus.nav) for (const p of navGridPath(campus.nav, from, to).slice(1)) pts.push(p)
   else pts.push([to.x, to.z])
-  if (rb) {
-    const i = inn(rb)
-    pts.push([i.x, i.z], [b.x, b.z])
-  }
+  if (rb) for (const p of inRoom(rb, inn(rb), b)) pts.push(p)
   return pts
 }
 
-/** Cosy spots in every room: by the lounge, on rugs, next to a desk. */
+const FOOT = { meeting: 1.4, vending: 0.8, printer: 0.7, pool: 2.0, pingpong: 2.0, foosball: 1.2, arcade: 0.9, bench: 1.0, armchair: 0.8, beanbag: 0.7, plant: 0.6, bookcase: 1.1, lamp: 0.5, rug: 0 }
+/** Cosy spots in every room: on the sofa, next to a desk, and one clear patch of floor. */
 function napSpots(rooms) {
   const s = []
   for (const l of rooms) {
-    if (l.lounge) s.push({ ...toWorld(l, l.lounge.x - 1.6, l.lounge.z + 0.9), room: l })
-    for (const d of l.decor || []) if (d.type === 'rug' && d.kit) s.push({ ...toWorld(l, d.x, d.z), room: l })
-    const st = l.seats[(hash(l.variant + 'p') % Math.max(1, l.seats.length))]
-    if (st) s.push({ ...toWorld(l, st.x + 0.85, (st.az ?? st.z) + 0.2), room: l, desk: true })
+    // on the sofa cushions (they hop up and curl there)
+    for (const p of l.pois) if (p.kind === 'sofa') s.push({ ...toWorld(l, p.x, p.z + 0.1), y: 0.44, room: l, sofa: true })
+    const st = l.seats[hash(l.variant + 'p') % Math.max(1, l.seats.length)]
+    if (st) s.push({ ...toWorld(l, st.x + 0.85, (st.az ?? st.z) + 0.25), room: l, desk: true })
+    // a clear patch of floor: away from furniture, desks and walls
+    const free = (x, z) =>
+      Math.abs(x) < l.W / 2 - 1.2 && Math.abs(z) < l.D / 2 - 1.2 &&
+      (l.decor || []).every((d) => Math.hypot(d.x - x, d.z - z) > (FOOT[d.type] ?? 0.8) + 0.5) &&
+      (l.rows || []).every((r) => !(x > r.x1 - 0.8 && x < r.x2 + 0.8 && z > r.z - 1.2 && z < r.z + 1.8)) &&
+      (!l.lounge || Math.hypot(l.lounge.x - x, l.lounge.z - z) > 2.4)
+    let found = null
+    for (let k = 0; k < 60 && !found; k++) {
+      const x = ((hash(`${l.variant}|fx|${k}`) % 1000) / 1000 - 0.5) * (l.W - 2.4)
+      const z = ((hash(`${l.variant}|fz|${k}`) % 1000) / 1000 - 0.5) * (l.D - 2.4)
+      if (free(x, z)) found = { ...toWorld(l, x, z), room: l }
+    }
+    if (found) s.push(found)
   }
   return s
 }
@@ -82,7 +100,9 @@ function petAt(spec, idx, cats, spots, campus, rooms, cache, T) {
       const k = cats.indexOf(spec.name)
       return { ...base, x: base.x + (k ? 0.35 : -0.35) }
     }
-    return spots[hash(`pet|${spec.name}|${e}`) % spots.length]
+    // every pet in its own spot: one shared shuffle per episode, each pet a different slot
+    const step = Math.max(1, Math.floor(spots.length / 5))
+    return spots[(hash(`pets|${e}`) + idx * step) % spots.length]
   }
   let pl = cache.get(ep)
   if (!pl) {
@@ -92,13 +112,13 @@ function petAt(spec, idx, cats, spots, campus, rooms, cache, T) {
     // the walk must fit: never more than 40 % of the episode (hurry if the trip is long)
     const prevPlay = spec.kind === 'cat' && hash(`play|${ep - 1}`) % 4 === 0
     const speed = Math.max(spec.speed * (prevPlay ? 2.4 : 1), len / ((EP * 0.4) / 1000))
-    pl = { pts, len, speed, b, play, run: prevPlay }
+    pl = { pts, len, speed, a, b, play, run: prevPlay }
     cache.clear()
     cache.set(ep, pl)
   }
   if (tIn < STRETCH) {
     const p = pointAt(pl.pts, 0)
-    return { x: p.x, z: p.z, yaw: null, pose: 'stretch', k: tIn / STRETCH, b: pl.b }
+    return { x: p.x, z: p.z, y: pl.a.y || 0, yaw: null, pose: 'stretch', k: tIn / STRETCH, b: pl.b }
   }
   const d = ((tIn - STRETCH) / 1000) * pl.speed
   if (d < pl.len) {
@@ -108,13 +128,14 @@ function petAt(spec, idx, cats, spots, campus, rooms, cache, T) {
   const p = pointAt(pl.pts, pl.len)
   // resting: mostly asleep, with a little life in between (20 s blocks)
   const settled = tIn - STRETCH - (pl.len / pl.speed) * 1000
-  if (pl.play && settled < 22000) return { x: p.x, z: p.z, yaw: null, pose: 'swat', b: pl.b, k: settled / 1000 }
+  const y = pl.b.y || 0
+  if (pl.play && settled < 22000) return { x: p.x, z: p.z, y, yaw: null, pose: 'swat', b: pl.b, k: settled / 1000 }
   const blk = hash(`${spec.name}|${ep}|${Math.floor(settled / 20000)}`) % 10
   let pose = 'sleep'
   if (settled < 6000) pose = 'sit' // looks around before lying down
   else if (spec.kind === 'cat' && blk < 2) pose = 'groom'
   else if (spec.kind === 'dog' && blk < 3) pose = 'sit'
-  return { x: p.x, z: p.z, yaw: null, pose, b: pl.b }
+  return { x: p.x, z: p.z, y, yaw: null, pose: pl.b.sofa && pose === 'sit' ? 'sleep' : pose, b: pl.b }
 }
 
 function Pet({ spec, idx, cats, campus, rooms, spots, overview, focusLayout }) {
@@ -131,7 +152,7 @@ function Pet({ spec, idx, cats, campus, rooms, spots, overview, focusLayout }) {
     const vis = overview || (room && room === focusLayout)
     g.visible = !!vis
     if (!vis) return
-    g.position.set(s.x, 0, s.z)
+    g.position.set(s.x, s.y || 0, s.z)
     // turn smoothly: walking = along the path; sitting by a desk = toward the nearest bot
     let want = s.yaw
     if (want == null && s.pose === 'sit' && s.b?.desk) {
