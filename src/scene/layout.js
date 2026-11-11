@@ -424,15 +424,6 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true, seed =
   }
 }
 
-export function cortexLayout(W = 13, D = 12) {
-  const lw = leftWall(W, D)
-  return {
-    W, D, seats: [], rows: [], xL: -W / 2 + 3.05, cols: 0, decor: [], meet: { x: 0, z: 0 },
-    pois: [], elevator: lw.elevator, wall: lw,
-    focus: { x: 0, z: -0.8 },
-    dist: 16,
-  }
-}
 
 // ---- walking: a grid of what is taken on the floor, and A* around it ------------------------------
 // Bots never walk through furniture: every desk, game table, sofa, plant and machine is an obstacle;
@@ -636,53 +627,53 @@ export function toWorld(l, x, z) {
   return { x: (l.ox || 0) + x, z: (l.oz || 0) + z }
 }
 
-export const AISLE = 2.6
+export const AISLE = 2.4 // corridor width (between rooms, between rows and around the office)
 
 /**
- * One office, split into areas. Rows of areas share their side partitions (no gaps), every row is
- * stretched to the same width so the office is a clean rectangle; an aisle runs in front of each
- * row and down the left side. The Cortex and the room closest to it (entries[1]) sit in the middle
- * of the first row. `entries`: [{ key, W, D }] natural sizes. Returns sizes and offsets per key.
+ * One office: rooms in rows with corridors between them (like a real floor plan). Rows are balanced
+ * by width and every row is stretched a little to the same width, so the outline is a clean
+ * rectangle. The top team (entries[0]) sits in the middle of the middle row.
+ * `entries`: [{ key, W, D }] natural sizes. Returns sizes and centres per key.
  */
 export function planOffice(entries) {
   const A = AISLE
   const n = entries.length
-  const R = n <= 3 ? 1 : n <= 8 ? 2 : Math.ceil(n / 4)
-  const counts = Array.from({ length: R }, (_, r) => Math.floor(n / R) + (r < n % R ? 1 : 0))
+  if (!n) return { rooms: {}, W: 10, D: 10, rows: 0 }
+  const R = n <= 2 ? 1 : n <= 4 ? 2 : Math.max(3, Math.ceil(n / 4))
+  const mid = Math.floor((R - 1) / 2)
+  const cap = Math.ceil(n / R)
   const rows = Array.from({ length: R }, () => [])
-  // row 0: Cortex + nearest room in the centre, the next ones alternating left / right
-  const rest = entries.slice()
-  const heart = rest.splice(0, Math.min(2, counts[0]))
-  const row0 = [...heart]
-  while (row0.length < counts[0] && rest.length) {
-    const e = rest.shift()
-    if (row0.length % 2) row0.push(e)
-    else row0.unshift(e)
+  const width = (row) => row.reduce((a, e) => a + e.W, 0) + A * Math.max(0, row.length - 1)
+  rows[mid].push(entries[0])
+  // widest first into the row that is narrowest so far (keeps the rows about the same width)
+  for (const e of entries.slice(1).sort((a, b) => b.W - a.W)) {
+    let best = -1
+    for (let r = 0; r < R; r++) if (rows[r].length < cap && (best < 0 || width(rows[r]) < width(rows[best]))) best = r
+    rows[best].push(e)
   }
-  rows[0] = row0
-  for (let r = 1; r < R; r++) rows[r] = rest.splice(0, counts[r])
-  // same width for every row (areas stretched), one depth per row
-  const widths = rows.map((row) => row.reduce((a, e) => a + e.W, 0))
-  const TW = Math.max(...widths)
+  // inside a row: the first one placed sits in the centre, the others alternate left / right
+  for (let r = 0; r < R; r++) {
+    const row = []
+    rows[r].forEach((e, i) => (i % 2 ? row.push(e) : row.unshift(e)))
+    rows[r] = row
+  }
+  const TW = Math.max(...rows.map(width))
   const out = {}
-  let z = 0
+  let z = A
   rows.forEach((row, ri) => {
-    const s = TW / (widths[ri] || 1)
+    const sum = row.reduce((a, e) => a + e.W, 0) || 1
+    // stretch a short row a little (at most 15%); what is left becomes open lobby at both ends
+    const free = Math.min(TW - width(row), sum * 0.15)
     const d = Math.max(...row.map((e) => e.D))
-    let x = A
+    let x = A + (TW - width(row) - free) / 2
     row.forEach((e, k) => {
-      const w = Math.round(e.W * s * 10) / 10
+      const w = Math.round((e.W + (free * e.W) / sum) * 10) / 10
       out[e.key] = { W: w, D: d, x: x + w / 2, z: z + d / 2, row: ri, first: k === 0, last: k === row.length - 1 }
-      x += w
+      x += w + A
     })
-    // rounding: let the last area take up any leftover so the row ends flush
-    const lastE = out[row[row.length - 1].key]
-    const fix = A + TW - (lastE.x + lastE.W / 2)
-    lastE.W += fix
-    lastE.x += fix / 2
     z += d + A
   })
-  const W = A + TW, D = z
+  const W = TW + 2 * A, D = z
   for (const k in out) (out[k].x -= W / 2), (out[k].z -= D / 2)
   return { rooms: out, W, D, rows: R }
 }

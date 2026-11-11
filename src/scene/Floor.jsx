@@ -8,6 +8,7 @@ import { hash } from './sim'
 import Pet from './Pet'
 import Confetti from './Confetti'
 import StaticMerge from './StaticMerge'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
 let mergeGen = 0
 import {
@@ -55,50 +56,106 @@ function nearSide(obj, camera, side) {
   return nx * _cam.x + nz * _cam.z > 0
 }
 
-function CutWall({ side, W, D, T = 0.25, H = 3.2 }) {
+// rooms whose side walls stay up (the room in focus); the wall facing the camera still sinks
+export const raisedRooms = new Set()
+
+const glassMat = new THREE.MeshStandardMaterial({ color: '#cfe3f2', roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.32, depthWrite: false })
+const frameMat = new THREE.MeshStandardMaterial({ color: '#fbfbfc', roughness: 0.5 })
+const trimMat = new THREE.MeshStandardMaterial({ color: '#4b505b', roughness: 0.7 })
+
+/** Box geometry placed at (x,y,z) in wall space (u = along the wall). */
+function wallBox(horiz, u, y, w, h, t, off = 0) {
+  const g = horiz ? new THREE.BoxGeometry(w, h, t) : new THREE.BoxGeometry(t, h, w)
+  g.translate(horiz ? u : off, y, horiz ? off : u)
+  return g
+}
+
+/**
+ * A full-height wall with openings (doors, windows), merged into a few meshes. It sinks to a low
+ * curb when it stands between the camera and the room (cutaway), unless the room is in focus
+ * (then only the front one sinks). A dark trim runs along its top, like a building plan.
+ */
+function CutWall({ side, W, D, T = 0.25, H = 3.2, mat = wallMat, openings = [], layout }) {
   const ref = useRef()
   const LOW = 0.32
   useFrame(({ camera }, dt) => {
     const g = ref.current
     if (!g) return
-    const want = nearSide(g, camera, side) ? LOW / H : 1
+    const up = side !== 'front' && layout && raisedRooms.has(layout)
+    const want = !up && nearSide(g, camera, side) ? LOW / H : 1
     const s = g.scale.y + (want - g.scale.y) * Math.min(1, dt * 7)
     if (Math.abs(s - g.scale.y) > 0.0005) g.scale.y = s
   })
   const horiz = side === 'back' || side === 'front'
+  const len = horiz ? W : D
+  const geos = useMemo(() => {
+    const solid = [], glass = [], frame = []
+    const ops = [...openings].sort((p, q) => p.a - q.a)
+    let u = -len / 2
+    for (const o of ops) {
+      if (o.a - u > 0.01) solid.push(wallBox(horiz, (u + o.a) / 2, H / 2, o.a - u, H, T))
+      const w = o.b - o.a, c = (o.a + o.b) / 2
+      if (o.kind === 'door') {
+        solid.push(wallBox(horiz, c, (H + 2.2) / 2, w, H - 2.2, T))
+      } else {
+        const sill = 0.85, head = 2.25
+        solid.push(wallBox(horiz, c, sill / 2, w, sill, T))
+        solid.push(wallBox(horiz, c, (H + head) / 2, w, H - head, T))
+        glass.push(wallBox(horiz, c, (sill + head) / 2, w, head - sill, 0.04))
+        // white frame: sill, head, sides and one mullion
+        frame.push(wallBox(horiz, c, sill + 0.03, w, 0.06, T + 0.04))
+        frame.push(wallBox(horiz, c, head - 0.03, w, 0.06, T + 0.04))
+        for (const e of [o.a + 0.03, o.b - 0.03, c]) frame.push(wallBox(horiz, e, (sill + head) / 2, 0.06, head - sill, T * 0.6))
+      }
+      u = o.b
+    }
+    if (len / 2 - u > 0.01) solid.push(wallBox(horiz, (u + len / 2) / 2, H / 2, len / 2 - u, H, T))
+    const trim = [wallBox(horiz, 0, H + 0.02, len, 0.05, T + 0.02)]
+    const m = (list) => (list.length ? mergeGeometries(list, false) : null)
+    return { solid: m(solid), glass: m(glass), frame: m(frame), trim: m(trim) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [horiz, len, H, T, JSON.stringify(openings)])
   const pos = side === 'back' ? [0, 0, -D / 2 + T / 2] : side === 'front' ? [0, 0, D / 2 - T / 2] : side === 'left' ? [-W / 2 + T / 2, 0, 0] : [W / 2 - T / 2, 0, 0]
   return (
     <group ref={ref} position={pos} userData={{ dynamic: true }}>
-      <mesh position={[0, H / 2, 0]} material={wallMat} receiveShadow castShadow>
-        <boxGeometry args={horiz ? [W, H, T] : [T, H, D]} />
-      </mesh>
+      {geos.solid && <mesh geometry={geos.solid} material={mat} receiveShadow castShadow />}
+      {geos.frame && <mesh geometry={geos.frame} material={frameMat} />}
+      {geos.glass && <mesh geometry={geos.glass} material={glassMat} />}
+      <mesh geometry={geos.trim} material={trimMat} />
     </group>
   )
 }
 
-const capMat = new THREE.MeshStandardMaterial({ color: '#d5d9df', roughness: 0.6 })
-/** Low divider between areas (a desk-high wall with a cap), optionally with an opening. */
-function Partition({ side, W, D, gap = null, H = 1.05, T = 0.12 }) {
-  const horiz = side === 'front' || side === 'back'
-  const len = horiz ? W : D
-  const segs = gap ? [[-len / 2, gap[0]], [gap[1], len / 2]] : [[-len / 2, len / 2]]
-  const at = side === 'front' ? [0, D / 2 - T / 2] : side === 'back' ? [0, -D / 2 + T / 2] : side === 'left' ? [-W / 2 + T / 2, 0] : [W / 2 - T / 2, 0]
+// every room has its own paint and floor (unless the office look picks one for all)
+const ROOM_WALLS = ['#f3eee6', '#dde8df', '#e6e1f0', '#f2e3d7', '#dbe6ef', '#efe7cc', '#e8e2da', '#e1ece8', '#f0dfe3']
+const ROOM_FLOORS = ['#d9b68f', '#b88b66', '#e3ddd4', '#c9ced6', '#aebdd1', '#dcc6ad', '#cf9f84', '#e7d4b4', '#b9c9b3']
+const matCache = new Map()
+function paint(color, rough = 0.85) {
+  const k = color + rough
+  if (!matCache.has(k)) matCache.set(k, new THREE.MeshStandardMaterial({ color, roughness: rough }))
+  return matCache.get(k)
+}
+export function roomFinish(layout, look) {
+  const v = layout.variant >>> 0
+  const wall = look?.wall && look.wall !== 'white' ? (WALLS[look.wall] || WALLS.white)[1] : ROOM_WALLS[v % ROOM_WALLS.length]
+  const floor = look?.floor && look.floor !== 'light' ? (FLOORS[look.floor] || FLOORS.light)[1] : ROOM_FLOORS[(v >>> 5) % ROOM_FLOORS.length]
+  return { wall: paint(wall, 0.9), floor: paint(floor, 0.55) }
+}
+
+/** The room's door to the corridor: frame and a half-open leaf (hidden with its wall). */
+function RoomDoor({ x, D, T = 0.25 }) {
+  const frame = paint('#8a6446', 0.5)
+  const leaf = paint('#c8996a', 0.55)
   return (
-    <group position={[at[0], 0, at[1]]}>
-      {segs.filter(([a, b]) => b - a > 0.05).map(([a, b]) => {
-        const c = (a + b) / 2, l = b - a
-        const pos = horiz ? [c, 0, 0] : [0, 0, c]
-        return (
-          <group key={a} position={pos}>
-            <mesh position={[0, H / 2, 0]} material={wallMat} castShadow receiveShadow>
-              <boxGeometry args={horiz ? [l, H, T] : [T, H, l]} />
-            </mesh>
-            <mesh position={[0, H + 0.02, 0]} material={capMat}>
-              <boxGeometry args={horiz ? [l, 0.04, T + 0.06] : [T + 0.06, 0.04, l]} />
-            </mesh>
-          </group>
-        )
-      })}
+    <group position={[x, 0, D / 2 - T / 2]}>
+      {[-0.68, 0.68].map((dx) => (
+        <mesh key={dx} position={[dx, 1.1, 0]} material={frame}><boxGeometry args={[0.08, 2.2, T + 0.08]} /></mesh>
+      ))}
+      <mesh position={[0, 2.2, 0]} material={frame}><boxGeometry args={[1.44, 0.1, T + 0.08]} /></mesh>
+      <group position={[-0.62, 0, -T / 2 - 0.02]} rotation={[0, 1.1, 0]}>
+        <mesh position={[0.6, 1.06, 0]} material={leaf}><boxGeometry args={[1.18, 2.1, 0.05]} /></mesh>
+        <mesh position={[1.05, 1.05, -0.05]} material={frameMat}><sphereGeometry args={[0.04, 8, 6]} /></mesh>
+      </group>
     </group>
   )
 }
@@ -119,33 +176,53 @@ export function WallMount({ side, children }) {
   )
 }
 
-export function Shell({ layout, title, subtitle, accent }) {
+/** Window openings spread evenly over [a, b] along a wall. */
+function windowsAlong(a, b, w, step) {
+  const n = Math.max(0, Math.floor((b - a + 0.6) / step))
+  const out = []
+  if (!n) return out
+  const gap = (b - a - n * w) / (n + 1)
+  for (let i = 0; i < n; i++) {
+    const s = a + gap + i * (w + gap)
+    out.push({ a: s, b: s + w, kind: 'window' })
+  }
+  return out
+}
+
+export function Shell({ layout, title, subtitle, accent, look }) {
   const { W, D } = layout
-  const first = layout.first !== false, last = layout.last !== false
+  const fin = roomFinish(layout, look)
+  const doorX = layout.elevator?.x ?? -W / 2 + 1.5
+  const front = [{ a: doorX - 0.7, b: doorX + 0.7, kind: 'door' }, ...windowsAlong(doorX + 1.6, W / 2 - 1.0, 1.5, 2.6)]
+  const right = windowsAlong(-D / 2 + 1.3, D / 2 - 1.3, 1.4, 2.5)
+  const base = [
+    [0, -D / 2 + 0.265, W, 0.03],
+    [-W / 2 + 0.265, 0, 0.03, D],
+    [W / 2 - 0.265, 0, 0.03, D],
+    [(doorX + 0.7 + W / 2) / 2, D / 2 - 0.265, W / 2 - doorX - 0.7, 0.03],
+    [(-W / 2 + doorX - 0.7) / 2, D / 2 - 0.265, doorX - 0.7 + W / 2, 0.03],
+  ]
   return (
     <group>
       {/* a hair smaller than the storey slab: equal faces flickered (z-fighting) on the building side */}
       <mesh position={[0, -0.18, 0]} material={slabMat}>
         <boxGeometry args={[W - 0.04, 0.34, D - 0.04]} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]} material={floorMat} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]} material={fin.floor} receiveShadow>
         <planeGeometry args={[W, D]} />
       </mesh>
-      {/* one office split into areas: the back wall is a real wall (TV, title, clock), the side
-          between two areas is a low partition, the front is a low partition with the entrance */}
-      <CutWall side="back" W={W} D={D} />
-      {first ? <CutWall side="left" W={W} D={D} /> : <Partition side="left" W={W} D={D} />}
-      {last && <CutWall side="right" W={W} D={D} />}
-      <Partition side="front" W={W} D={D} gap={[-W / 2 + 0.8, -W / 2 + 2.2]} />
-      {/* baseboards */}
-      <mesh position={[0, 0.06, -D / 2 + 0.265]} material={wallMat}>
-        <boxGeometry args={[W, 0.12, 0.03]} />
-      </mesh>
-      {first && (
-        <mesh position={[-W / 2 + 0.265, 0.06, 0]} material={wallMat}>
-          <boxGeometry args={[0.03, 0.12, D]} />
+      {/* four real walls in the room's own paint; corridors run outside them */}
+      <CutWall side="back" W={W} D={D} mat={fin.wall} layout={layout} />
+      <CutWall side="left" W={W} D={D} mat={fin.wall} layout={layout} />
+      <CutWall side="right" W={W} D={D} mat={fin.wall} layout={layout} openings={right} />
+      <CutWall side="front" W={W} D={D} mat={fin.wall} layout={layout} openings={front} />
+      <WallMount side="front"><RoomDoor x={doorX} D={D} /></WallMount>
+      {/* white baseboards */}
+      {base.filter((q) => q[2] > 0.05 && q[3] > 0.02).map(([x, z, w, d], i) => (
+        <mesh key={i} position={[x, 0.06, z]} material={frameMat}>
+          <boxGeometry args={[w, 0.12, d]} />
         </mesh>
-      )}
+      ))}
       <WallMount side="back">
         {/* a single vertical line in the team colour, as tall as the floor name */}
         {accent && (
@@ -248,10 +325,16 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   const staticRoom = useMemo(
     () => (
       <StaticMerge key={mergeKey}>
-      <Shell layout={layout} title={floor.name} subtitle={`${floor.bots.length} bots`} accent={look.accent ? floor.color : null} />
+      <Shell layout={layout} look={look} title={floor.name} subtitle={`${floor.bots.length} bots`} accent={look.accent ? floor.color : null} />
       <WallMount side="back">
-      <Clock position={[-W / 2 + 1.55, 2.45, -D / 2 + 0.28]} />
       <CoffeeCorner position={[-W / 2 + 3.0, 0, -D / 2 + 0.52]} />
+      {/* the clock is not in the same spot in every room: each room has its own habits */}
+      {(() => {
+        const k = (layout.variant >>> 7) % 4
+        if (k === 1 || k === 2) return null
+        if (k === 3) return <Clock position={[-W / 2 + 3.0, 2.6, -D / 2 + 0.28]} />
+        return <Clock position={[-W / 2 + 1.55, 2.45, -D / 2 + 0.28]} />
+      })()}
       <TVScreen
         position={[layout.tvX ?? W / 2 - 2.5, 1.75, -D / 2 + 0.3]}
         getInfo={() => {
@@ -302,8 +385,14 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       <group userData={{ dynamic: true }}>{look.seasonal && <Seasonal layout={layout} seed={floor.key} />}</group>
       {/* wall art keeps both walls lively: posters high above the left-wall furniture, art + shelf on the back wall */}
       {/* pictures sit in the gaps between the left-wall furniture, at one shared height */}
+      {(layout.variant >>> 7) % 4 === 1 && (
+        <WallMount side="left"><Clock position={[-W / 2 + 0.28, 2.5, -D / 2 + 0.95]} rotation={[0, Math.PI / 2, 0]} /></WallMount>
+      )}
+      {(layout.variant >>> 7) % 4 === 2 && (
+        <WallMount side="right"><Clock position={[W / 2 - 0.28, 2.7, 0]} rotation={[0, -Math.PI / 2, 0]} /></WallMount>
+      )}
       <WallMount side="left">
-      {look.art && layout.first !== false && layout.wall.artZ.map((z, i) => (
+      {look.art && layout.wall.artZ.map((z, i) => (
         <Poster key={i} position={[-W / 2 + 0.27, 1.75, z]} rotation={[0, Math.PI / 2, 0]} seed={(hash(floor.key) % 97) + i * 3} w={0.85} h={1.05} />
       ))}
       </WallMount>
@@ -329,7 +418,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   return (
     <group>
       {staticRoom}
-      {layout.wall.stickyZ != null && layout.first !== false && (
+      {layout.wall.stickyZ != null && (
         <WallMount side="left"><InfoBoard
           position={[-W / 2 + 0.29, 1.75, layout.wall.boardZ]}
           rotation={[0, Math.PI / 2, 0]}

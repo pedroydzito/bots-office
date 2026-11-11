@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import Floor, { wallMat } from './Floor'
-import Cortex from './Cortex'
-import { CORTEX_KEY, effStatus, resolveColor } from '../lib/constants'
+import Floor, { raisedRooms, wallMat } from './Floor'
+import { effStatus, resolveColor } from '../lib/constants'
 import { frozenRooms, ridePositions } from './registry'
 import { pathLen, pointAt, rideFor, sessions, syncNow, world } from './sim'
 import { getBotAsset } from './shapes'
@@ -17,6 +16,7 @@ const hallMat = new THREE.MeshStandardMaterial({ color: '#e9e6e1', roughness: 0.
 const slabMat = new THREE.MeshStandardMaterial({ color: '#dcdfe4', roughness: 0.85 })
 const coverMat = new THREE.MeshBasicMaterial({ color: '#0d1220', transparent: true, opacity: 0, depthWrite: false })
 const coverGeo = new THREE.BoxGeometry(1, 1, 1)
+const _pm = new THREE.Matrix4(), _fr = new THREE.Frustum()
 
 // soft round shadow under the office (a radial gradient), so it sits on the background like a model
 let shadowTex = null
@@ -66,6 +66,47 @@ function Ground({ campus }) {
       ))}
     </group>
   )
+}
+
+// ---- the surroundings: a city drawn as faint lines (blueprint feel), fading into the background
+const wireMat = new THREE.LineBasicMaterial({ color: '#a9b3c2', transparent: true, opacity: 0.5, depthWrite: false })
+const _wireDay = new THREE.Color('#a9b3c2'), _wireNight = new THREE.Color('#3a4768')
+function Wireframe({ campus, nightness = 0 }) {
+  const geo = useMemo(() => {
+    const pts = []
+    const seg = (x1, y1, z1, x2, y2, z2) => pts.push(x1, y1, z1, x2, y2, z2)
+    const { W, D } = campus
+    const ext = 70, y = -0.36
+    // ground grid around the office
+    for (let x = -W / 2 - ext; x <= W / 2 + ext; x += 4) seg(x, y, -D / 2 - ext, x, y, D / 2 + ext)
+    for (let z = -D / 2 - ext; z <= D / 2 + ext; z += 4) seg(-W / 2 - ext, y, z, W / 2 + ext, y, z)
+    // blocks of buildings: outlines plus a line per storey
+    let seed = 5
+    const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280)
+    const box = (cx, cz, w, d, h) => {
+      const x1 = cx - w / 2, x2 = cx + w / 2, z1 = cz - d / 2, z2 = cz + d / 2
+      for (const yy of [y, y + h]) {
+        seg(x1, yy, z1, x2, yy, z1), seg(x2, yy, z1, x2, yy, z2), seg(x2, yy, z2, x1, yy, z2), seg(x1, yy, z2, x1, yy, z1)
+      }
+      for (const [xx, zz] of [[x1, z1], [x2, z1], [x2, z2], [x1, z2]]) seg(xx, y, zz, xx, y + h, zz)
+      for (let f = 3.2; f < h - 0.5; f += 3.2) seg(x1, y + f, z2, x2, y + f, z2), seg(x2, y + f, z1, x2, y + f, z2)
+    }
+    const R0 = Math.max(W, D) / 2 + 14
+    for (let i = 0; i < 40; i++) {
+      const a = (i / 40) * Math.PI * 2 + rnd() * 0.1
+      const r = R0 + rnd() * 40
+      const w = 6 + rnd() * 8, d = 6 + rnd() * 8, h = 4 + rnd() * (r > R0 + 20 ? 26 : 12)
+      box(Math.cos(a) * r, Math.sin(a) * r, w, d, h)
+    }
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
+    return g
+  }, [campus])
+  useFrame(() => {
+    wireMat.color.copy(_wireDay).lerp(_wireNight, nightness)
+    wireMat.opacity = 0.45 + nightness * 0.15
+  })
+  return <lineSegments geometry={geo} material={wireMat} frustumCulled={false} />
 }
 
 /** One warm ceiling light per room at night (fixed count: no shader recompiles). */
@@ -127,8 +168,8 @@ function Walkers({ data, followed }) {
 /** Room name chip floating over the back wall: name, how many are working, click to open the room. */
 function RoomChip({ f, l, data, now, dim, onPick }) {
   const anchor = useRef()
-  const working = f.key === CORTEX_KEY ? null : f.bots.filter((n) => effStatus(data.bots[n], now) === 'working').length
-  const waiting = f.key === CORTEX_KEY ? 0 : f.bots.filter((n) => effStatus(data.bots[n], now) === 'waiting_user').length
+  const working = f.bots.filter((n) => effStatus(data.bots[n], now) === 'working').length
+  const waiting = f.bots.filter((n) => effStatus(data.bots[n], now) === 'waiting_user').length
   return (
     <group ref={anchor} position={[l.ox, 0, l.oz - l.fd / 2]}>
       <Label anchor={anchor} y={3.7} fixed>
@@ -158,16 +199,43 @@ function Cover({ l, on }) {
 export default function Campus({ floors, selectedIdx, layouts, campus, data, now, night, nightness = 0, low, selectedBot, spotlight, onSelect, onLongPress, celebrate, overview, onPickRoom }) {
   const sel = floors[selectedIdx]
   sceneFlags.compact = true // no point lights per lamp: many rooms on screen
-  // one room open: every other room freezes (bots and pets stop) to save the GPU/CPU
-  useEffect(() => {
+  // freeze what doesn't need to move: rooms off screen, and (one room open) every other room.
+  // Their bots and pets keep their pose and skip all per-frame work.
+  const boxes = useMemo(() => {
+    const m = new Map()
+    for (const f of floors) {
+      const l = layouts[f.key]
+      if (l) m.set(l, new THREE.Box3(new THREE.Vector3(l.ox - l.W / 2, 0, l.oz - l.D / 2), new THREE.Vector3(l.ox + l.W / 2, 3.4, l.oz + l.D / 2)))
+    }
+    return m
+  }, [floors, layouts])
+  const lastCull = useRef(0)
+  useFrame(({ camera, clock }) => {
+    if (clock.elapsedTime - lastCull.current < 0.25) return
+    lastCull.current = clock.elapsedTime
+    camera.updateMatrixWorld()
+    _pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
+    _fr.setFromProjectionMatrix(_pm)
     frozenRooms.clear()
-    if (!overview) for (const f of floors) if (f.key !== sel?.key && layouts[f.key]) frozenRooms.add(layouts[f.key])
-    return () => frozenRooms.clear()
-  }, [overview, sel?.key, floors, layouts])
+    for (const f of floors) {
+      const l = layouts[f.key]
+      const b = boxes.get(l)
+      if (!l || !b) continue
+      if ((!overview && f.key !== sel?.key) || !_fr.intersectsBox(b)) frozenRooms.add(l)
+    }
+  })
+  useEffect(() => () => frozenRooms.clear(), [])
+  // the room in focus keeps its side walls up
+  useEffect(() => {
+    raisedRooms.clear()
+    if (!overview && sel && layouts[sel.key]) raisedRooms.add(layouts[sel.key])
+    return () => raisedRooms.clear()
+  }, [overview, sel?.key, layouts])
   const lightsOn = !low
   return (
     <group>
       <Ground campus={campus} />
+      <Wireframe campus={campus} nightness={nightness} />
       <Walkers data={data} followed={selectedBot} />
       {floors.map((f) => {
         const l = layouts[f.key]
@@ -185,9 +253,7 @@ export default function Campus({ floors, selectedIdx, layouts, campus, data, now
                 onPickRoom(f.key)
               }}
             >
-              {f.key === CORTEX_KEY ? (
-                <Cortex layout={l} cortex={data.cortex} floorNum={f.num} floorY={0} night={night} />
-              ) : (
+              {
                 <Floor
                   floor={f}
                   layout={l}
@@ -203,7 +269,7 @@ export default function Campus({ floors, selectedIdx, layouts, campus, data, now
                   compact={!focus}
                   celebrate={celebrate && celebrate.key === f.key ? celebrate.t : null}
                 />
-              )}
+              }
             </group>
             {lightsOn && <RoomLight l={l} nightness={nightness} on={overview || focus} />}
             <Cover l={l} on={!overview && !focus} />

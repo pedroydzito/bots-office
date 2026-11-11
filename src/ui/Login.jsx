@@ -64,6 +64,17 @@ export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOff
   const [vib, setVib] = useState(() => prefs.get('vibrate', true))
   const [soundsOpen, setSoundsOpen] = useState(false)
   const ref = useRef(null)
+  // Esc closes the settings menu first (capture: before the app's own Esc handling)
+  useEffect(() => {
+    if (!open) return
+    const k = (e) => {
+      if (e.key !== 'Escape') return
+      e.stopImmediatePropagation()
+      setOpen(false)
+    }
+    window.addEventListener('keydown', k, true)
+    return () => window.removeEventListener('keydown', k, true)
+  }, [open])
   useEffect(() => {
     if (!open) return
     const close = (e) => {

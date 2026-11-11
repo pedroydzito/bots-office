@@ -5,7 +5,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 const loadScene = () => import('./scene/Scene')
 loadScene()
 const Scene = lazy(loadScene)
-import { cortexLayout, floorLayout, LEAD_RE, naturalSize } from './scene/layout'
+import { floorLayout, LEAD_RE, naturalSize } from './scene/layout'
 import { botPositions, ridePositions, sceneSignals } from './scene/registry'
 import { world } from './scene/sim'
 import { dataStore, deriveFloors, forgetTopic, loadTopic, ingest } from './lib/state'
@@ -184,17 +184,15 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
       const lead = fl.bots.find((n) => LEAD_ROLE.test(st.bots[n]?.role || '') && !st.bots[n]?.hidden) || (fl.bots.length >= 3 ? fl.bots.find((n) => LEAD_RE.test(n) && !st.bots[n]?.hidden) : null)
       return { ...fl, color, lead: lead || null, bots: lead ? [lead, ...fl.bots.filter((n) => n !== lead)] : fl.bots }
     })
-    return [...f, { key: CORTEX_KEY, name: 'Cortex', num: f.length + 1, bots: [], color: '#F93498' }]
+    return f
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig])
-  // one office split into areas: the Cortex and the top team in the middle, the rest around them;
-  // areas in a row share partitions and are stretched to the same row width
+  // one office: rooms with corridors between them; the top team (closest to the leadership) in the middle
   const plan = useMemo(() => {
-    const order = [CORTEX_KEY, ...floors.filter((f) => f.key !== CORTEX_KEY).reverse().map((f) => f.key)]
+    const order = [...floors].reverse().map((f) => f.key)
     const byKey = Object.fromEntries(floors.map((f) => [f.key, f]))
     return planOffice(
-      order.filter((k) => byKey[k]).map((k) => {
-        if (k === CORTEX_KEY) return { key: k, W: 13, D: 12 }
+      order.map((k) => {
         const n = naturalSize(byKey[k].bots.length)
         return { key: k, W: n.W + 1, D: n.D + 1 }
       }),
@@ -205,7 +203,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
       Object.fromEntries(
         floors.map((f) => {
           const p = plan.rooms[f.key]
-          const l = f.key === CORTEX_KEY ? cortexLayout(p.W, p.D) : floorLayout(f.bots.length, p.W, p.D, { lead: !!f.lead, furniture: look.furniture, seed: f.key })
+          const l = floorLayout(f.bots.length, p.W, p.D, { lead: !!f.lead, furniture: look.furniture, seed: f.key })
           Object.assign(l, { ox: p.x, oz: p.z, row: p.row, first: p.first, last: p.last })
           return [f.key, l]
         }),
@@ -221,8 +219,8 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     const ls = Object.values(layouts)
     return { W: Math.max(...ls.map((l) => l.W)), D: Math.max(...ls.map((l) => l.D)) }
   }, [layouts])
-  // default: the top team floor (first team of the roster), right under the Cortex
-  const selKey = floors.some((f) => f.key === floorKey) ? floorKey : (floors[floors.length - 2] || floors[0])?.key
+  // default: the top team (first team of the roster)
+  const selKey = floors.some((f) => f.key === floorKey) ? floorKey : (floors[floors.length - 1] || floors[0])?.key
   const floorIdx = Math.max(0, floors.findIndex((f) => f.key === selKey))
   const floor = floors[floorIdx]
   const lay = layouts[floor?.key]
@@ -412,6 +410,22 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     [pickBot, topic],
   )
 
+  // Esc closes the top-most thing that is open; with nothing open it leaves the room for the whole office
+  const escRef = useRef(() => {})
+  escRef.current = () => {
+    if (quick) return setQuick(null)
+    if (searchOpen) return setSearchOpen(false)
+    if (keysOpen) return setKeysOpen(false)
+    if (healthOpen) return setHealthOpen(false)
+    if (officesOpen) return setOfficesOpen(false)
+    if (officeCfg) return setOfficeCfg(false)
+    if (tlOpen) return setTlOpen(false)
+    if (activityOpen) return setActivityOpen(false)
+    if (queueOpen) return setQueueOpen(false)
+    if (mfOpen) return setMfOpen(false)
+    if (selectedBot) return setSelectedBot(null)
+    if (!overview) return setOverview(true)
+  }
   // ---- keyboard
   useEffect(() => {
     const onKey = (e) => {
@@ -420,7 +434,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         e.preventDefault()
         const i = Math.max(0, Math.min(floors.length - 1, floorIdx + (e.key === 'ArrowUp' ? 1 : -1)))
         goFloor(floors[i].key)
-      } else if (e.key === 'Escape') setSelectedBot(null)
+      } else if (e.key === 'Escape') escRef.current()
       else if (e.key === 't' || e.key === 'T') setTour((x) => !x)
       else if (e.key === 'n' || e.key === 'N') setLightMode((m) => (m === 'night' ? 'day' : 'night'))
       else if (e.key === 'f' || e.key === 'F') setTv((x) => !x)

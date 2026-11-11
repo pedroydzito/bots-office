@@ -318,26 +318,6 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
     )
   }
   if (!floor) return null
-  if (floor.key === CORTEX_KEY) {
-    const c = data.cortex
-    return (
-      <div className="right card">
-        <div className="fh" style={{ background: 'var(--accent)' }}>
-          <div className="r1"><b>Cortex</b><span>Biblioteca</span></div>
-          <div className="big"><b>{c ? c.notes.toLocaleString('pt-BR') : 0}</b> notas</div>
-        </div>
-        <div className="list">
-          {(c?.recent || []).map((r, i) => (
-            <div key={i} className="li">
-              <span className="doc"><Doc size={16} /></span>
-              <div className="lt"><b>{r.title}</b><span>{r.updated ? `atualizado ${fmtNext(r.updated)}` : ''}</span></div>
-            </div>
-          ))}
-          {!c && <p className="muted pad">Ainda sem dados do Cortex.</p>}
-        </div>
-      </div>
-    )
-  }
   const sts = floor.bots.map((n) => effStatus(data.bots[n], now))
   const working = sts.filter((s) => s === 'working').length
   const visitors = Object.entries(data.talks).filter(([f, t]) => talkActive(t, now) && floor.bots.includes(t.to) && !floor.bots.includes(f))

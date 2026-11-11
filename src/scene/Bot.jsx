@@ -348,7 +348,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     if (!root.current) return
     // a few times per second: where is my label on screen? hide it when off screen, and hide
     // my name when a closer bot's name would overlap it
-    if (!P.current.compact && clock.elapsedTime - (v.lastProj || 0) > 0.25) {
+    if (clock.elapsedTime - (v.lastProj || 0) > 0.25) {
       v.lastProj = clock.elapsedTime
       projV.setFromMatrixPosition(root.current.matrixWorld)
       projV.y += asset.top + 0.42
@@ -916,7 +916,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
         {focused && <Accessory kind="headphones" asset={asset} color={color} />}
         {snowy && bot.accessory !== 'scarf' && <Accessory kind="scarf" asset={asset} color={color} />}
       </group>
-      {!hidden && !view.off && (!p_compact || selected || spotlight || status === 'waiting_user' || status === 'error' || talking) && (
+      {!hidden && !view.off && (
         <Label anchor={root} y={iconY}>
           <div className={`bot-tag${selected ? ' sel' : ''}${bot.hidden ? ' is-hidden' : ''}${/^(ceo|principal|founder|fundador|dono|owner)$/i.test(bot.role || '') ? ' vip' : ''}`}>
             {speechText && (
