@@ -157,6 +157,7 @@ export default function Campus({ floors, selectedIdx, layouts, campus, data, now
     }
   })
   useEffect(() => () => frozenRooms.clear(), [])
+  if (typeof window !== 'undefined' && window.location.search.includes('perf')) window.__frozen = { frozenRooms, layouts }
   // the room in focus keeps its side walls up
   useEffect(() => {
     focusRoom.layout = !overview && sel ? layouts[sel.key] || null : null

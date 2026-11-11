@@ -12,7 +12,7 @@ import { TALK_TIMEOUT_MS } from '../lib/constants'
 
 export const SPEED = 1.4 // units per second
 export const RISE = 0.45 // seconds to get up from a chair before walking
-export const SLOT = 420000 // ms per wander slot (~7 min): long stretches at the desk between outings
+export const SLOT = 180000 // ms per wander slot (3 min): free bots get up now and then, the office feels alive
 export const clock = { offset: 0 }
 export const syncNow = () => Date.now() + clock.offset
 
@@ -75,8 +75,9 @@ export function isLate(t) {
 }
 export function isSleepy(h, t) {
   if (isBusy(h)) return false
-  // night (22h–7h): free bots sleep at the chair. Daytime they can wander (coffee, view, rare game...)
-  return isLate(t)
+  // night (22h–7h): a bot dozes at its chair only after a long quiet stretch (1 h without news);
+  // while the office is still being used at night, they keep moving around
+  return isLate(t) && (!h || t - h.t > 3600e3)
 }
 
 // ------------------------------------------------------------------ conversations
@@ -150,7 +151,7 @@ function buildTrips(floorKey, names, layout, slot, data, all, key) {
   if (tripCache.has(key)) return tripCache.get(key)
   const slotStart = slot * SLOT
   // at night almost nobody wanders; by day most bots stay put for long stretches
-  const cap = Math.max(1, Math.round(names.length / (isLate(slotStart) ? 8 : 3.5)))
+  const cap = Math.max(1, Math.round(names.length / (isLate(slotStart) ? 5 : 2.2)))
   const taken = new Set()
   const trips = {}
   const order = [...names].sort((a, b) => rnd(a, slot, 'o') - rnd(b, slot, 'o'))
@@ -165,10 +166,10 @@ function buildTrips(floorKey, names, layout, slot, data, all, key) {
     for (const [n, t] of Object.entries(prev)) if (GAME.has(t.poi?.kind)) cooled.add(n)
   }
   // rare table game: not every slot, and never the same pair right after they just played
-  if (!isLate(slotStart) && gameSpots.length >= 2 && names.length >= 2 && rnd(floorKey, slot, 'game') < 0.18) {
+  if (!isLate(slotStart) && gameSpots.length >= 2 && names.length >= 2 && rnd(floorKey, slot, 'game') < 0.3) {
     const pair = order.filter((n) => freeAt(n, slotStart + 8000) && !cooled.has(n)).slice(0, 2)
     if (pair.length === 2) {
-      const play = 90000 + rnd(floorKey, slot, 'gp') * 150000 // 1.5–4 min of play
+      const play = 50000 + rnd(floorKey, slot, 'gp') * 70000 // about 1–2 min of play
       // each bot leaves on its own clock; the farther one usually leaves a bit earlier
       const walks = pair.map((n, k) => walkMs(layout.seats[names.indexOf(n)], gameSpots[k], layout, true, n))
       const base = slotStart + 12000 + rnd(floorKey, slot, 'gd') * 60000
@@ -195,9 +196,9 @@ function buildTrips(floorKey, names, layout, slot, data, all, key) {
     if (trips[n]) continue
     if (Object.keys(trips).length >= cap) break
     // most of the time a free bot just stays at the desk (cochilando / no computador)
-    const personality = 0.12 + 0.28 * rnd(n, 'personality')
+    const personality = 0.35 + 0.4 * rnd(n, 'personality')
     if (rnd(n, slot, 'go') > personality) continue
-    const depart = slotStart + 8000 + rnd(n, slot, 'd') * 180000
+    const depart = slotStart + 4000 + rnd(n, slot, 'd') * 60000
     const h = statusAt(data.history || [], n, depart)
     if (isBusy(h) || isSleepy(h, depart)) continue
     if (all.some((s) => (s.from === n || s.to === n) && s.t0 < depart + SLOT && s.endT > depart - 5000)) continue
@@ -231,9 +232,9 @@ function buildTrips(floorKey, names, layout, slot, data, all, key) {
     const seat = layout.seats[names.indexOf(n)]
     const go = walkMs(seat, pick, layout, true, n) + (pick.route ? pick.route.length * 6500 : 0)
     // long stays: 1–4 minutes at the POI, so the desk stretches in between feel real
-    const stay = 60000 + rnd(n, slot, 's') * 180000
+    const stay = 20000 + rnd(n, slot, 's') * 50000
     const back = Math.min(depart + go + stay, slotStart + SLOT - 8000)
-    if (back - depart < go + 20000) continue
+    if (back - depart < go + 12000) continue
     trips[n] = { depart, back, poi: { ...pick, variant: rnd(n, slot, 'v', pick.kind) } }
   }
   tripCache.set(key, trips)
