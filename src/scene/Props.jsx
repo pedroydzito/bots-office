@@ -523,8 +523,9 @@ export function Lounge({ position, night, seats = [] }) {
         </mesh>
         <mesh position={[0, 1.72, 0]}>
           <coneGeometry args={[0.18, 0.2, 24, 1, true]} />
-          <meshStandardMaterial color="#fff6e0" emissive="#ffd28a" emissiveIntensity={night ? 2.2 : 0.1} side={THREE.DoubleSide} />
+          <meshStandardMaterial color="#fff6e0" emissive="#ffe2b0" emissiveIntensity={night ? 3.2 : 0.1} side={THREE.DoubleSide} toneMapped={!night} />
         </mesh>
+        {night && <sprite position={[0, 1.72, 0]} scale={[1.3, 1.3, 1]} material={haloMat} renderOrder={4} />}
         {night && (
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} material={lampPoolMat} renderOrder={2}>
             <planeGeometry args={[3.6, 3.6]} />
@@ -1043,8 +1044,12 @@ export function FloorLamp({ x, z, night }) {
       <mesh position={[0, 0.8, 0]} material={M.dark}><cylinderGeometry args={[0.014, 0.014, 1.6, 8]} /></mesh>
       <mesh position={[0, 1.62, 0]}>
         <cylinderGeometry args={[0.16, 0.22, 0.26, 20, 1, true]} />
-        <meshStandardMaterial color="#fff6e0" emissive="#ffd28a" emissiveIntensity={night ? 1.8 : 0.15} side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#fff6e0" emissive="#ffe2b0" emissiveIntensity={night ? 3.2 : 0.15} side={THREE.DoubleSide} toneMapped={!night} />
       </mesh>
+      {/* glow around the lit shade (a soft halo sprite: the bloom look, for the cost of one quad) */}
+      {night && (
+        <sprite position={[0, 1.62, 0]} scale={[1.3, 1.3, 1]} material={haloMat} renderOrder={4} />
+      )}
       {/* at night the lamp lights its surroundings: a warm pool on the floor (no real light: free) */}
       {night && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} material={lampPoolMat} renderOrder={2}>
@@ -1069,7 +1074,23 @@ function poolTexture() {
   _poolTex = new THREE.CanvasTexture(c)
   return _poolTex
 }
-const lampPoolMat = new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
+let _haloTex = null
+function haloTexture() {
+  if (_haloTex) return _haloTex
+  const c = document.createElement('canvas')
+  c.width = c.height = 64
+  const g = c.getContext('2d')
+  const r = g.createRadialGradient(32, 32, 2, 32, 32, 32)
+  r.addColorStop(0, 'rgba(255,235,200,1)')
+  r.addColorStop(0.25, 'rgba(255,215,160,0.55)')
+  r.addColorStop(1, 'rgba(255,200,140,0)')
+  g.fillStyle = r
+  g.fillRect(0, 0, 64, 64)
+  _haloTex = new THREE.CanvasTexture(c)
+  return _haloTex
+}
+export const haloMat = new THREE.SpriteMaterial({ map: haloTexture(), transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
+const lampPoolMat = new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0.26, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
 
 /** Aquarium on a low cabinet: fish swim around, bubbles rise. */
 export function Aquarium({ x, z }) {

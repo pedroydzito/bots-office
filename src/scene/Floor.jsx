@@ -167,7 +167,8 @@ export function CutWall({ side, W, D, T = 0.25, H = 3.2, mat = wallMat, openings
 
 // every room has its own paint and floor (unless the office look picks one for all)
 const ROOM_WALLS = ['#f3eee6', '#dde8df', '#e6e1f0', '#f2e3d7', '#dbe6ef', '#efe7cc', '#e8e2da', '#e1ece8', '#f0dfe3']
-const ROOM_FLOORS = ['#d9b68f', '#b88b66', '#e3ddd4', '#c9ced6', '#aebdd1', '#dcc6ad', '#cf9f84', '#e7d4b4', '#b9c9b3']
+// wood in every room (oak, walnut, honey, ash...): warmer and nicer than tiles
+const ROOM_FLOORS = ['#d9b68f', '#c49a72', '#e2c9a6', '#cfa77f', '#dcc0a0', '#b98c66', '#e6d2b5', '#d2ae86', '#c8a17b']
 const matCache = new Map()
 function paint(color, rough = 0.85) {
   const k = color + rough
@@ -178,7 +179,7 @@ export function roomFinish(layout, look) {
   const v = layout.variant >>> 0
   const wall = look?.wall && look.wall !== 'white' ? (WALLS[look.wall] || WALLS.white)[1] : ROOM_WALLS[v % ROOM_WALLS.length]
   const floor = look?.floor && look.floor !== 'light' ? (FLOORS[look.floor] || FLOORS.light)[1] : ROOM_FLOORS[(v >>> 5) % ROOM_FLOORS.length]
-  const tiles = /^#(c|a|b9)/.test(floor) // carpets/greys read as tiles, the rest as wood planks
+  const tiles = false
   return { wall: paint(wall, 0.9), floor: floorMatFor(floor, tiles ? 'tile' : 'plank') }
 }
 
@@ -291,7 +292,66 @@ function ceilTexture() {
 }
 const ceilPoolMat = new THREE.MeshBasicMaterial({ map: ceilTexture(), transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
 
-const ceilGridMat = new THREE.MeshBasicMaterial({ map: ceilTexture(), transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
+// a band of light: soft across, long and even along the fixture
+let _stripTex = null
+function stripTexture() {
+  if (_stripTex) return _stripTex
+  const c = document.createElement('canvas')
+  c.width = 128
+  c.height = 64
+  const g = c.getContext('2d')
+  const img = g.createImageData(128, 64)
+  for (let y = 0; y < 64; y++)
+    for (let x = 0; x < 128; x++) {
+      const across = Math.exp(-Math.pow((y - 31.5) / 15, 2))
+      const along = Math.min(1, Math.min(x, 127 - x) / 22)
+      const a = across * along
+      const i = (y * 128 + x) * 4
+      img.data[i] = 255 * a
+      img.data[i + 1] = 222 * a
+      img.data[i + 2] = 175 * a
+      img.data[i + 3] = 255
+    }
+  g.putImageData(img, 0, 0)
+  _stripTex = new THREE.CanvasTexture(c)
+  return _stripTex
+}
+const stripMat = new THREE.MeshBasicMaterial({ map: stripTexture(), transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
+
+// ---- contact shade: furniture standing against a wall darkens the wall right behind and around
+// it (soft edges, darker near the floor), so it sits in the room instead of looking pasted on
+let _shadeTex = null
+function shadeTexture() {
+  if (_shadeTex) return _shadeTex
+  const c = document.createElement('canvas')
+  c.width = c.height = 64
+  const g = c.getContext('2d')
+  const img = g.createImageData(64, 64)
+  for (let y = 0; y < 64; y++)
+    for (let x = 0; x < 64; x++) {
+      const ex = Math.min(1, Math.min(x, 63 - x) / 16)
+      const up = 1 - y / 63 // canvas top = top of the wall patch
+      const a = ex * (0.35 + 0.65 * (1 - up)) * Math.min(1, Math.min(y, 63) / 12)
+      const i = (y * 64 + x) * 4
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = 20
+      img.data[i + 3] = 255 * a
+    }
+  g.putImageData(img, 0, 0)
+  _shadeTex = new THREE.CanvasTexture(c)
+  return _shadeTex
+}
+const shadeMat = new THREE.MeshBasicMaterial({ map: shadeTexture(), transparent: true, opacity: 0.32, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })
+/** w = width along the wall, h = height, at room point (x, z) against `side`. */
+function WallShade({ W, D, side, x, z, w, h }) {
+  const inset = 0.255
+  const pos = side === 'back' ? [x, h / 2, -D / 2 + inset] : side === 'left' ? [-W / 2 + inset, h / 2, z] : side === 'right' ? [W / 2 - inset, h / 2, z] : [x, h / 2, D / 2 - inset]
+  const ry = side === 'back' ? 0 : side === 'left' ? Math.PI / 2 : side === 'right' ? -Math.PI / 2 : Math.PI
+  return (
+    <mesh position={pos} rotation={[0, ry, 0]} material={shadeMat} renderOrder={1} userData={{ dynamic: true }}>
+      <planeGeometry args={[w, h]} />
+    </mesh>
+  )
+}
 
 /** A door to the corridor: frame and a half-open leaf (hidden with its wall). */
 function RoomDoor({ x, D, W, side = 'front', T = 0.25 }) {
@@ -514,6 +574,14 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       <StaticMerge key={mergeKey}>
       <Shell layout={layout} look={look} night={night} title={floor.name} subtitle={`${floor.bots.length} bots`} accent={look.accent ? floor.color : null} />
       <CoffeeCorner position={[-W / 2 + 3.0, 0, -D / 2 + 0.52]} />
+      <WallMount side="back"><WallShade W={W} D={D} side="back" x={-W / 2 + 3.0} w={2.4} h={1.6} /></WallMount>
+      {layout.wall.shelfZ != null && <WallMount side="left"><WallShade W={W} D={D} side="left" z={layout.wall.shelfZ} w={2.2} h={2.3} /></WallMount>}
+      {layout.decor.filter((d) => d.type === 'vending' || d.type === 'printer' || d.type === 'bookcase' || d.type === 'arcade').map((d, i) => {
+        const side = d.x < -W / 2 + 1.2 ? 'left' : d.x > W / 2 - 1.2 ? 'right' : d.z < -D / 2 + 1.2 ? 'back' : null
+        if (!side) return null
+        const h = d.type === 'printer' ? 1.2 : 2.1
+        return <WallMount key={'ws' + i} side={side}><WallShade W={W} D={D} side={side} x={d.x} z={d.z} w={d.type === 'bookcase' ? 2.2 : 1.4} h={h} /></WallMount>
+      })}
       <WallMount side="back">
       {/* the clock is not in the same spot in every room: each room has its own habits */}
       {(() => {
@@ -558,31 +626,16 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       {layout.rows.map((r, i) => (
         <DeskRow key={i} row={r} mat={deskMat} />
       ))}
-      {night && layout.rows.map((r, i) => (
-        <mesh key={'cl' + i} rotation={[-Math.PI / 2, 0, 0]} position={[(r.x1 + r.x2) / 2, 0.018, r.z + 0.7]} scale={[r.x2 - r.x1 + 2.6, 3.6, 1]} material={ceilPoolMat} renderOrder={2}>
-          <planeGeometry args={[1, 1]} />
-        </mesh>
-      ))}
-      {/* a grid of ceiling lamps over the rest of the room: soft pools every ~4 m */}
+      {/* ceiling light at night: long linear fixtures across the room, each throwing a soft band of
+          warm light on the floor (painted, no real light: free) */}
       {night && (() => {
-        const out = []
-        const nx = Math.max(2, Math.round(W / 4.2)), nz = Math.max(2, Math.round(D / 4.2))
-        for (let i = 0; i < nx; i++)
-          for (let j = 0; j < nz; j++) {
-            const x = -W / 2 + ((i + 0.5) * W) / nx, z = -D / 2 + ((j + 0.5) * D) / nz
-            out.push(
-              <mesh key={`g${i}-${j}`} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.017, z]} scale={[3.4, 3.4, 1]} material={ceilGridMat} renderOrder={2}>
-                <planeGeometry args={[1, 1]} />
-              </mesh>,
-            )
-          }
-        return out
+        const n = Math.max(2, Math.round(D / 4.5))
+        return Array.from({ length: n }, (_, j) => (
+          <mesh key={'cs' + j} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.017, -D / 2 + ((j + 0.5) * D) / n]} scale={[W - 1.2, 3.2, 1]} material={stripMat} renderOrder={2}>
+            <planeGeometry args={[1, 1]} />
+          </mesh>
+        ))
       })()}
-      {night && layout.lounge && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[layout.lounge.x, 0.018, layout.lounge.z - 0.3]} scale={[4.2, 3.4, 1]} material={ceilPoolMat} renderOrder={2}>
-          <planeGeometry args={[1, 1]} />
-        </mesh>
-      )}
       {/* dogs and cats now roam the whole office (OfficePets); the aquarium stays in its room */}
       {petKind === 'fish' && <Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} />}
       <group userData={{ dynamic: true }}>{look.seasonal && <Seasonal layout={layout} seed={floor.key} />}</group>

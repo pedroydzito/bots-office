@@ -16,7 +16,7 @@ const DAY_BG = new THREE.Color('#f3f6f9')
 const NIGHT_BG = new THREE.Color('#0c1120')
 
 const C = (h) => new THREE.Color(h)
-const DUSK_SUN = C('#ffad6b'), MOON = C('#9fb4ff'), SUN = C('#ffedd2'), DUSK_BG = C('#f2d6c2'), GREY_BG = C('#d9dce2')
+const CEIL = C('#ffe0b8'), DUSK_SUN = C('#ffad6b'), MOON = C('#9fb4ff'), SUN = C('#ffedd2'), DUSK_BG = C('#f2d6c2'), GREY_BG = C('#d9dce2')
 const tmpC = new THREE.Color()
 
 /** nightness: 0 day … 1 night (fractions = dawn/dusk, warm tones). weather dims and greys the sky. */
@@ -37,12 +37,12 @@ function Lights({ nightness, weather, low, span }) {
     scene.background.copy(DAY_BG).lerp(DUSK_BG, warm * 0.6).lerp(GREY_BG, w * 0.6 * (1 - n)).lerp(NIGHT_BG, n)
     scene.environmentIntensity = THREE.MathUtils.lerp(0.6, 0.32, n) * (1 - w * 0.25)
     if (hemi.current) {
-      hemi.current.intensity = THREE.MathUtils.lerp(0.7, 0.66, n) * (1 - w * 0.15)
+      hemi.current.intensity = THREE.MathUtils.lerp(0.7, 0.5, n) * (1 - w * 0.15)
       hemi.current.color.set('#e3ecff').lerp(tmpC.set('#ffd9bf'), warm * 0.5).lerp(tmpC.set('#c9b8a0'), n)
     }
     if (sun.current) {
-      sun.current.intensity = THREE.MathUtils.lerp(2.6, 0.22, n) * (1 - w * 0.55)
-      sun.current.color.copy(SUN).lerp(DUSK_SUN, warm * 0.8).lerp(MOON, n)
+      sun.current.intensity = THREE.MathUtils.lerp(2.6, 0.95, n) // at night: the ceiling lights, casting the shadows * (1 - w * 0.55)
+      sun.current.color.copy(SUN).lerp(DUSK_SUN, warm * 0.8).lerp(CEIL, n)
     }
     if (fill.current) fill.current.intensity = THREE.MathUtils.lerp(0.55, 0.28, n)
     if (amb.current) amb.current.intensity = THREE.MathUtils.lerp(0.2, 0.1, n) + w * 0.08
