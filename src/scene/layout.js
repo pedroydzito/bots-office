@@ -20,11 +20,11 @@ function viewDistance(w, d) {
 }
 
 function leftWall(W, D, v = 0) {
-  // glass elevator shaft inside the room's back-left corner; bots step inside to ride
-  const elevator = { kind: 'elevator', x: -W / 2 + 0.95, z: -D / 2 + 2.3, az: -D / 2 + 2.3, yaw: -Math.PI / 2 }
-  // Everything else on this wall is spread evenly along its free length (after the elevator),
+  // the area's entrance: an opening in the front partition, at the front-left, onto the aisle
+  const elevator = { kind: 'elevator', x: -W / 2 + 1.5, z: D / 2 - 0.75, az: D / 2 - 0.75, yaw: 0 }
+  // Everything else on this wall is spread evenly along its free length (entrance corner kept clear),
   // so the wall is never crowded at one end and empty at the other.
-  const a = -D / 2 + 3.4, b = D / 2 - 1.3
+  const a = -D / 2 + 1.6, b = D / 2 - 2.3
   const base = [['cooler', 0.6], ['board', 1.8], ['shelf', 1.7], ['vending', 0.9]]
   const ORDERS = [[0, 1, 2, 3], [2, 1, 0, 3], [0, 2, 1, 3], [3, 1, 2, 0], [1, 0, 3, 2], [2, 3, 1, 0]]
   const items = ORDERS[(v >>> 18) % ORDERS.length].map((i) => base[i])
@@ -458,7 +458,7 @@ function buildNav(L) {
   box(-W / 2 - 1, -D / 2 - 1, -W / 2 + 0.25, D / 2 + 1)
   box(W / 2 - 0.25, -D / 2 - 1, W / 2 + 1, D / 2 + 1)
   box(-W / 2 + 2.0, -D / 2, -W / 2 + 4.0, -D / 2 + 0.75) // coffee counter
-  box(-W / 2, -D / 2 + 3.3, -W / 2 + 0.7, D / 2) // cooler, shelf, vending along the left wall
+  box(-W / 2, -D / 2 + 1.5, -W / 2 + 0.7, D / 2 - 2.1) // cooler, shelf, vending along the left wall
   for (const r of L.rows) if (!r.lead) box(r.x1, r.z + 0.38, r.x2, r.z + 1.26)
   for (const st of L.seats) {
     if (st.lead) {
@@ -631,78 +631,67 @@ export const CAMPUS_GAP = 3.2 // corridor width between rooms (and around the ca
  * the left edge; the whole campus is centred on the origin. Mutates each layout with ox/oz (its offset)
  * and returns the campus bounds and the corridor geometry used to walk between rooms.
  */
-/** Room-local point -> campus world (rooms can be turned so their door faces the centre). */
+/** Room-local point -> office world (areas are never turned: every name reads the same way). */
 export function toWorld(l, x, z) {
-  const a = l.rot || 0
-  const c = Math.cos(a), s = Math.sin(a)
-  return { x: (l.ox || 0) + x * c + z * s, z: (l.oz || 0) - x * s + z * c }
+  return { x: (l.ox || 0) + x, z: (l.oz || 0) + z }
 }
 
+export const AISLE = 2.6
+
 /**
- * Lay the rooms out around the centre: the Cortex and the room closest to it (order[1]) side by
- * side in the middle, every other room packed around them, each turned so its door faces the middle.
+ * One office, split into areas. Rows of areas share their side partitions (no gaps), every row is
+ * stretched to the same width so the office is a clean rectangle; an aisle runs in front of each
+ * row and down the left side. The Cortex and the room closest to it (entries[1]) sit in the middle
+ * of the first row. `entries`: [{ key, W, D }] natural sizes. Returns sizes and offsets per key.
  */
-export function placeCampus(order, layouts) {
-  const G = CAMPUS_GAP
-  const list = order.map((k) => layouts[k]).filter(Boolean)
-  const placed = []
-  const overlaps = (x, z, w, d) => placed.some((p) => Math.abs(p.x - x) * 2 < p.w + w + 2 * G - 0.01 && Math.abs(p.z - z) * 2 < p.d + d + 2 * G - 0.01)
-  const put = (l, x, z, rot) => {
-    const odd = Math.abs(Math.sin(rot)) > 0.5
-    l.rot = rot
-    l.fw = odd ? l.D : l.W
-    l.fd = odd ? l.W : l.D
-    l.ox = x
-    l.oz = z
-    placed.push({ x, z, w: l.fw, d: l.fd })
+export function planOffice(entries) {
+  const A = AISLE
+  const n = entries.length
+  const R = n <= 3 ? 1 : n <= 8 ? 2 : Math.ceil(n / 4)
+  const counts = Array.from({ length: R }, (_, r) => Math.floor(n / R) + (r < n % R ? 1 : 0))
+  const rows = Array.from({ length: R }, () => [])
+  // row 0: Cortex + nearest room in the centre, the next ones alternating left / right
+  const rest = entries.slice()
+  const heart = rest.splice(0, Math.min(2, counts[0]))
+  const row0 = [...heart]
+  while (row0.length < counts[0] && rest.length) {
+    const e = rest.shift()
+    if (row0.length % 2) row0.push(e)
+    else row0.unshift(e)
   }
-  if (!list.length) return { minX: -10, maxX: 10, minZ: -10, maxZ: 10, W: 20, D: 20 }
-  // the heart: Cortex, and the nearest room right next to it (both doors facing each other's corridor)
-  const [c0, c1] = list
-  if (c1) {
-    const w = c0.W + c1.W + G
-    put(c0, -w / 2 + c0.W / 2, 0, 0)
-    put(c1, w / 2 - c1.W / 2, 0, 0) // its door (left wall) opens onto the corridor by the Cortex
-  } else put(c0, 0, 0, 0)
-  const ROTS = [0, Math.PI / 2, Math.PI, -Math.PI / 2]
-  const c0x = placed.length > 1 ? (placed[0].x - placed[0].w / 2 + placed[1].x + placed[1].w / 2) / 2 : 0
-  for (const l of list.slice(2)) {
-    let best = null
-    for (const rot of ROTS) {
-      const odd = rot === Math.PI / 2 || rot === -Math.PI / 2
-      const w = odd ? l.D : l.W, d = odd ? l.W : l.D
-      const cands = []
-      for (const p of placed) {
-        const xs = [p.x - p.w / 2 + w / 2, p.x, p.x + p.w / 2 - w / 2]
-        const zs = [p.z - p.d / 2 + d / 2, p.z, p.z + p.d / 2 - d / 2]
-        for (const zz of zs) cands.push([p.x - p.w / 2 - G - w / 2, zz], [p.x + p.w / 2 + G + w / 2, zz])
-        for (const xx of xs) cands.push([xx, p.z - p.d / 2 - G - d / 2], [xx, p.z + p.d / 2 + G + d / 2])
-      }
-      for (const [x, z] of cands) {
-        if (overlaps(x, z, w, d)) continue
-        // bounding box after adding it: keep the campus compact and roughly square
-        let x1 = x - w / 2, x2 = x + w / 2, z1 = z - d / 2, z2 = z + d / 2
-        for (const p of placed) (x1 = Math.min(x1, p.x - p.w / 2)), (x2 = Math.max(x2, p.x + p.w / 2)), (z1 = Math.min(z1, p.z - p.d / 2)), (z2 = Math.max(z2, p.z + p.d / 2))
-        const bw = x2 - x1, bd = z2 - z1
-        // the door (room-local -x) should look toward the middle
-        const dx = -Math.cos(rot), dz = Math.sin(rot)
-        const len = Math.hypot(x, z) || 1
-        const facing = (dx * -x + dz * -z) / len
-        // back walls toward the far side read best from the default camera (south-east)
-        const view = rot === 0 || rot === Math.PI / 2 ? 0 : 2
-        const score = Math.max(bw, bd) * 2 + bw + bd + Math.hypot(x, z) * 0.6 - facing * 6 + view + Math.abs(bw - bd) * 0.5 + Math.hypot((x1 + x2) / 2 - c0x, (z1 + z2) / 2) * 3
-        if (!best || score < best.score) best = { score, x, z, rot }
-      }
-    }
-    put(l, best.x, best.z, best.rot)
-  }
-  // centre the whole campus on the origin
-  let x1 = Infinity, x2 = -Infinity, z1 = Infinity, z2 = -Infinity
-  for (const p of placed) (x1 = Math.min(x1, p.x - p.w / 2)), (x2 = Math.max(x2, p.x + p.w / 2)), (z1 = Math.min(z1, p.z - p.d / 2)), (z2 = Math.max(z2, p.z + p.d / 2))
-  const cx = (x1 + x2) / 2, cz = (z1 + z2) / 2
-  for (const l of list) (l.ox -= cx), (l.oz -= cz)
-  const W = x2 - x1 + 2 * G, D = z2 - z1 + 2 * G
-  const campus = { minX: -W / 2, maxX: W / 2, minZ: -D / 2, maxZ: D / 2, W, D, rooms: list }
+  rows[0] = row0
+  for (let r = 1; r < R; r++) rows[r] = rest.splice(0, counts[r])
+  // same width for every row (areas stretched), one depth per row
+  const widths = rows.map((row) => row.reduce((a, e) => a + e.W, 0))
+  const TW = Math.max(...widths)
+  const out = {}
+  let z = 0
+  rows.forEach((row, ri) => {
+    const s = TW / (widths[ri] || 1)
+    const d = Math.max(...row.map((e) => e.D))
+    let x = A
+    row.forEach((e, k) => {
+      const w = Math.round(e.W * s * 10) / 10
+      out[e.key] = { W: w, D: d, x: x + w / 2, z: z + d / 2, row: ri, first: k === 0, last: k === row.length - 1 }
+      x += w
+    })
+    // rounding: let the last area take up any leftover so the row ends flush
+    const lastE = out[row[row.length - 1].key]
+    const fix = A + TW - (lastE.x + lastE.W / 2)
+    lastE.W += fix
+    lastE.x += fix / 2
+    z += d + A
+  })
+  const W = A + TW, D = z
+  for (const k in out) (out[k].x -= W / 2), (out[k].z -= D / 2)
+  return { rooms: out, W, D, rows: R }
+}
+
+/** Office bounds + corridor navigation, once the layouts carry their offsets. */
+export function officeFrom(plan, layouts) {
+  const list = Object.keys(plan.rooms).map((k) => layouts[k]).filter(Boolean)
+  for (const l of list) (l.rot = 0), (l.fw = l.W), (l.fd = l.D)
+  const campus = { minX: -plan.W / 2, maxX: plan.W / 2, minZ: -plan.D / 2, maxZ: plan.D / 2, W: plan.W, D: plan.D, rooms: list }
   campus.nav = campusNav(campus)
   return campus
 }
@@ -714,8 +703,8 @@ function campusNav(campus) {
   const nx = Math.ceil(W / C), nz = Math.ceil(D / C)
   const hard = new Uint8Array(nx * nz)
   for (const l of campus.rooms) {
-    const i0 = Math.max(0, Math.floor((l.ox - l.fw / 2 - 0.35 + W / 2) / C)), i1 = Math.min(nx - 1, Math.floor((l.ox + l.fw / 2 + 0.35 + W / 2) / C))
-    const j0 = Math.max(0, Math.floor((l.oz - l.fd / 2 - 0.35 + D / 2) / C)), j1 = Math.min(nz - 1, Math.floor((l.oz + l.fd / 2 + 0.35 + D / 2) / C))
+    const i0 = Math.max(0, Math.floor((l.ox - l.fw / 2 + 0.05 + W / 2) / C)), i1 = Math.min(nx - 1, Math.floor((l.ox + l.fw / 2 - 0.05 + W / 2) / C))
+    const j0 = Math.max(0, Math.floor((l.oz - l.fd / 2 + 0.05 + D / 2) / C)), j1 = Math.min(nz - 1, Math.floor((l.oz + l.fd / 2 - 0.05 + D / 2) / C))
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) hard[j * nx + i] = 1
   }
   return { hard, nx, nz, C, W, D, cache: new Map() }
@@ -807,9 +796,8 @@ function navGridPath(nav, a, b) {
 
 /** World path from room A's door to room B's door, along the corridors (never through a room). */
 export function campusPath(a, b, campus) {
-  const G = CAMPUS_GAP
   const door = (l) => toWorld(l, l.elevator.x, l.elevator.z)
-  const out = (l) => toWorld(l, -l.W / 2 - G * 0.55, l.elevator.z)
+  const out = (l) => toWorld(l, l.elevator.x, l.D / 2 + AISLE / 2)
   const A = door(a), B = door(b), oa = out(a), ob = out(b)
   const key = `${a.ox},${a.oz}|${b.ox},${b.oz}`
   const nav = campus.nav

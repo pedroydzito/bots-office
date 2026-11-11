@@ -11,7 +11,7 @@ import StaticMerge from './StaticMerge'
 
 let mergeGen = 0
 import {
-  Aquarium, Arcade, Bench, MeetingTopic, PoolTable, DESK_FINISH, ExecDesk, isVip, Foosball, PingPong, SoloSetup, Armchair, BeanBag, Poster, WallShelf, Bookshelf, FloorLamp, Printer, Vending, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, Door, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
+  Aquarium, Arcade, Bench, MeetingTopic, PoolTable, DESK_FINISH, ExecDesk, isVip, Foosball, PingPong, SoloSetup, Armchair, BeanBag, Poster, WallShelf, Bookshelf, FloorLamp, Printer, Vending, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
   StickyWall, TVScreen, WallTitle, WaterCooler, Workstation,
 } from './Props'
 import { durationShort, effStatus, resolveColor, STATUS, talkActive } from '../lib/constants'
@@ -76,6 +76,33 @@ function CutWall({ side, W, D, T = 0.25, H = 3.2 }) {
   )
 }
 
+const capMat = new THREE.MeshStandardMaterial({ color: '#d5d9df', roughness: 0.6 })
+/** Low divider between areas (a desk-high wall with a cap), optionally with an opening. */
+function Partition({ side, W, D, gap = null, H = 1.05, T = 0.12 }) {
+  const horiz = side === 'front' || side === 'back'
+  const len = horiz ? W : D
+  const segs = gap ? [[-len / 2, gap[0]], [gap[1], len / 2]] : [[-len / 2, len / 2]]
+  const at = side === 'front' ? [0, D / 2 - T / 2] : side === 'back' ? [0, -D / 2 + T / 2] : side === 'left' ? [-W / 2 + T / 2, 0] : [W / 2 - T / 2, 0]
+  return (
+    <group position={[at[0], 0, at[1]]}>
+      {segs.filter(([a, b]) => b - a > 0.05).map(([a, b]) => {
+        const c = (a + b) / 2, l = b - a
+        const pos = horiz ? [c, 0, 0] : [0, 0, c]
+        return (
+          <group key={a} position={pos}>
+            <mesh position={[0, H / 2, 0]} material={wallMat} castShadow receiveShadow>
+              <boxGeometry args={horiz ? [l, H, T] : [T, H, l]} />
+            </mesh>
+            <mesh position={[0, H + 0.02, 0]} material={capMat}>
+              <boxGeometry args={horiz ? [l, 0.04, T + 0.06] : [T + 0.06, 0.04, l]} />
+            </mesh>
+          </group>
+        )
+      })}
+    </group>
+  )
+}
+
 /** Things hung on a wall: hidden while that wall is sunk (the camera looks from that side). */
 export function WallMount({ side, children }) {
   const ref = useRef()
@@ -94,6 +121,7 @@ export function WallMount({ side, children }) {
 
 export function Shell({ layout, title, subtitle, accent }) {
   const { W, D } = layout
+  const first = layout.first !== false, last = layout.last !== false
   return (
     <group>
       {/* a hair smaller than the storey slab: equal faces flickered (z-fighting) on the building side */}
@@ -103,24 +131,21 @@ export function Shell({ layout, title, subtitle, accent }) {
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]} material={floorMat} receiveShadow>
         <planeGeometry args={[W, D]} />
       </mesh>
+      {/* one office split into areas: the back wall is a real wall (TV, title, clock), the side
+          between two areas is a low partition, the front is a low partition with the entrance */}
       <CutWall side="back" W={W} D={D} />
-      <CutWall side="left" W={W} D={D} />
-      <CutWall side="right" W={W} D={D} />
-      <CutWall side="front" W={W} D={D} />
+      {first ? <CutWall side="left" W={W} D={D} /> : <Partition side="left" W={W} D={D} />}
+      {last && <CutWall side="right" W={W} D={D} />}
+      <Partition side="front" W={W} D={D} gap={[-W / 2 + 0.8, -W / 2 + 2.2]} />
       {/* baseboards */}
       <mesh position={[0, 0.06, -D / 2 + 0.265]} material={wallMat}>
         <boxGeometry args={[W, 0.12, 0.03]} />
       </mesh>
-      {/* left baseboard in two pieces: none across the doorway (it flickered through the frame) */}
-      {(() => {
-        const dz = layout.elevator?.z ?? -D / 2 + 2.3
-        const a1 = -D / 2, a2 = dz - 0.72, b1 = dz + 0.72, b2 = D / 2
-        return [[a1, a2], [b1, b2]].filter(([u, v]) => v - u > 0.05).map(([u, v]) => (
-          <mesh key={u} position={[-W / 2 + 0.265, 0.06, (u + v) / 2]} material={wallMat}>
-            <boxGeometry args={[0.03, 0.12, v - u]} />
-          </mesh>
-        ))
-      })()}
+      {first && (
+        <mesh position={[-W / 2 + 0.265, 0.06, 0]} material={wallMat}>
+          <boxGeometry args={[0.03, 0.12, D]} />
+        </mesh>
+      )}
       <WallMount side="back">
         {/* a single vertical line in the team colour, as tall as the floor name */}
         {accent && (
@@ -246,11 +271,9 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       <Plant position={[-W / 2 + 0.75, 0, -D / 2 + 0.75]} scale={1.15} />
       {look.plants && <Plant position={[W / 2 - 1.0, 0, -D / 2 + 0.9]} scale={1.3} kind={1} />}
       {look.plants && D > 12 && <Plant position={[W / 2 - 0.9, 0, -D / 2 + 5.5]} scale={0.9} />}
-      {look.plants && <Plant position={[-W / 2 + 0.7, 0, D / 2 - 0.7]} scale={0.9} kind={1} />}
       <WaterCooler position={[-W / 2 + 0.6, 0, layout.wall.coolerZ]} rotation={[0, Math.PI / 2, 0]} />
       {layout.wall.shelfZ != null && <Bookshelf position={[-W / 2 + 0.47, 0, layout.wall.shelfZ]} rotation={[0, Math.PI / 2, 0]} seed={floor.num} />}
       <Lounge position={[layout.lounge?.x ?? W / 2 - 2.4, 0, layout.lounge?.z ?? D / 2 - 2.3]} night={night} seats={layout.pois.filter((q) => q.kind === 'sofa' && Math.abs(q.x - (layout.lounge?.x ?? W / 2 - 2.4)) < 2 && Math.abs(q.z - (layout.lounge?.z ?? D / 2 - 2.3)) < 1.6)} />
-      <WallMount side="left"><Door layout={layout} /></WallMount>
       {layout.decor.map((d, i) =>
         d.type === 'rug' ? (look.rugs ? <Rug key={i} {...d} /> : null) :
         d.type === 'meeting' ? <MeetingTable key={i} x={d.x} z={d.z} /> :
@@ -280,7 +303,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       {/* wall art keeps both walls lively: posters high above the left-wall furniture, art + shelf on the back wall */}
       {/* pictures sit in the gaps between the left-wall furniture, at one shared height */}
       <WallMount side="left">
-      {look.art && layout.wall.artZ.map((z, i) => (
+      {look.art && layout.first !== false && layout.wall.artZ.map((z, i) => (
         <Poster key={i} position={[-W / 2 + 0.27, 1.75, z]} rotation={[0, Math.PI / 2, 0]} seed={(hash(floor.key) % 97) + i * 3} w={0.85} h={1.05} />
       ))}
       </WallMount>
@@ -306,7 +329,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   return (
     <group>
       {staticRoom}
-      {layout.wall.stickyZ != null && (
+      {layout.wall.stickyZ != null && layout.first !== false && (
         <WallMount side="left"><InfoBoard
           position={[-W / 2 + 0.29, 1.75, layout.wall.boardZ]}
           rotation={[0, Math.PI / 2, 0]}

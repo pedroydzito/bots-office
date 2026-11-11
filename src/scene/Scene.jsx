@@ -147,7 +147,10 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove, bounds }) {
     return () => el.removeEventListener('wheel', onWheel)
   }, [gl, controls, camera])
 
+  const focusGen = useRef(0)
   useEffect(() => {
+    focusGen.current++
+    dragging.current = false
     desired.current.set(focus.x, fy, focus.z)
     zoomGoal.current = goalDist
     if (!placed.current && controls) {
@@ -185,14 +188,22 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove, bounds }) {
   const dragging = useRef(false)
   useEffect(() => {
     if (!controls) return
-    const start = () => (dragging.current = true)
+    // a plain click also fires start/end: only a real pan (the target moved) keeps the new spot,
+    // and a room picked meanwhile (new focus) always wins
+    const from = new THREE.Vector3()
+    let gen = 0
+    const start = () => {
+      dragging.current = true
+      from.copy(controls.target)
+      gen = focusGen.current
+    }
     // damping keeps gliding a moment after release: settle on where it stops
     let t = null
     const end = () => {
       clearTimeout(t)
       t = setTimeout(() => {
         dragging.current = false
-        desired.current.copy(controls.target)
+        if (gen === focusGen.current && controls.target.distanceTo(from) > 0.05) desired.current.copy(controls.target)
       }, 450)
     }
     controls.addEventListener('start', start)

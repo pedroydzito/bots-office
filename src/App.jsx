@@ -19,7 +19,7 @@ import { Login, Settings } from './ui/Login'
 import { Celebration, MobileFloors, MobileTabs, Search, Timeline, TvExit } from './ui/Extras'
 import { EmptyOffice, HealthModal, LookModal, Modal, OfficesModal, QueueModal, SendStatus, ShortcutsModal } from './ui/Ops'
 import { buzz, HoverTip, MiniMap, QuickMenu, SearchField, Welcome } from './ui/Interact'
-import { campusPath, placeCampus, toWorld } from './scene/layout'
+import { campusPath, officeFrom, planOffice, toWorld } from './scene/layout'
 import { ACCENTS, DEFAULT_LOOK, lookStore } from './lib/look'
 import { botsAt } from './lib/metrics'
 import { notifyWaiting, prefs, prefStore } from './lib/notify'
@@ -187,26 +187,36 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     return [...f, { key: CORTEX_KEY, name: 'Cortex', num: f.length + 1, bots: [], color: '#F93498' }]
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig])
-  const layouts = useMemo(
-    () => {
-      // campus: each room has the size its own team needs (small team = small room)
-      return Object.fromEntries(
-        floors.map((f) => {
-          if (f.key === CORTEX_KEY) return [f.key, cortexLayout(13, 12)]
-          const n = naturalSize(f.bots.length)
-          return [f.key, floorLayout(f.bots.length, n.W + 1, n.D + 1, { lead: !!f.lead, furniture: look.furniture, seed: f.key })]
-        }),
-      )
-    },
-    [floors, look.furniture],
-  )
-  // rooms side by side: the Cortex first, then the teams in roster order
-  const campus = useMemo(() => {
+  // one office split into areas: the Cortex and the top team in the middle, the rest around them;
+  // areas in a row share partitions and are stretched to the same row width
+  const plan = useMemo(() => {
     const order = [CORTEX_KEY, ...floors.filter((f) => f.key !== CORTEX_KEY).reverse().map((f) => f.key)]
-    const c = placeCampus(order, layouts)
+    const byKey = Object.fromEntries(floors.map((f) => [f.key, f]))
+    return planOffice(
+      order.filter((k) => byKey[k]).map((k) => {
+        if (k === CORTEX_KEY) return { key: k, W: 13, D: 12 }
+        const n = naturalSize(byKey[k].bots.length)
+        return { key: k, W: n.W + 1, D: n.D + 1 }
+      }),
+    )
+  }, [floors])
+  const layouts = useMemo(
+    () =>
+      Object.fromEntries(
+        floors.map((f) => {
+          const p = plan.rooms[f.key]
+          const l = f.key === CORTEX_KEY ? cortexLayout(p.W, p.D) : floorLayout(f.bots.length, p.W, p.D, { lead: !!f.lead, furniture: look.furniture, seed: f.key })
+          Object.assign(l, { ox: p.x, oz: p.z, row: p.row, first: p.first, last: p.last })
+          return [f.key, l]
+        }),
+      ),
+    [floors, plan, look.furniture],
+  )
+  const campus = useMemo(() => {
+    const c = officeFrom(plan, layouts)
     world.hallPath = (la, lb) => campusPath(la, lb, c)
     return c
-  }, [floors, layouts])
+  }, [plan, layouts])
   const size = useMemo(() => {
     const ls = Object.values(layouts)
     return { W: Math.max(...ls.map((l) => l.W)), D: Math.max(...ls.map((l) => l.D)) }
@@ -240,7 +250,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     if (overview) return { x: 0, z: 0, y: 0.6, dist: Math.max(26, Math.max(campus.W, campus.D) * 1.05) }
     if (!lay) return { x: 0, z: 0, dist: 12 }
     const c = toWorld(lay, 0, 0)
-    return { x: c.x, z: c.z, dist: Math.max(lay.dist, Math.max(lay.W, lay.D) * 1.05) }
+    return { x: c.x, z: c.z, dist: Math.max(lay.dist, Math.max(lay.W, lay.D) * 1.75) }
   }, [lay, overview, campus])
 
   // The shared simulation needs to know who sits where on which floor (identical on every screen).
