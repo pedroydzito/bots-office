@@ -159,6 +159,15 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove, bounds }) {
     const onWheel = (e) => {
       e.preventDefault()
       if (!controls) return
+      // horizontal wheel (tilt / side scroll): rotate the camera around what it looks at
+      const dx = e.deltaMode === 1 ? e.deltaX * 16 : e.deltaX
+      if (Math.abs(dx) > Math.abs(e.deltaY) && !e.shiftKey) {
+        const off = camera.position.clone().sub(controls.target)
+        off.applyAxisAngle(new THREE.Vector3(0, 1, 0), -dx * 0.004)
+        camera.position.copy(controls.target).add(off)
+        controls.update()
+        return
+      }
       const cur = zoomGoal.current ?? camera.position.distanceTo(controls.target)
       const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY
       zoomGoal.current = THREE.MathUtils.clamp(cur * Math.exp(d * 0.0012), controls.minDistance, controls.maxDistance)
