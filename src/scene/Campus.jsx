@@ -29,7 +29,9 @@ function CeilingLights({ target, nightness }) {
   const a = useRef(), b = useRef()
   useFrame(() => {
     const l = target
-    const k = nightness * 7
+    // whole office: every room gets the same even night light (no lights over one room only);
+    // one room open: a soft extra over its desks
+    const k = l ? nightness * 3.2 : 0
     for (const [r, dx] of [[a, -0.25], [b, 0.25]]) {
       if (!r.current) continue
       r.current.intensity = k

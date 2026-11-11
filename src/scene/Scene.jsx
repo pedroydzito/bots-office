@@ -36,17 +36,17 @@ function Lights({ nightness, weather, low, span }) {
     const n = k.current, w = wk.current
     const warm = Math.max(0, 1 - Math.abs(n * 2 - 1) * 1.6) // peaks at dawn/dusk
     scene.background.copy(DAY_BG).lerp(DUSK_BG, warm * 0.6).lerp(GREY_BG, w * 0.6 * (1 - n)).lerp(NIGHT_BG, n)
-    scene.environmentIntensity = THREE.MathUtils.lerp(0.6, 0.06, n) * (1 - w * 0.25)
+    scene.environmentIntensity = THREE.MathUtils.lerp(0.6, 0.16, n) * (1 - w * 0.25)
     if (hemi.current) {
-      hemi.current.intensity = THREE.MathUtils.lerp(0.7, 0.14, n) * (1 - w * 0.15)
-      hemi.current.color.set('#e3ecff').lerp(tmpC.set('#ffd9bf'), warm * 0.5).lerp(tmpC.set('#7f8fc9'), n)
+      hemi.current.intensity = THREE.MathUtils.lerp(0.7, 0.34, n) * (1 - w * 0.15)
+      hemi.current.color.set('#e3ecff').lerp(tmpC.set('#ffd9bf'), warm * 0.5).lerp(tmpC.set('#c9b8a0'), n)
     }
     if (sun.current) {
       sun.current.intensity = THREE.MathUtils.lerp(2.6, 0.22, n) * (1 - w * 0.55)
       sun.current.color.copy(SUN).lerp(DUSK_SUN, warm * 0.8).lerp(MOON, n)
     }
-    if (fill.current) fill.current.intensity = THREE.MathUtils.lerp(0.55, 0.08, n)
-    if (amb.current) amb.current.intensity = THREE.MathUtils.lerp(0.2, 0.06, n) + w * 0.08
+    if (fill.current) fill.current.intensity = THREE.MathUtils.lerp(0.55, 0.2, n)
+    if (amb.current) amb.current.intensity = THREE.MathUtils.lerp(0.2, 0.1, n) + w * 0.08
   })
   return (
     <>
@@ -93,7 +93,9 @@ function SunWithTarget({ sunRef, low, span = 11 }) {
     return () => (gl.shadowMap.autoUpdate = true)
   }, [gl])
   useFrame(({ clock }) => {
-    if ((performance.now() / 1000) - lastShadow.current > (perfFlags.idle ? 0.15 : 0.05)) {
+    // shadows don't need every frame: ~16/s with one room open, ~7/s for the whole office (tiny moving
+    // bots far away), ~4/s when idle
+    if ((performance.now() / 1000) - lastShadow.current > (perfFlags.idle ? 0.25 : span > 12 ? 0.14 : 0.06)) {
       lastShadow.current = (performance.now() / 1000)
       gl.shadowMap.needsUpdate = true
     }
@@ -495,7 +497,7 @@ export default function Scene(props) {
   return (
     <Canvas
       key={glKey}
-      shadows={MOBILE || q === 'leve' ? false : 'soft'}
+      shadows={MOBILE || q === 'leve' ? false : q === 'alta' ? 'soft' : 'percentage'}
       dpr={effDpr}
       gl={{ antialias: true, powerPreference: 'high-performance', stencil: true }}
       camera={{ fov: 30, position: [12, 10, 12], near: 1, far: 400 }}
