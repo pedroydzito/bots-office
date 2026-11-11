@@ -111,7 +111,7 @@ export function CutWall({ side, W, D, T = 0.25, H = 3.2, mat = wallMat, openings
     if (layout) {
       let st = wallState.get(layout)
       if (!st) wallState.set(layout, (st = {}))
-      st[side] = want < 1 ? 0 : g.scale.y // sinking: hide what hangs on it right away
+      st[side] = g.scale.y // what hangs on it follows the same height
     }
   })
   const horiz = side === 'back' || side === 'front'
@@ -257,10 +257,14 @@ export function WallMount({ side, children }) {
   useFrame(({ camera }) => {
     const g = ref.current
     if (!g) return
-    // shown only once its wall has finished rising (not floating in the air while it grows)
+    // squashes and grows with its wall (pivot at the floor), like the windows do
     const h = layout ? wallState.get(layout)?.[side] : null
-    const v = h != null ? h > 0.97 : !nearSide(g, camera, side)
-    if (g.visible !== v) g.visible = v
+    if (h == null) {
+      const v = !nearSide(g, camera, side)
+      if (g.visible !== v) g.visible = v
+      return
+    }
+    if (Math.abs(g.scale.y - h) > 0.0005) g.scale.y = h
   })
   return (
     <group ref={ref} userData={{ dynamic: true }}>
