@@ -8,6 +8,11 @@ import * as THREE from 'three'
 const entries = new Set()
 const root = { el: null, listeners: new Set() }
 const v = new THREE.Vector3()
+/** Visible only if it and every parent are visible (a hidden room / pet hides its labels too). */
+function shown(o) {
+  for (let p = o; p; p = p.parent) if (!p.visible) return false
+  return true
+}
 
 export function LabelLayer() {
   const { gl, camera, size, scene } = useThree()
@@ -44,7 +49,7 @@ export function LabelLayer() {
         v.y += e.y * (o.scale?.y || 1)
         const dist = v.distanceTo(camera.position)
         v.project(camera)
-        const off = v.z > 1 || !o.visible || Math.abs(v.x) > 1.3 || Math.abs(v.y) > 1.3
+        const off = v.z > 1 || !shown(o) || Math.abs(v.x) > 1.3 || Math.abs(v.y) > 1.3
         if (off) {
           if (!e.hidden) (el.style.display = 'none'), (e.hidden = true)
           continue

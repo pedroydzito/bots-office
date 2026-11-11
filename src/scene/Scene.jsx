@@ -17,7 +17,7 @@ const DAY_BG = new THREE.Color('#f3f6f9')
 const NIGHT_BG = new THREE.Color('#0c1120')
 
 const C = (h) => new THREE.Color(h)
-const DUSK_SUN = C('#ffad6b'), MOON = C('#9fb4ff'), SUN = C('#fff8ef'), DUSK_BG = C('#f2d6c2'), GREY_BG = C('#d9dce2')
+const DUSK_SUN = C('#ffad6b'), MOON = C('#9fb4ff'), SUN = C('#ffedd2'), DUSK_BG = C('#f2d6c2'), GREY_BG = C('#d9dce2')
 const tmpC = new THREE.Color()
 
 /** nightness: 0 day … 1 night (fractions = dawn/dusk, warm tones). weather dims and greys the sky. */
@@ -39,7 +39,7 @@ function Lights({ nightness, weather, low, span }) {
     scene.environmentIntensity = THREE.MathUtils.lerp(0.6, 0.18, n) * (1 - w * 0.25)
     if (hemi.current) {
       hemi.current.intensity = THREE.MathUtils.lerp(0.7, 0.25, n) * (1 - w * 0.15)
-      hemi.current.color.set('#ffffff').lerp(tmpC.set('#ffd9bf'), warm * 0.5).lerp(tmpC.set('#7f8fc9'), n)
+      hemi.current.color.set('#e3ecff').lerp(tmpC.set('#ffd9bf'), warm * 0.5).lerp(tmpC.set('#7f8fc9'), n)
     }
     if (sun.current) {
       sun.current.intensity = THREE.MathUtils.lerp(2.6, 0.35, n) * (1 - w * 0.55)
@@ -50,7 +50,7 @@ function Lights({ nightness, weather, low, span }) {
   })
   return (
     <>
-      <hemisphereLight ref={hemi} args={['#ffffff', '#d4d7de', 1.15]} />
+      <hemisphereLight ref={hemi} args={['#e3ecff', '#e6d9c6', 1.15]} />
       <ambientLight ref={amb} intensity={0.35} />
       <SunWithTarget sunRef={sun} low={low} span={span} />
       {/* cool fill from the other side: shape and depth without a second shadow pass */}
@@ -98,14 +98,21 @@ function SunWithTarget({ sunRef, low, span = 11 }) {
       gl.shadowMap.needsUpdate = true
     }
     if (!controls || !sunRef.current || !target.current) return
-    const t = controls.target
+    // follow the camera target, but in whole shadow-map texels: a shadow camera that slides by
+    // fractions of a texel makes every shadow edge shimmer while you pan or zoom
+    const sh = sunRef.current.shadow
+    const texel = (sh.camera.right - sh.camera.left) / sh.mapSize.x
+    const snap = (v) => Math.round(v / (texel * 2)) * texel * 2
+    const t = { x: snap(controls.target.x), y: controls.target.y, z: snap(controls.target.z) }
     target.current.position.set(t.x, t.y - 0.8, t.z)
     // the sun travels with the real hour: low from the left in the morning, high at noon, low from the right at dusk
     const d = new Date()
     const h = d.getHours() + d.getMinutes() / 60
     const day = Math.min(1, Math.max(0, (h - 6) / 13)) // 6h..19h
     const ang = (day - 0.5) * 2.2
-    sunRef.current.position.set(t.x + Math.sin(ang) * 12 + 2, t.y + 8 + Math.cos(ang) * 8, t.z + 6)
+    // from the back-left (behind the far walls as seen by the default camera), so shadows fall
+    // toward the viewer and show; it swings a little with the hour
+    sunRef.current.position.set(t.x - 9 + Math.sin(ang) * 3, t.y + 13 + Math.cos(ang) * 2, t.z - 5)
   })
   return (
     <>

@@ -1021,9 +1021,31 @@ export function FloorLamp({ x, z, night }) {
         <cylinderGeometry args={[0.16, 0.22, 0.26, 20, 1, true]} />
         <meshStandardMaterial color="#fff6e0" emissive="#ffd28a" emissiveIntensity={night ? 1.8 : 0.15} side={THREE.DoubleSide} />
       </mesh>
+      {/* at night the lamp lights its surroundings: a warm pool on the floor (no real light: free) */}
+      {night && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} material={lampPoolMat} renderOrder={2}>
+          <planeGeometry args={[4.2, 4.2]} />
+        </mesh>
+      )}
     </group>
   )
 }
+let _poolTex = null
+function poolTexture() {
+  if (_poolTex) return _poolTex
+  const c = document.createElement('canvas')
+  c.width = c.height = 128
+  const g = c.getContext('2d')
+  const r = g.createRadialGradient(64, 64, 4, 64, 64, 64)
+  r.addColorStop(0, 'rgba(255,214,150,1)')
+  r.addColorStop(0.35, 'rgba(255,200,130,0.55)')
+  r.addColorStop(1, 'rgba(255,190,120,0)')
+  g.fillStyle = r
+  g.fillRect(0, 0, 128, 128)
+  _poolTex = new THREE.CanvasTexture(c)
+  return _poolTex
+}
+const lampPoolMat = new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
 
 /** Aquarium on a low cabinet: fish swim around, bubbles rise. */
 export function Aquarium({ x, z }) {

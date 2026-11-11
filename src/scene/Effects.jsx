@@ -1,18 +1,26 @@
-import { Bloom, EffectComposer, HueSaturation, N8AO, Vignette } from '@react-three/postprocessing'
+import { useEffect } from 'react'
+import { useThree } from '@react-three/fiber'
+import * as THREE from 'three'
+import { Bloom, EffectComposer, ToneMapping, Vignette } from '@react-three/postprocessing'
+import { ToneMappingMode } from 'postprocessing'
 
 /**
- * The "storybook" finish (highest graphics only): soft bloom on bright things (screens, lamps,
- * sunlight), a little extra colour and a gentle vignette. One merged effect pass at reduced cost:
- * bloom works on a mip chain at a fraction of the screen size.
+ * Highest graphics: contact shadows (AO), soft bloom on bright things, vignette. The effect chain
+ * works in linear HDR, so tone mapping happens once, at its end (the renderer's own is switched
+ * off while this is mounted; otherwise colours come out washed or blown out).
  */
 export default function Effects({ night }) {
+  const gl = useThree((s) => s.gl)
+  useEffect(() => {
+    const prev = gl.toneMapping
+    gl.toneMapping = THREE.NoToneMapping
+    return () => (gl.toneMapping = prev)
+  }, [gl])
   return (
     <EffectComposer multisampling={0} disableNormalPass>
-      {/* contact shadows where things meet: furniture on the floor, walls in the corners, bots on chairs */}
-      <N8AO halfRes quality="performance" aoRadius={0.9} distanceFalloff={1.2} intensity={2.4} color="#1b2236" />
-      <Bloom mipmapBlur intensity={night ? 0.8 : 0.35} luminanceThreshold={night ? 0.9 : 1.6} luminanceSmoothing={0.3} radius={0.65} />
-      <HueSaturation saturation={0.06} />
-      <Vignette offset={0.32} darkness={0.42} />
+      <Bloom mipmapBlur intensity={night ? 0.7 : 0.25} luminanceThreshold={night ? 0.9 : 1.4} luminanceSmoothing={0.3} radius={0.6} />
+      <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+      <Vignette offset={0.35} darkness={0.35} />
     </EffectComposer>
   )
 }
