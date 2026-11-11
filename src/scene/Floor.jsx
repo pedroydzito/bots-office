@@ -184,7 +184,51 @@ export function roomFinish(layout, look) {
   const v = layout.variant >>> 0
   const wall = look?.wall && look.wall !== 'white' ? (WALLS[look.wall] || WALLS.white)[1] : ROOM_WALLS[v % ROOM_WALLS.length]
   const floor = look?.floor && look.floor !== 'light' ? (FLOORS[look.floor] || FLOORS.light)[1] : ROOM_FLOORS[(v >>> 5) % ROOM_FLOORS.length]
-  return { wall: paint(wall, 0.9), floor: paint(floor, 0.55) }
+  const tiles = /^#(c|a|b9)/.test(floor) // carpets/greys read as tiles, the rest as wood planks
+  return { wall: paint(wall, 0.9), floor: floorMatFor(floor, tiles ? 'tile' : 'plank') }
+}
+
+// subtle floor patterns (greyscale, tinted by the material colour): planks or tiles
+const floorTex = {}
+function floorTexture(kind) {
+  if (floorTex[kind]) return floorTex[kind]
+  const c = document.createElement('canvas')
+  c.width = c.height = 256
+  const g = c.getContext('2d')
+  g.fillStyle = '#fff'
+  g.fillRect(0, 0, 256, 256)
+  if (kind === 'plank') {
+    for (let y = 0; y < 256; y += 32) {
+      const off = (y / 32) % 2 ? 96 : 0
+      for (let x = -off; x < 256; x += 192) {
+        g.fillStyle = `rgba(0,0,0,${0.03 + (((x * 7 + y * 3) % 5) + 5) % 5 * 0.012})`
+        g.fillRect(x + 1, y + 1, 190, 30)
+      }
+      g.fillStyle = 'rgba(0,0,0,0.16)'
+      g.fillRect(0, y, 256, 1.5)
+    }
+  } else {
+    g.fillStyle = 'rgba(0,0,0,0.12)'
+    for (let i = 0; i <= 256; i += 64) (g.fillRect(i, 0, 1.5, 256), g.fillRect(0, i, 256, 1.5))
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.colorSpace = THREE.SRGBColorSpace
+  t.anisotropy = 4
+  floorTex[kind] = t
+  return t
+}
+export function floorMatFor(color, kind) {
+  const k = 'floor' + color + kind
+  if (!matCache.has(k)) matCache.set(k, new THREE.MeshStandardMaterial({ color, roughness: 0.55, map: floorTexture(kind) }))
+  return matCache.get(k)
+}
+/** Floor plane whose UVs are in metres, so the pattern has the same scale in every room. */
+export function floorGeo(W, D) {
+  const g = new THREE.PlaneGeometry(W, D)
+  const uv = g.attributes.uv
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * W) / 2.4, (uv.getY(i) * D) / 2.4)
+  return g
 }
 
 /** A door to the corridor: frame and a half-open leaf (hidden with its wall). */
@@ -261,9 +305,7 @@ export function Shell({ layout, title, subtitle, accent, look }) {
       <mesh position={[0, -0.18, 0]} material={slabMat}>
         <boxGeometry args={[W - 0.04, 0.34, D - 0.04]} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]} material={fin.floor} receiveShadow>
-        <planeGeometry args={[W, D]} />
-      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]} material={fin.floor} geometry={floorGeo(W, D)} receiveShadow />
       {/* four real walls in the room's own paint; corridors run outside them */}
       <CutWall side="back" W={W} D={D} mat={fin.wall} layout={layout} />
       <CutWall side="left" W={W} D={D} mat={fin.wall} layout={layout} />

@@ -66,6 +66,14 @@ function SunWithTarget({ sunRef, low, span = 11 }) {
     c.bottom = -span
     c.far = 45 + span
     c.updateProjectionMatrix()
+    // the whole office in view needs a bigger shadow map to stay sharp
+    const sh = sunRef.current.shadow
+    const size = span > 12 ? 2048 : 1024
+    if (sh.mapSize.x !== size) {
+      sh.mapSize.set(size, size)
+      sh.map?.dispose()
+      sh.map = null
+    }
   }, [span, sunRef])
   const controls = useThree((s) => s.controls)
   const target = useRef()
@@ -457,7 +465,7 @@ export default function Scene(props) {
       key={glKey}
       shadows={q === 'alta' && !MOBILE ? 'soft' : false}
       dpr={effDpr}
-      gl={{ antialias: true, powerPreference: 'high-performance', stencil: false }}
+      gl={{ antialias: true, powerPreference: 'high-performance', stencil: true }}
       camera={{ fov: 30, position: [12, 10, 12], near: 1, far: 400 }}
       onPointerMissed={onPointerMissed}
       onCreated={({ gl, scene }) => {
@@ -510,7 +518,7 @@ export default function Scene(props) {
           setDpr((d) => Math.min(MOBILE ? Math.min(2, window.devicePixelRatio || 1) : Math.min(2, window.devicePixelRatio || 1), d + 0.25))
         }}
       />
-      <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={low || q !== 'alta'} span={props.overview && props.campus ? Math.max(props.campus.W, props.campus.D) * 0.55 : 11} />
+      <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={gfxPref === 'alta' ? false : low || q !== 'alta'} span={props.overview && props.campus ? Math.max(props.campus.W, props.campus.D) * 0.55 : 11} />
       {q !== 'leve' && <Sky nightness={nightness ?? (night ? 1 : 0)} weather={weather} desktop={!MOBILE && q === 'alta'} />}
       {q !== 'leve' && <Weather kind={weather} low={low || q === 'media'} />}
       <Environment resolution={32} frames={1}>

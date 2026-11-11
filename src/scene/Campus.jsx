@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import Floor, { focusRoom } from './Floor'
-import Lot, { Building } from './Lot'
+import { Building } from './Lot'
 import { effStatus, resolveColor } from '../lib/constants'
 import { frozenRooms, ridePositions } from './registry'
 import { pathLen, pointAt, rideFor, sessions, syncNow, world } from './sim'
@@ -13,8 +13,7 @@ import { sceneFlags } from './Props'
 // The campus: every team in its own room, side by side on one ground, with corridors between them.
 // "Todas as salas" shows everything live; "Uma sala" flies to one room and dims the others.
 
-const coverMat = new THREE.MeshBasicMaterial({ color: '#0d1220', transparent: true, opacity: 0, depthWrite: false })
-const coverGeo = new THREE.PlaneGeometry(1, 1)
+const coverGeo = new THREE.BoxGeometry(1, 1, 1)
 const _pm = new THREE.Matrix4(), _fr = new THREE.Frustum()
 
 /** One warm ceiling light per room at night (fixed count: no shader recompiles). */
@@ -93,16 +92,40 @@ function RoomChip({ f, l, data, now, dim, onPick }) {
 }
 
 /** Dims a room that is not the one in focus (a translucent box over it, cheap). */
-function Cover({ l, on }) {
-  const ref = useRef()
-  const mat = useMemo(() => coverMat.clone(), [])
+/**
+ * Darkens everything inside a room that is not in focus: floor, furniture and bots get darker,
+ * nothing outside the room does. A stencil "volume" pass: the box's front faces mark the pixels
+ * whose surface lies behind them, then its back faces darken those whose surface lies in front of
+ * them (= inside the box).
+ */
+function Cover({ l, on, order }) {
+  const front = useRef(), back = useRef()
+  const mats = useMemo(() => {
+    const mark = new THREE.MeshBasicMaterial({
+      colorWrite: false, depthWrite: false, transparent: true, side: THREE.FrontSide, depthFunc: THREE.LessEqualDepth,
+      stencilWrite: true, stencilRef: 1, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp,
+    })
+    const dark = new THREE.MeshBasicMaterial({
+      color: '#0b1020', transparent: true, opacity: 0, depthWrite: false, side: THREE.BackSide, depthFunc: THREE.GreaterEqualDepth,
+      stencilWrite: true, stencilRef: 1, stencilFunc: THREE.EqualStencilFunc, stencilZPass: THREE.ZeroStencilOp, stencilZFail: THREE.ZeroStencilOp,
+    })
+    return { mark, dark }
+  }, [])
   useFrame((_, dt) => {
-    const want = on ? 0.55 : 0
-    mat.opacity += (want - mat.opacity) * Math.min(1, dt * 6)
-    if (ref.current) ref.current.visible = mat.opacity > 0.01
+    const want = on ? 0.6 : 0
+    const m = mats.dark
+    m.opacity += (want - m.opacity) * Math.min(1, dt * 6)
+    const v = m.opacity > 0.01
+    if (front.current) front.current.visible = v
+    if (back.current) back.current.visible = v
   })
-  // a single tinted sheet at wall height (one layer of blending, not a whole box)
-  return <mesh ref={ref} geometry={coverGeo} material={mat} position={[l.ox, 3.25, l.oz]} rotation={[-Math.PI / 2, 0, 0]} scale={[l.fw, l.fd, 1]} renderOrder={5} visible={false} />
+  const pos = [l.ox, 1.7, l.oz], scale = [l.fw + 0.1, 3.6, l.fd + 0.1]
+  return (
+    <>
+      <mesh ref={front} geometry={coverGeo} material={mats.mark} position={pos} scale={scale} renderOrder={20 + order * 2} visible={false} />
+      <mesh ref={back} geometry={coverGeo} material={mats.dark} position={pos} scale={scale} renderOrder={21 + order * 2} visible={false} />
+    </>
+  )
 }
 
 export default function Campus({ floors, selectedIdx, layouts, campus, data, now, night, nightness = 0, low, selectedBot, spotlight, onSelect, onLongPress, celebrate, overview, onPickRoom }) {
@@ -143,7 +166,6 @@ export default function Campus({ floors, selectedIdx, layouts, campus, data, now
   return (
     <group>
       <Building campus={campus} />
-      <Lot campus={campus} nightness={nightness} night={night} />
       <Walkers data={data} followed={selectedBot} />
       {floors.map((f) => {
         const l = layouts[f.key]
@@ -181,7 +203,7 @@ export default function Campus({ floors, selectedIdx, layouts, campus, data, now
               }
             </group>
             {lightsOn && <RoomLight l={l} nightness={nightness} on={overview || focus} />}
-            <Cover l={l} on={!overview && !focus} />
+            <Cover l={l} on={!overview && !focus} order={floors.indexOf(f)} />
             <RoomChip f={f} l={l} data={data} now={now} dim={!overview && !focus} onPick={onPickRoom} />
           </group>
         )
