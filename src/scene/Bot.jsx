@@ -355,10 +355,10 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
       projV.project(camera)
       const off = projV.z > 1 || Math.abs(projV.x) > 1.15 || Math.abs(projV.y) > 1.2
       const sx = ((projV.x + 1) / 2) * size.width, sy = ((1 - projV.y) / 2) * size.height
-      labelSpots.set(p.name, { x: sx, y: sy, d: projV.z })
+      labelSpots.set(p.name, { x: sx, y: sy, d: projV.z, t: clock.elapsedTime })
       let crowded = false
       for (const [n, q] of labelSpots) {
-        if (n === p.name) continue
+        if (n === p.name || clock.elapsedTime - (q.t || 0) > 0.6) continue // frozen / hidden bots leave stale spots
         if (q.d < projV.z && Math.abs(q.x - sx) < 78 && Math.abs(q.y - sy) < 30) {
           crowded = true
           break
