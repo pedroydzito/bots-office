@@ -254,11 +254,11 @@ function Pet({ spec, idx, cats, campus, rooms, spots, overview, focusLayout }) {
   )
 }
 
-export default function OfficePets({ campus, layouts, floors, overview, focusLayout }) {
+export default function OfficePets({ campus, layouts, floors, overview, focusLayout, amount = 'few' }) {
   const rooms = useMemo(() => floors.map((f) => layouts[f.key]).filter(Boolean), [floors, layouts])
   const spots = useMemo(() => napSpots(rooms), [rooms])
   // one pet for every two rooms (2 to 5): always dogs and cats
-  const n = Math.max(2, Math.min(KINDS.length, Math.round(rooms.length / 2) + 1))
+  const n = amount === 'many' ? KINDS.length : Math.max(2, Math.min(3, Math.round(rooms.length / 3) + 1))
   const list = KINDS.slice(0, n)
   const cats = list.filter((k) => k.kind === 'cat').map((k) => k.name)
   return (

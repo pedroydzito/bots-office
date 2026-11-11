@@ -523,7 +523,7 @@ export function Lounge({ position, night, seats = [] }) {
         </mesh>
         <mesh position={[0, 1.72, 0]}>
           <coneGeometry args={[0.18, 0.2, 24, 1, true]} />
-          <meshStandardMaterial color="#fff6e0" emissive="#ffe2b0" emissiveIntensity={night ? 3.2 : 0.1} side={THREE.DoubleSide} toneMapped={!night} />
+          <meshStandardMaterial color="#fff6e0" emissive="#ffe2b0" emissiveIntensity={night ? 1.6 : 0.1} side={THREE.DoubleSide} />
         </mesh>
         {night && <sprite position={[0, 1.72, 0]} scale={[1.3, 1.3, 1]} material={haloMat} renderOrder={4} />}
         {night && (
@@ -1044,7 +1044,7 @@ export function FloorLamp({ x, z, night }) {
       <mesh position={[0, 0.8, 0]} material={M.dark}><cylinderGeometry args={[0.014, 0.014, 1.6, 8]} /></mesh>
       <mesh position={[0, 1.62, 0]}>
         <cylinderGeometry args={[0.16, 0.22, 0.26, 20, 1, true]} />
-        <meshStandardMaterial color="#fff6e0" emissive="#ffe2b0" emissiveIntensity={night ? 3.2 : 0.15} side={THREE.DoubleSide} toneMapped={!night} />
+        <meshStandardMaterial color="#fff6e0" emissive="#ffe2b0" emissiveIntensity={night ? 1.6 : 0.15} side={THREE.DoubleSide} />
       </mesh>
       {/* glow around the lit shade (a soft halo sprite: the bloom look, for the cost of one quad) */}
       {night && (
@@ -1089,8 +1089,12 @@ function haloTexture() {
   _haloTex = new THREE.CanvasTexture(c)
   return _haloTex
 }
-export const haloMat = new THREE.SpriteMaterial({ map: haloTexture(), transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
-const lampPoolMat = new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0.26, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
+export const haloMat = new THREE.SpriteMaterial({ map: haloTexture(), transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
+export function setLampStrength(k) {
+  lampPoolMat.opacity = 0.15 * k
+  haloMat.opacity = 0.45 * Math.min(1.3, k)
+}
+const lampPoolMat = new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
 
 /** Aquarium on a low cabinet: fish swim around, bubbles rise. */
 export function Aquarium({ x, z }) {

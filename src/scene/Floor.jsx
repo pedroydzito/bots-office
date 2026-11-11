@@ -12,7 +12,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 let mergeGen = 0
 import {
   Aquarium, Arcade, Bench, MeetingTopic, PoolTable, DESK_FINISH, ExecDesk, isVip, Foosball, PingPong, SoloSetup, Armchair, BeanBag, Poster, WallShelf, Bookshelf, FloorLamp, Printer, Vending, Cake, Chair, Clock, CoffeeCorner, DeskDecor, DeskRow, InfoBoard, Lounge, MATS, MeetingTable, Plant, Rug, StatusLamp, Whiteboard, Railing,
-  StickyWall, TVScreen, WallTitle, WaterCooler, Workstation,
+  StickyWall, TVScreen, WallTitle, WaterCooler, Workstation, setLampStrength,
 } from './Props'
 import { durationShort, effStatus, resolveColor, STATUS, talkActive } from '../lib/constants'
 import { botMetrics } from '../lib/metrics'
@@ -30,6 +30,13 @@ function applyFinish() {
 }
 applyFinish()
 lookStore.subscribe(applyFinish)
+// night lamp strength (personalisation): scales every painted light at once
+function applyLamps() {
+  const k = { soft: 0.6, normal: 1, strong: 1.6 }[lookStore.get().lamps] || 1
+  stripMat.opacity = 0.13 * k
+  setLampStrength(k)
+}
+queueMicrotask(() => (applyLamps(), lookStore.subscribe(applyLamps)))
 const slabMat = new THREE.MeshStandardMaterial({ color: '#e2e4e8', roughness: 0.8 })
 
 const bands = new Map()
@@ -179,7 +186,7 @@ export function roomFinish(layout, look) {
   const v = layout.variant >>> 0
   const wall = look?.wall && look.wall !== 'white' ? (WALLS[look.wall] || WALLS.white)[1] : ROOM_WALLS[v % ROOM_WALLS.length]
   const floor = look?.floor && look.floor !== 'light' ? (FLOORS[look.floor] || FLOORS.light)[1] : ROOM_FLOORS[(v >>> 5) % ROOM_FLOORS.length]
-  const tiles = false
+  const tiles = look?.floor === 'concrete' || look?.floor === 'dark'
   return { wall: paint(wall, 0.9), floor: floorMatFor(floor, tiles ? 'tile' : 'plank') }
 }
 
@@ -316,7 +323,7 @@ function stripTexture() {
   _stripTex = new THREE.CanvasTexture(c)
   return _stripTex
 }
-const stripMat = new THREE.MeshBasicMaterial({ map: stripTexture(), transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
+const stripMat = new THREE.MeshBasicMaterial({ map: stripTexture(), transparent: true, opacity: 0.13, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
 
 // ---- contact shade: furniture standing against a wall darkens the wall right behind and around
 // it (soft edges, darker near the floor), so it sits in the room instead of looking pasted on
@@ -438,9 +445,11 @@ export function Shell({ layout, title, subtitle, accent, look, night }) {
       <CutWall side="right" W={W} D={D} mat={fin.wall} layout={layout} openings={right} />
       <CutWall side="front" W={W} D={D} mat={fin.wall} layout={layout} openings={front} />
       <WallMount side="front"><RoomDoor x={doorX} D={D} W={W} /></WallMount>
-      {!night && (
+      {/* sunlight only through windows on the building's outside walls (the sun is on one side:
+          rooms in the middle have other rooms in front of their windows) */}
+      {!night && (layout.last !== false || layout.lastRow !== false) && (
         <mesh
-          geometry={sunGeometry(W, D, [...front.filter((o) => o.kind === 'window').map((o) => ({ ...o, side: 'front' })), ...right.filter((o) => o.kind === 'window').map((o) => ({ ...o, side: 'right' }))])}
+          geometry={sunGeometry(W, D, [...(layout.lastRow !== false ? front.filter((o) => o.kind === 'window').map((o) => ({ ...o, side: 'front' })) : []), ...(layout.last !== false ? right.filter((o) => o.kind === 'window').map((o) => ({ ...o, side: 'right' })) : [])])}
           material={sunMat}
           material-map={sunTexture()}
           renderOrder={3}
@@ -484,7 +493,8 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   const floorIdx = floor.num - 1
   const petKind0 = data.pets?.[floor.key] || ['cat', 'dog', 'fish'][hash(floor.key) % 3]
   const look = useStore(lookStore, (l) => l)
-  const deskMat = DESK_FINISH[(layout.variant >>> 10) % DESK_FINISH.length]
+  const DESK_PICK = { light: 2, oak: 0, dark: 1 }
+  const deskMat = DESK_FINISH[DESK_PICK[look.desk] ?? (layout.variant >>> 10) % DESK_FINISH.length]
   const petKind = look.pet ? petKind0 : 'none'
   const homeSet = useMemo(() => new Set(home), [home])
   const seatOf = useMemo(() => {

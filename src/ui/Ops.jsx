@@ -6,7 +6,7 @@ import { health } from '../lib/health'
 import { taskStats } from '../lib/metrics'
 import { weeklyReport } from '../lib/report'
 import { forgetOffice, listOffices, renameOffice, viewOnlyLink } from '../lib/auth'
-import { ACCENTS, FLOORS, STYLES, WALLS } from '../lib/look'
+import { ACCENTS, DECOR, DESKS, FLOORS, LAMPS, PETS, STYLES, WALLS } from '../lib/look'
 import { useStore } from '../lib/createStore'
 import { prefStore, setPref } from '../lib/notify'
 
@@ -321,15 +321,19 @@ export function LookModal({ look, onPreview, onSave, onClose, shared }) {
     const { label, sub, ...rest } = STYLES[k]
     set({ style: k, ...rest })
   }
-  const toggles = [
-    ['plants', 'Plantas'],
-    ['rugs', 'Tapetes'],
-    ['art', 'Quadros e prateleiras'],
-    ['furniture', 'Cantinhos (pufes, fliperama, poltronas)'],
-    ['accent', 'Faixa com a cor do time'],
-    ['pet', 'Pet da sala'],
-    ['seasonal', 'Decoração de datas especiais'],
-  ]
+  const decor = !l.art && !l.rugs && !l.furniture ? 'min' : l.furniture ? 'full' : 'some'
+  const setDecor = (k) => set(k === 'min' ? { art: false, rugs: false, furniture: false } : k === 'some' ? { art: true, rugs: true, furniture: false } : { art: true, rugs: true, furniture: true })
+  /** A row of choices that fills the width (instead of on/off switches). */
+  const Seg = ({ label, value, options, onPick }) => (
+    <div className="look-row look-seg">
+      <span>{label}</span>
+      <div className="seg">
+        {Object.entries(options).map(([k, lab]) => (
+          <button key={k} className={value === k ? 'on' : ''} aria-pressed={value === k} onClick={() => onPick(k)}>{lab}</button>
+        ))}
+      </div>
+    </div>
+  )
   return (
     <Modal title="Personalizar escritório" onClose={() => (onPreview(null), onClose())}>
       <div className="look">
@@ -349,21 +353,28 @@ export function LookModal({ look, onPreview, onSave, onClose, shared }) {
           ))}
         </div>
         <div className="look-row">
-          <span>Piso</span>
+          <span>Piso <em className="look-val">{(FLOORS[l.floor] || FLOORS.light)[0]}</em></span>
           <div className="swatches">
             {Object.entries(FLOORS).map(([k, [lab, c]]) => (
-              <button key={k} className={`sw ${l.floor === k ? 'on' : ''}`} style={{ '--c': c }} onClick={() => set({ floor: k })} title={lab} aria-label={`Piso ${lab}`} aria-pressed={l.floor === k} />
+              <button key={k} className={`sw ${l.floor === k ? 'on' : ''} ${k === 'light' ? 'sw-mix' : ''}`} style={{ '--c': c }} onClick={() => set({ floor: k })} title={lab} aria-label={`Piso ${lab}`} aria-pressed={l.floor === k} />
             ))}
           </div>
         </div>
         <div className="look-row">
-          <span>Paredes</span>
+          <span>Paredes <em className="look-val">{(WALLS[l.wall] || WALLS.white)[0]}</em></span>
           <div className="swatches">
             {Object.entries(WALLS).map(([k, [lab, c]]) => (
-              <button key={k} className={`sw ${l.wall === k ? 'on' : ''}`} style={{ '--c': c }} onClick={() => set({ wall: k })} title={lab} aria-label={`Paredes ${lab}`} aria-pressed={l.wall === k} />
+              <button key={k} className={`sw ${l.wall === k ? 'on' : ''} ${k === 'white' ? 'sw-mixw' : ''}`} style={{ '--c': c }} onClick={() => set({ wall: k })} title={lab} aria-label={`Paredes ${lab}`} aria-pressed={l.wall === k} />
             ))}
           </div>
         </div>
+        <Seg label="Mesas" value={l.desk || 'room'} options={DESKS} onPick={(k) => set({ desk: k })} />
+        <Seg label="Decoração" value={decor} options={DECOR} onPick={setDecor} />
+        <Seg label="Plantas" value={l.plants ? 'yes' : 'no'} options={{ no: 'Sem plantas', yes: 'Com plantas' }} onPick={(k) => set({ plants: k === 'yes' })} />
+        <Seg label="Pets pelo escritório" value={l.pet === false ? 'none' : l.pets || 'few'} options={PETS} onPick={(k) => set({ pets: k, pet: k !== 'none' })} />
+        <Seg label="Luz das luminárias à noite" value={l.lamps || 'normal'} options={LAMPS} onPick={(k) => set({ lamps: k })} />
+        <Seg label="Datas especiais" value={l.seasonal ? 'yes' : 'no'} options={{ no: 'Sem enfeites', yes: 'Com enfeites' }} onPick={(k) => set({ seasonal: k === 'yes' })} />
+        <Seg label="Faixa com a cor do time" value={l.accent ? 'yes' : 'no'} options={{ no: 'Não', yes: 'Sim' }} onPick={(k) => set({ accent: k === 'yes' })} />
         <div className="look-row">
           <span>Cor da interface</span>
           <div className="swatches">
@@ -372,19 +383,8 @@ export function LookModal({ look, onPreview, onSave, onClose, shared }) {
             ))}
           </div>
         </div>
-        <div className="look-toggles">
-          {toggles.map(([k, lab]) => (
-            <button key={k} className="toggle" onClick={() => set({ [k]: !l[k] })} aria-pressed={!!l[k]}>
-              {lab} <i className={l[k] ? 'on' : ''} />
-            </button>
-          ))}
-          <button className="toggle" onClick={() => setPref('compact', !compact)} aria-pressed={compact}>
-            Interface compacta (cards menores) <i className={compact ? 'on' : ''} />
-          </button>
-          <button className="toggle" onClick={() => setPref('names', !names)} aria-pressed={names}>
-            Nomes dos bots sempre visíveis <i className={names ? 'on' : ''} />
-          </button>
-        </div>
+        <Seg label="Tamanho da interface" value={compact ? 'small' : 'normal'} options={{ normal: 'Normal', small: 'Compacta' }} onPick={(k) => setPref('compact', k === 'small')} />
+        <Seg label="Nomes dos bots" value={names ? 'always' : 'auto'} options={{ auto: 'Quando couber', always: 'Sempre' }} onPick={(k) => setPref('names', k === 'always')} />
         <p className="muted small">{shared ? 'Vale para todas as telas que usam este escritório.' : 'Vale só para este aparelho.'}</p>
         <div className="wrow">
           <button className="ghost" onClick={() => (onPreview(null), onClose())}>Cancelar</button>

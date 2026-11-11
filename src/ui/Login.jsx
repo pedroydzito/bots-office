@@ -112,11 +112,12 @@ export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOff
           <div className="gfx">
             <span><Layers size={14} /> Gráficos</span>
             <div className="seg">
-              {[['auto', 'Auto'], ['media', 'Normal'], ['leve', 'Leve']].map(([k, l]) => (
-                <button key={k} className={gfx === k ? 'on' : ''} aria-pressed={gfx === k} onClick={() => setPref('gfx', k)}>{l}</button>
-              ))}
+              {[['media', 'Normal'], ['leve', 'Leve']].map(([k, l]) => {
+                const on = (gfx === 'leve' ? 'leve' : 'media') === k
+                return <button key={k} className={on ? 'on' : ''} aria-pressed={on} onClick={() => setPref('gfx', k)}>{l}</button>
+              })}
             </div>
-            <small>{gfx === 'leve' ? 'Sem céu, clima e sombras: para PCs sem placa de vídeo' : gfx === 'media' || gfx === 'alta' ? 'Sombras, luzes e animações completas' : `Escolhe sozinho pelo aparelho${document.documentElement.classList.contains('gfx-leve') ? ' (Leve neste)' : ''}`}</small>
+            <small>{gfx === 'leve' ? 'Sem céu, clima e sombras: para PCs sem placa de vídeo' : 'Sombras, luzes e animações completas'}</small>
           </div>
           {/* all sounds grouped in one expandable row */}
           <button className="toggle" aria-expanded={soundsOpen} onClick={() => setSoundsOpen((x) => !x)}>

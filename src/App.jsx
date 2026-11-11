@@ -204,7 +204,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         floors.map((f) => {
           const p = plan.rooms[f.key]
           const l = floorLayout(f.bots.length, p.W, p.D, { lead: !!f.lead, furniture: look.furniture, seed: f.key })
-          Object.assign(l, { ox: p.x, oz: p.z, row: p.row, first: p.first, last: p.last })
+          Object.assign(l, { ox: p.x, oz: p.z, row: p.row, first: p.first, last: p.last, lastRow: p.row === plan.rows - 1 })
           return [f.key, l]
         }),
       ),

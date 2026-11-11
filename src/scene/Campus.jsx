@@ -214,7 +214,7 @@ export default function Campus({ floors, selectedIdx, layouts, campus, data, now
         <Building campus={campus} />
         <Walkers data={data} followed={selectedBot} />
       </group>
-      {look?.pet !== false && <OfficePets campus={campus} layouts={layouts} floors={floors} data={data} overview={overview} focusLayout={!overview && sel ? layouts[sel.key] : null} />}
+      {look?.pet !== false && look?.pets !== 'none' && <OfficePets amount={look?.pets} campus={campus} layouts={layouts} floors={floors} data={data} overview={overview} focusLayout={!overview && sel ? layouts[sel.key] : null} />}
       {floors.map((f) => {
         const l = layouts[f.key]
         if (!l) return null

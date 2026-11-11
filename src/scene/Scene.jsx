@@ -35,13 +35,13 @@ function Lights({ nightness, weather, low, span }) {
     const n = k.current, w = wk.current
     const warm = Math.max(0, 1 - Math.abs(n * 2 - 1) * 1.6) // peaks at dawn/dusk
     scene.background.copy(DAY_BG).lerp(DUSK_BG, warm * 0.6).lerp(GREY_BG, w * 0.6 * (1 - n)).lerp(NIGHT_BG, n)
-    scene.environmentIntensity = THREE.MathUtils.lerp(0.6, 0.32, n) * (1 - w * 0.25)
+    scene.environmentIntensity = THREE.MathUtils.lerp(0.6, 0.42, n) * (1 - w * 0.25)
     if (hemi.current) {
-      hemi.current.intensity = THREE.MathUtils.lerp(0.7, 0.5, n) * (1 - w * 0.15)
+      hemi.current.intensity = THREE.MathUtils.lerp(0.7, 0.72, n) * (1 - w * 0.15)
       hemi.current.color.set('#e3ecff').lerp(tmpC.set('#ffd9bf'), warm * 0.5).lerp(tmpC.set('#c9b8a0'), n)
     }
     if (sun.current) {
-      sun.current.intensity = THREE.MathUtils.lerp(2.6, 0.95, n) // at night: the ceiling lights, casting the shadows * (1 - w * 0.55)
+      sun.current.intensity = THREE.MathUtils.lerp(2.6, 0.75, n) // at night: the ceiling lights, casting the shadows * (1 - w * 0.55)
       sun.current.color.copy(SUN).lerp(DUSK_SUN, warm * 0.8).lerp(CEIL, n)
     }
     if (fill.current) fill.current.intensity = THREE.MathUtils.lerp(0.55, 0.28, n)
@@ -488,7 +488,7 @@ export default function Scene(props) {
   const gfxPref = useStore(prefStore, (p) => p.gfx || 'auto')
   const [weakGpu, setWeakGpu] = useState(() => prefs.get('gfxAutoWeak', false) || weakHardware())
   // two levels: Normal (everything below) and Leve (no sky, weather or shadows); old 'alta' = Normal
-  const q = gfxPref === 'leve' || (gfxPref === 'auto' && weakGpu) ? 'leve' : 'media'
+  const q = gfxPref === 'leve' ? 'leve' : 'media'
   useEffect(() => {
     document.documentElement.classList.toggle('gfx-leve', q === 'leve')
   }, [q])
