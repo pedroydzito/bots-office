@@ -67,9 +67,16 @@ export const Chair = memo(function Chair({ x, z, owner, hiddenOwner, yawBase = 0
     : {}
   return (
     <group position={[x, 0, z]} {...tipProps}>
-      <mesh position={[0, 0.055, 0]} material={M.black} castShadow>
-        <cylinderGeometry args={[0.28, 0.3, 0.06, 20]} />
-      </mesh>
+      {/* five-star base with casters */}
+      {[0, 1, 2, 3, 4].map((k) => {
+        const a = (k / 5) * Math.PI * 2
+        return (
+          <group key={k} rotation={[0, a, 0]}>
+            <mesh position={[0.14, 0.07, 0]} material={M.black} castShadow><boxGeometry args={[0.28, 0.035, 0.05]} /></mesh>
+            <mesh position={[0.27, 0.03, 0]} material={M.dark}><sphereGeometry args={[0.03, 8, 6]} /></mesh>
+          </group>
+        )
+      })}
       <mesh position={[0, 0.22, 0]} material={M.dark}>
         <cylinderGeometry args={[0.035, 0.035, 0.36, 10]} />
       </mesh>
@@ -98,6 +105,13 @@ export function DeskRow({ row, mat = M.desk }) {
       <mesh position={[cx, 0.45, z + 0.38]} material={M.grey} receiveShadow>
         <boxGeometry args={[w - 0.12, 0.4, 0.02]} />
       </mesh>
+      {/* drawer pedestal at one end, with handles */}
+      <group position={[row.x2 - 0.32, 0, z + 0.05]}>
+        <mesh position={[0, 0.34, 0]} material={M.white} castShadow receiveShadow><boxGeometry args={[0.42, 0.66, 0.6]} /></mesh>
+        {[0.18, 0.38, 0.56].map((y) => (
+          <mesh key={y} position={[0, y, -0.305]} material={M.metal}><boxGeometry args={[0.16, 0.018, 0.015]} /></mesh>
+        ))}
+      </group>
     </group>
   )
 }
@@ -154,7 +168,7 @@ export const Workstation = memo(function Workstation({ seat, status, idx, night,
     if (!on && m.emissiveIntensity < 0.005) return
     if (sceneFlags.compact && Math.abs(m.emissiveIntensity - target) < 0.01) return
     if (Math.abs(target - m.emissiveIntensity) > 0.005) m.emissiveIntensity += (target - m.emissiveIntensity) * Math.min(1, dt * 3)
-    glowMat.opacity = night ? m.emissiveIntensity * 0.32 : 0
+    glowMat.opacity = night ? m.emissiveIntensity * 0.5 : 0
     if (glow.current) glow.current.visible = glowMat.opacity > 0.01
     if (on && !kind) tickCodeScroll(clock.elapsedTime, codes)
   })
@@ -1161,49 +1175,91 @@ export function Aquarium({ x, z }) {
 const ART_COLORS = ['#8F59F9', '#1E86FC', '#FD690F', '#E5484D', '#F93498', '#2FB36B', '#F5B70A', '#14B8A6']
 const artCache = new Map()
 /** Framed abstract poster (generated, deterministic by seed). */
+// Framed prints with real content: a landscape (sky, sun, layered hills, trees), an abstract
+// composition (layered shapes, lines and dots), or a typographic print. A white mat inside a frame.
+const PRINT_WORDS = ['FOCO', 'SHIP IT', 'BORA', 'ITERE', 'CALMA', 'CRIE', 'DEPLOY', 'SIMPLES']
+function drawPrint(g, W, H, seed) {
+  let r = seed * 7919 + 13
+  const rnd = () => ((r = (r * 9301 + 49297) % 233280) / 233280)
+  const kind = seed % 3
+  if (kind === 0) {
+    // landscape
+    const sky = g.createLinearGradient(0, 0, 0, H)
+    const pal = [['#ffd9b0', '#ffb38a', '#f08a6a'], ['#bfe0ff', '#e6f2ff', '#a8d5ff'], ['#ffe3ef', '#ffc6d9', '#d9a7ff']][seed % 3]
+    sky.addColorStop(0, pal[0]); sky.addColorStop(0.6, pal[1]); sky.addColorStop(1, pal[2])
+    g.fillStyle = sky; g.fillRect(0, 0, W, H)
+    g.fillStyle = '#fff6d8'; g.beginPath(); g.arc(W * (0.3 + rnd() * 0.4), H * 0.32, W * 0.11, 0, 7); g.fill()
+    const hills = ['#8cc7a1', '#5fa883', '#3f8a6a', '#2f6e57']
+    hills.forEach((c, i) => {
+      g.fillStyle = c
+      g.beginPath()
+      g.moveTo(0, H)
+      const base = H * (0.5 + i * 0.12)
+      for (let x = 0; x <= W; x += 8) g.lineTo(x, base - Math.sin(x / W * Math.PI * (1.2 + i * 0.4) + seed + i) * H * 0.07)
+      g.lineTo(W, H); g.fill()
+    })
+    for (let i = 0; i < 5; i++) {
+      const x = rnd() * W, y = H * (0.72 + rnd() * 0.15), s = W * (0.03 + rnd() * 0.03)
+      g.fillStyle = '#5b3d2b'; g.fillRect(x - s * 0.12, y, s * 0.24, s * 1.1)
+      g.fillStyle = '#2f6e57'; g.beginPath(); g.moveTo(x, y - s * 1.6); g.lineTo(x + s, y + s * 0.2); g.lineTo(x - s, y + s * 0.2); g.fill()
+    }
+  } else if (kind === 1) {
+    // abstract: big soft shapes, thin lines, dots
+    g.fillStyle = ['#f6f1ea', '#eef2f7', '#f3eefa', '#fdf3e7'][seed % 4]; g.fillRect(0, 0, W, H)
+    for (let i = 0; i < 4; i++) {
+      g.globalAlpha = 0.9
+      g.fillStyle = ART_COLORS[Math.floor(rnd() * ART_COLORS.length)]
+      const x = rnd() * W, y = rnd() * H, s = W * (0.25 + rnd() * 0.35)
+      g.beginPath()
+      if (i % 2) g.arc(x, y, s / 2, 0, 7)
+      else g.ellipse(x, y, s / 2, s / 3, rnd() * 3, 0, 7)
+      g.fill()
+    }
+    g.globalAlpha = 1
+    g.strokeStyle = '#1d1f24'; g.lineWidth = 3
+    g.beginPath(); g.moveTo(W * 0.1, H * (0.2 + rnd() * 0.6)); g.bezierCurveTo(W * 0.4, H * rnd(), W * 0.6, H * rnd(), W * 0.9, H * (0.2 + rnd() * 0.6)); g.stroke()
+    g.fillStyle = '#1d1f24'
+    for (let i = 0; i < 9; i++) { g.beginPath(); g.arc(W * (0.65 + (i % 3) * 0.08), H * (0.12 + Math.floor(i / 3) * 0.06), 3, 0, 7); g.fill() }
+  } else {
+    // typographic print
+    const bg = ART_COLORS[seed % ART_COLORS.length]
+    g.fillStyle = bg; g.fillRect(0, 0, W, H)
+    g.fillStyle = 'rgba(255,255,255,0.18)'
+    for (let i = 0; i < 6; i++) g.fillRect(0, (H / 6) * i, W, H / 12)
+    g.fillStyle = '#ffffff'
+    g.font = `900 ${Math.round(W * 0.2)}px system-ui, sans-serif`
+    g.textAlign = 'center'; g.textBaseline = 'middle'
+    g.fillText(PRINT_WORDS[seed % PRINT_WORDS.length], W / 2, H / 2)
+    g.font = `600 ${Math.round(W * 0.05)}px system-ui, sans-serif`
+    g.fillText('— escritório de bots —', W / 2, H * 0.62)
+  }
+}
 export function Poster({ position, rotation, seed = 1, w = 0.9, h = 1.2 }) {
   const tex = useMemo(() => {
-    const key = `${seed}|${w}|${h}`
+    const key = `p2|${seed}|${w}|${h}`
     if (artCache.has(key)) return artCache.get(key)
     const c = document.createElement('canvas')
     c.width = 256
     c.height = Math.round((256 * h) / w)
     const g = c.getContext('2d')
-    let r = seed * 7919 + 13
-    const rnd = () => ((r = (r * 9301 + 49297) % 233280) / 233280)
-    g.fillStyle = ['#f6f1ea', '#eef2f7', '#f3eefa', '#fdf3e7'][seed % 4]
-    g.fillRect(0, 0, c.width, c.height)
-    const style = seed % 3
-    for (let i = 0; i < 5; i++) {
-      g.fillStyle = ART_COLORS[Math.floor(rnd() * ART_COLORS.length)]
-      g.globalAlpha = 0.85
-      const x = rnd() * c.width, y = rnd() * c.height, s = 30 + rnd() * 90
-      if (style === 0) {
-        g.beginPath()
-        g.arc(x, y, s / 2, 0, Math.PI * 2)
-        g.fill()
-      } else if (style === 1) g.fillRect(x - s / 2, y - s / 4, s, s / 2)
-      else {
-        g.beginPath()
-        g.moveTo(x, y - s / 2)
-        g.lineTo(x + s / 2, y + s / 2)
-        g.lineTo(x - s / 2, y + s / 2)
-        g.fill()
-      }
-    }
-    g.globalAlpha = 1
+    drawPrint(g, c.width, c.height, seed)
     const t = new THREE.CanvasTexture(c)
     t.colorSpace = THREE.SRGBColorSpace
+    t.anisotropy = 4
     artCache.set(key, t)
     return t
   }, [seed, w, h])
+  const frame = sharedMat(['#3a2a20', '#c9a27c', '#22252b', '#f2efe9'][seed % 4], 0.5)
   return (
     <group position={position} rotation={rotation}>
-      <mesh position={[0, 0, -0.02]} material={M.dark}>
-        <boxGeometry args={[w + 0.08, h + 0.08, 0.03]} />
+      <mesh position={[0, 0, -0.02]} material={frame} castShadow>
+        <boxGeometry args={[w + 0.1, h + 0.1, 0.04]} />
       </mesh>
-      <mesh position={[0, 0, 0.006]}>
-        <planeGeometry args={[w, h]} />
+      <mesh position={[0, 0, 0.002]} material={M.white}>
+        <boxGeometry args={[w + 0.02, h + 0.02, 0.005]} />
+      </mesh>
+      <mesh position={[0, 0, 0.007]}>
+        <planeGeometry args={[w * 0.84, h * 0.86]} />
         <meshStandardMaterial map={tex} roughness={0.8} polygonOffset polygonOffsetFactor={-1} />
       </mesh>
     </group>

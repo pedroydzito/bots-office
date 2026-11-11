@@ -535,6 +535,15 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
         rz = Math.sin(t * 0.9 + phase) * 0.03
         hl = hr = 0.01
       }
+      // every ~40 s: lean back and stretch, arms up, a long squash-and-stretch
+      const sc = (t + phase * 7) % 40
+      if (sc < 2.2) {
+        const k = Math.sin((sc / 2.2) * Math.PI)
+        rx = -0.25 * k
+        hl = hr = 0.5 * k
+        sy *= 1 + 0.12 * k
+        eyeY = Math.min(eyeY, 1 - 0.85 * k)
+      }
     } else if (st === 'waiting_user') {
       const b = Math.abs(Math.sin(t * 4.5 + phase))
       by = b * 0.14
@@ -550,10 +559,13 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     } else if (st === 'done') {
       const ct = (T - (p.ts || 0)) / 1000
       if (ct >= 0 && ct < 1.8) {
-        by = Math.abs(Math.sin(ct * 7)) * 0.42
+        const hop = Math.abs(Math.sin(ct * 7))
+        by = hop * 0.42
         ry = Math.min(1, ct / 1.4) * Math.PI * 2
-        hl = hr = 0.25
-        sy = 1 + Math.sin(ct * 14) * 0.06
+        hl = 0.4 + Math.sin(ct * 16) * 0.12
+        hr = 0.4 + Math.sin(ct * 16 + Math.PI) * 0.12
+        sy = 1 + hop * 0.14 - Math.pow(1 - hop, 8) * 0.2 // stretch up, squash on landing
+        eyeY = Math.min(eyeY, 0.3)
       } else {
         rz = Math.sin(t * 1.6 + phase) * 0.05
         sy = 1 + Math.sin(t * 2 + phase) * 0.02
@@ -692,13 +704,21 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
           by = Math.abs(Math.sin(t * 6 + phase)) * 0.03
           rz = Math.sin(t * 2.2) * 0.08
           break
-        case 'armchair':
+        case 'armchair': {
           rx = -0.2
           hl = hr = 0.14
           hz = 0.15
+          // turning a page every few seconds: one hand sweeps across, head follows
+          const pg = (t + phase) % 6
+          if (pg < 0.6) {
+            const k = Math.sin((pg / 0.6) * Math.PI)
+            hr = 0.14 + 0.12 * k
+            ry = -0.2 * k
+          }
           eyeY = Math.min(eyeY, 0.6)
           sy *= 1 + Math.sin(t * 1.0 + phase) * 0.02
           break
+        }
         case 'stroll':
           // looking around at each stop
           ry = Math.sin(t * 0.9 + phase) * 0.45
