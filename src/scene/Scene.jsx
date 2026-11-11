@@ -36,9 +36,9 @@ function Lights({ nightness, weather, low, span }) {
     const n = k.current, w = wk.current
     const warm = Math.max(0, 1 - Math.abs(n * 2 - 1) * 1.6) // peaks at dawn/dusk
     scene.background.copy(DAY_BG).lerp(DUSK_BG, warm * 0.6).lerp(GREY_BG, w * 0.6 * (1 - n)).lerp(NIGHT_BG, n)
-    scene.environmentIntensity = THREE.MathUtils.lerp(0.6, 0.16, n) * (1 - w * 0.25)
+    scene.environmentIntensity = THREE.MathUtils.lerp(0.6, 0.24, n) * (1 - w * 0.25)
     if (hemi.current) {
-      hemi.current.intensity = THREE.MathUtils.lerp(0.7, 0.34, n) * (1 - w * 0.15)
+      hemi.current.intensity = THREE.MathUtils.lerp(0.7, 0.52, n) * (1 - w * 0.15)
       hemi.current.color.set('#e3ecff').lerp(tmpC.set('#ffd9bf'), warm * 0.5).lerp(tmpC.set('#c9b8a0'), n)
     }
     if (sun.current) {

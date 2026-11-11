@@ -31,7 +31,7 @@ function CeilingLights({ target, nightness }) {
     const l = target
     // whole office: every room gets the same even night light (no lights over one room only);
     // one room open: a soft extra over its desks
-    const k = l ? nightness * 3.2 : 0
+    const k = 0 // the even night light (Scene) already matches the open-room look everywhere
     for (const [r, dx] of [[a, -0.25], [b, 0.25]]) {
       if (!r.current) continue
       r.current.intensity = k
