@@ -222,7 +222,7 @@ function floorTexture(kind) {
 }
 export function floorMatFor(color, kind) {
   const k = 'floor' + color + kind
-  if (!matCache.has(k)) matCache.set(k, new THREE.MeshStandardMaterial({ color, roughness: 0.55, map: floorTexture(kind) }))
+  if (!matCache.has(k)) matCache.set(k, new THREE.MeshStandardMaterial({ color, roughness: kind === 'plank' ? 0.32 : 0.5, metalness: 0.02, envMapIntensity: 1.3, map: floorTexture(kind) }))
   return matCache.get(k)
 }
 /** Floor plane whose UVs are in metres, so the pattern has the same scale in every room. */

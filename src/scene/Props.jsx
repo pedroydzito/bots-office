@@ -497,12 +497,21 @@ export function Lounge({ position, night, seats = [] }) {
       </mesh>
       {/* sofa */}
       <group position={[0.2, 0, -0.9]}>
-        <RoundedBox args={[2.4, 0.38, 0.9]} radius={0.12} position={[0, 0.28, 0]} receiveShadow>
+        <RoundedBox args={[2.4, 0.34, 0.9]} radius={0.12} position={[0, 0.3, 0]} receiveShadow castShadow>
           <meshStandardMaterial color="#d6d8dd" roughness={0.9} />
         </RoundedBox>
         <RoundedBox args={[2.4, 0.6, 0.25]} radius={0.1} position={[0, 0.6, -0.36]}>
           <meshStandardMaterial color="#d6d8dd" roughness={0.9} />
         </RoundedBox>
+        {/* plump back cushions and little wooden legs */}
+        {[-0.5, 0.5].map((bx) => (
+          <RoundedBox key={'bc' + bx} args={[0.92, 0.42, 0.16]} radius={0.08} smoothness={3} position={[bx, 0.68, -0.2]} rotation={[-0.15, 0, 0]}>
+            <meshStandardMaterial color="#e2e4e8" roughness={0.95} />
+          </RoundedBox>
+        ))}
+        {[[-1.1, -0.36], [1.1, -0.36], [-1.1, 0.36], [1.1, 0.36]].map(([lx, lz]) => (
+          <mesh key={'lg' + lx + lz} position={[lx, 0.05, lz]} material={sharedMat('#8a6446', 0.5)}><cylinderGeometry args={[0.03, 0.02, 0.1, 8]} /></mesh>
+        ))}
         {[-1.1, 1.1].map((x) => (
           <RoundedBox key={x} args={[0.24, 0.5, 0.9]} radius={0.1} position={[x, 0.42, 0]}>
             <meshStandardMaterial color="#cfd1d6" roughness={0.9} />
@@ -539,7 +548,7 @@ export function Lounge({ position, night, seats = [] }) {
           <coneGeometry args={[0.18, 0.2, 24, 1, true]} />
           <meshStandardMaterial color="#fff6e0" emissive="#ffe2b0" emissiveIntensity={night ? 1.6 : 0.1} side={THREE.DoubleSide} />
         </mesh>
-        {night && <sprite position={[0, 1.72, 0]} scale={[1.3, 1.3, 1]} material={haloMat} renderOrder={4} />}
+        {night && <mesh geometry={beamGeo(1.6)} material={beamMat} renderOrder={4} />}
         {night && (
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} material={lampPoolMat} renderOrder={2}>
             <planeGeometry args={[3.6, 3.6]} />
@@ -996,6 +1005,18 @@ export function Printer({ x, z }) {
         <circleGeometry args={[0.025, 12]} />
         <meshBasicMaterial color="#5cff9b" />
       </mesh>
+      {/* paper in the back tray, an output tray, control panel with a small screen and keys */}
+      <mesh position={[0, 1.02, -0.2]} rotation={[0.4, 0, 0]} material={M.white}><boxGeometry args={[0.32, 0.22, 0.01]} /></mesh>
+      <mesh position={[0, 0.66, 0.27]} rotation={[0.08, 0, 0]} material={M.dark}><boxGeometry args={[0.5, 0.015, 0.14]} /></mesh>
+      <RoundedBox args={[0.24, 0.05, 0.12]} radius={0.01} smoothness={2} position={[0.2, 0.95, 0.17]} material={M.dark} />
+      <mesh position={[0.17, 0.977, 0.17]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[0.1, 0.06]} /><meshStandardMaterial color="#12324a" emissive="#5cc8ff" emissiveIntensity={0.5} /></mesh>
+      {[0.25, 0.29].map((kx) => (
+        <mesh key={kx} position={[kx, 0.978, 0.17]} material={M.metal}><boxGeometry args={[0.025, 0.01, 0.025]} /></mesh>
+      ))}
+      {/* front drawer lines */}
+      {[0.18, 0.4].map((dy) => (
+        <mesh key={'dr' + dy} position={[0, dy, 0.278]} material={M.grey}><boxGeometry args={[0.8, 0.01, 0.005]} /></mesh>
+      ))}
       <mesh userData={{ dynamic: true }} ref={paper} position={[0, 0.72, 0.15]} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
         <planeGeometry args={[0.3, 0.4]} />
         <meshStandardMaterial color="#ffffff" />
@@ -1028,6 +1049,19 @@ export function Arcade({ x, z }) {
         <planeGeometry args={[0.6, 0.14]} />
         <meshStandardMaterial color="#111" emissive="#F93498" emissiveIntensity={1.1} />
       </mesh>
+      {/* screen bezel, joystick knob, more buttons, coin door, side stripes */}
+      <mesh position={[0, 1.25, 0.352]} rotation={[-0.15, 0, 0]} material={M.dark}><boxGeometry args={[0.63, 0.5, 0.01]} /></mesh>
+      <mesh position={[-0.15, 1.05, 0.45]}><sphereGeometry args={[0.035, 10, 8]} /><meshStandardMaterial color="#E5484D" roughness={0.3} /></mesh>
+      {[[0.05, 0.42, '#1E86FC'], [0.17, 0.42, '#2FB36B']].map(([bx, bz, c]) => (
+        <mesh key={'b2' + bx} position={[bx, 0.965, bz]}><cylinderGeometry args={[0.03, 0.03, 0.02, 12]} /><meshStandardMaterial color={c} /></mesh>
+      ))}
+      <RoundedBox args={[0.3, 0.32, 0.02]} radius={0.01} smoothness={2} position={[0, 0.45, 0.355]} material={M.dark} />
+      {[-0.06, 0.06].map((cx) => (
+        <mesh key={'cn' + cx} position={[cx, 0.5, 0.367]}><boxGeometry args={[0.05, 0.08, 0.005]} /><meshStandardMaterial color="#F5B70A" emissive="#F5B70A" emissiveIntensity={0.4} /></mesh>
+      ))}
+      {[-0.379, 0.379].map((sx) => (
+        <mesh key={'st' + sx} position={[sx, 0.9, 0.05]}><boxGeometry args={[0.005, 1.2, 0.5]} /><meshStandardMaterial color="#F93498" /></mesh>
+      ))}
     </group>
   )
 }
@@ -1061,9 +1095,7 @@ export function FloorLamp({ x, z, night }) {
         <meshStandardMaterial color="#fff6e0" emissive="#ffe2b0" emissiveIntensity={night ? 1.6 : 0.15} side={THREE.DoubleSide} />
       </mesh>
       {/* glow around the lit shade (a soft halo sprite: the bloom look, for the cost of one quad) */}
-      {night && (
-        <sprite position={[0, 1.62, 0]} scale={[1.3, 1.3, 1]} material={haloMat} renderOrder={4} />
-      )}
+      {night && <mesh geometry={beamGeo(1.5)} material={beamMat} position={[0, 0, 0]} renderOrder={4} />}
       {/* at night the lamp lights its surroundings: a warm pool on the floor (no real light: free) */}
       {night && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} material={lampPoolMat} renderOrder={2}>
@@ -1104,7 +1136,30 @@ function haloTexture() {
   return _haloTex
 }
 export const haloMat = new THREE.SpriteMaterial({ map: haloTexture(), transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
+// the lamp's light as a soft cone from the shade down to the floor: brighter near the shade,
+// fading toward the floor and at the edges (vertex colours, additive: one cheap mesh)
+const beamGeos = new Map()
+function beamGeo(top) {
+  if (beamGeos.has(top)) return beamGeos.get(top)
+  const g = new THREE.CylinderGeometry(0.16, 0.95, top, 28, 6, true)
+  g.translate(0, top / 2, 0)
+  const pos = g.attributes.position, n = pos.count
+  const col = new Float32Array(n * 3)
+  const warm = new THREE.Color('#ffd9a8')
+  for (let i = 0; i < n; i++) {
+    const k = Math.pow(pos.getY(i) / top, 1.3) // 1 at the shade, 0 at the floor
+    col[i * 3] = warm.r * k
+    col[i * 3 + 1] = warm.g * k
+    col[i * 3 + 2] = warm.b * k
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3))
+  beamGeos.set(top, g)
+  return g
+}
+const beamMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })
+
 export function setLampStrength(k) {
+  beamMat.opacity = 0.22 * Math.min(1.4, k)
   lampPoolMat.opacity = 0.15 * k
   haloMat.opacity = 0.45 * Math.min(1.3, k)
 }
