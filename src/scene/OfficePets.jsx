@@ -222,7 +222,7 @@ function Pet({ spec, idx, cats, campus, rooms, spots, overview, focusLayout }) {
       // head bobs a beat behind the body when walking, and squashes a little on each landing
       const hb = moving ? Math.abs(Math.sin(t * f - 0.6)) : 0
       h.scale.set(1 + (moving ? (1 - hb) * 0.05 : 0), 1 - (moving ? (1 - hb) * 0.06 : 0), 1)
-      h.position.y = (lay ? 0.14 : P === 'stretch' ? 0.38 : P === 'sit' || P === 'groom' || P === 'swat' ? 0.55 : 0.43) + hb * 0.02
+      h.position.y = (lay ? 0.14 : P === 'stretch' ? 0.38 : P === 'sit' || P === 'groom' || P === 'swat' ? 0.55 : 0.43) + hb * 0.02 + (body.current ? body.current.position.y - 0.3 : 0) // rides with the body's bounce
       h.position.z = lay ? 0.2 : 0.17
       h.rotation.z = P === 'sit' && spec.kind === 'dog' ? Math.sin(t * 1.3) * 0.18 : 0 // head tilt
       h.rotation.x = P === 'groom' ? 0.5 + Math.sin(t * 9) * 0.15 : lay ? 0.3 : P === 'stretch' ? -0.3 : 0 // licking / yawning
