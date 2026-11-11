@@ -460,8 +460,10 @@ export default function Scene(props) {
       gl={{ antialias: true, powerPreference: 'high-performance', stencil: false }}
       camera={{ fov: 30, position: [12, 10, 12], near: 1, far: 400 }}
       onPointerMissed={onPointerMissed}
-      onCreated={({ gl }) => {
+      onCreated={({ gl, scene }) => {
         glRef.current = gl
+        // ?perf: expose the renderer for measuring draw calls (debug only)
+        if (window.location.search.includes('perf')) (window.__gl = gl), (window.__scene = scene)
         gl.domElement.addEventListener('webglcontextlost', (e) => e.preventDefault())
         // long-press opens our quick menu, not the browser's (no selection / blue flash on phones)
         gl.domElement.addEventListener('contextmenu', (e) => e.preventDefault())

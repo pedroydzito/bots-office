@@ -98,6 +98,7 @@ function fillEmpty({ W, D, v, decor, pois, rows, seats, xL, furniture, lounge, g
   }
   // walls, elevator corner, coffee lane, the corridor and the window walk stay clear
   mark(-W / 2, -D / 2, W / 2, -D / 2 + 1.9)
+  mark(W / 2 - 1.9, -D / 2 + 1.2, W / 2, -D / 2 + 3.3) // second door (right wall, near the back)
   mark(-W / 2, -D / 2, -W / 2 + 1.9, D / 2)
   mark(xL - 0.8, -D / 2, xL + 0.8, D / 2)
   mark(-W / 2, D / 2 - 1.7, W / 2, D / 2)
@@ -627,7 +628,7 @@ export function toWorld(l, x, z) {
   return { x: (l.ox || 0) + x, z: (l.oz || 0) + z }
 }
 
-export const AISLE = 2.4 // corridor width (between rooms, between rows and around the office)
+export const AISLE = 3.4 // corridor width (between rooms, between rows and around the office)
 
 /**
  * One office: rooms in rows with corridors between them (like a real floor plan). Rows are balanced
@@ -662,10 +663,10 @@ export function planOffice(entries) {
   let z = A
   rows.forEach((row, ri) => {
     const sum = row.reduce((a, e) => a + e.W, 0) || 1
-    // stretch a short row a little (at most 15%); what is left becomes open lobby at both ends
-    const free = Math.min(TW - width(row), sum * 0.15)
+    // a shorter row gets bigger rooms: the office is always a full rectangle, no empty corners
+    const free = TW - width(row)
     const d = Math.max(...row.map((e) => e.D))
-    let x = A + (TW - width(row) - free) / 2
+    let x = A
     row.forEach((e, k) => {
       const w = Math.round((e.W + (free * e.W) / sum) * 10) / 10
       out[e.key] = { W: w, D: d, x: x + w / 2, z: z + d / 2, row: ri, first: k === 0, last: k === row.length - 1 }

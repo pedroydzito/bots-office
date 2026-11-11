@@ -264,7 +264,7 @@ function StatusIcon({ status, talking, sleeping }) {
  *  - otherwise resting/finished bots occasionally wander to a point of interest,
  *  - otherwise the bot sits at its seat.
  */
-function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey = '', floorY, selected, spotlight, onSelect, onLongPress, night, compact: p_compact = false }) {
+function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey = '', floorY, selected, spotlight, onSelect, onLongPress, night, compact: p_compact = false, muted = false }) {
   const press = useRef({ timer: null, fired: false })
   const asset = useMemo(() => getBotAsset(bot.shape), [bot.shape])
   // hidden bots (hidden in the Grok app) are quieter: washed-out colour, translucent, a bit smaller
@@ -916,7 +916,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
         {focused && <Accessory kind="headphones" asset={asset} color={color} />}
         {snowy && bot.accessory !== 'scarf' && <Accessory kind="scarf" asset={asset} color={color} />}
       </group>
-      {!hidden && !view.off && (
+      {!hidden && !view.off && !muted && (
         <Label anchor={root} y={iconY}>
           <div className={`bot-tag${selected ? ' sel' : ''}${bot.hidden ? ' is-hidden' : ''}${/^(ceo|principal|founder|fundador|dono|owner)$/i.test(bot.role || '') ? ' vip' : ''}`}>
             {speechText && (
@@ -945,7 +945,7 @@ function same(a, b) {
   return (
     a.bot === b.bot && a.status === b.status && a.seat === b.seat && a.layout === b.layout && a.role === b.role &&
     a.data === b.data && a.names === b.names && a.floorY === b.floorY && a.floorKey === b.floorKey &&
-    a.selected === b.selected && a.spotlight === b.spotlight && a.night === b.night && a.compact === b.compact
+    a.selected === b.selected && a.spotlight === b.spotlight && a.night === b.night && a.compact === b.compact && a.muted === b.muted
   )
 }
 export default memo(Bot, same)

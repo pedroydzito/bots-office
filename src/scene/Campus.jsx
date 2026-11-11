@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import Floor, { raisedRooms, wallMat } from './Floor'
+import Floor, { focusRoom } from './Floor'
+import Lot, { Building } from './Lot'
 import { effStatus, resolveColor } from '../lib/constants'
 import { frozenRooms, ridePositions } from './registry'
 import { pathLen, pointAt, rideFor, sessions, syncNow, world } from './sim'
@@ -12,102 +13,9 @@ import { sceneFlags } from './Props'
 // The campus: every team in its own room, side by side on one ground, with corridors between them.
 // "Todas as salas" shows everything live; "Uma sala" flies to one room and dims the others.
 
-const hallMat = new THREE.MeshStandardMaterial({ color: '#e9e6e1', roughness: 0.7 })
-const slabMat = new THREE.MeshStandardMaterial({ color: '#dcdfe4', roughness: 0.85 })
 const coverMat = new THREE.MeshBasicMaterial({ color: '#0d1220', transparent: true, opacity: 0, depthWrite: false })
-const coverGeo = new THREE.BoxGeometry(1, 1, 1)
+const coverGeo = new THREE.PlaneGeometry(1, 1)
 const _pm = new THREE.Matrix4(), _fr = new THREE.Frustum()
-
-// soft round shadow under the office (a radial gradient), so it sits on the background like a model
-let shadowTex = null
-function shadowTexture() {
-  if (shadowTex) return shadowTex
-  const c = document.createElement('canvas')
-  c.width = c.height = 128
-  const g = c.getContext('2d')
-  const r = g.createRadialGradient(64, 64, 10, 64, 64, 64)
-  r.addColorStop(0, 'rgba(20,28,45,0.28)')
-  r.addColorStop(0.6, 'rgba(20,28,45,0.12)')
-  r.addColorStop(1, 'rgba(20,28,45,0)')
-  g.fillStyle = r
-  g.fillRect(0, 0, 128, 128)
-  shadowTex = new THREE.CanvasTexture(c)
-  return shadowTex
-}
-
-/** The office itself: one slab, the aisles' floor, a low rim all around and a soft shadow under it. */
-function Ground({ campus }) {
-  const { W, D } = campus
-  const rim = useMemo(() => {
-    const t = 0.2, h = 0.34, e = 0.1
-    return [
-      [0, -D / 2 - e, W + 2 * e + t, t],
-      [0, D / 2 + e, W + 2 * e + t, t],
-      [-W / 2 - e, 0, t, D + 2 * e],
-      [W / 2 + e, 0, t, D + 2 * e],
-    ].map(([x, z, w, d]) => ({ x, z, w, d, h }))
-  }, [W, D])
-  return (
-    <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.37, 0]} renderOrder={-1}>
-        <planeGeometry args={[W * 1.5 + 8, D * 1.5 + 8]} />
-        <meshBasicMaterial map={shadowTexture()} transparent depthWrite={false} />
-      </mesh>
-      <mesh position={[0, -0.2, 0]} material={slabMat} receiveShadow>
-        <boxGeometry args={[W + 0.6, 0.34, D + 0.6]} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} material={hallMat} receiveShadow>
-        <planeGeometry args={[W, D]} />
-      </mesh>
-      {rim.map((r, i) => (
-        <mesh key={i} position={[r.x, r.h / 2 - 0.03, r.z]} material={wallMat} castShadow receiveShadow>
-          <boxGeometry args={[r.w, r.h, r.d]} />
-        </mesh>
-      ))}
-    </group>
-  )
-}
-
-// ---- the surroundings: a city drawn as faint lines (blueprint feel), fading into the background
-const wireMat = new THREE.LineBasicMaterial({ color: '#a9b3c2', transparent: true, opacity: 0.5, depthWrite: false })
-const _wireDay = new THREE.Color('#a9b3c2'), _wireNight = new THREE.Color('#3a4768')
-function Wireframe({ campus, nightness = 0 }) {
-  const geo = useMemo(() => {
-    const pts = []
-    const seg = (x1, y1, z1, x2, y2, z2) => pts.push(x1, y1, z1, x2, y2, z2)
-    const { W, D } = campus
-    const ext = 70, y = -0.36
-    // ground grid around the office
-    for (let x = -W / 2 - ext; x <= W / 2 + ext; x += 4) seg(x, y, -D / 2 - ext, x, y, D / 2 + ext)
-    for (let z = -D / 2 - ext; z <= D / 2 + ext; z += 4) seg(-W / 2 - ext, y, z, W / 2 + ext, y, z)
-    // blocks of buildings: outlines plus a line per storey
-    let seed = 5
-    const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280)
-    const box = (cx, cz, w, d, h) => {
-      const x1 = cx - w / 2, x2 = cx + w / 2, z1 = cz - d / 2, z2 = cz + d / 2
-      for (const yy of [y, y + h]) {
-        seg(x1, yy, z1, x2, yy, z1), seg(x2, yy, z1, x2, yy, z2), seg(x2, yy, z2, x1, yy, z2), seg(x1, yy, z2, x1, yy, z1)
-      }
-      for (const [xx, zz] of [[x1, z1], [x2, z1], [x2, z2], [x1, z2]]) seg(xx, y, zz, xx, y + h, zz)
-      for (let f = 3.2; f < h - 0.5; f += 3.2) seg(x1, y + f, z2, x2, y + f, z2), seg(x2, y + f, z1, x2, y + f, z2)
-    }
-    const R0 = Math.max(W, D) / 2 + 14
-    for (let i = 0; i < 40; i++) {
-      const a = (i / 40) * Math.PI * 2 + rnd() * 0.1
-      const r = R0 + rnd() * 40
-      const w = 6 + rnd() * 8, d = 6 + rnd() * 8, h = 4 + rnd() * (r > R0 + 20 ? 26 : 12)
-      box(Math.cos(a) * r, Math.sin(a) * r, w, d, h)
-    }
-    const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
-    return g
-  }, [campus])
-  useFrame(() => {
-    wireMat.color.copy(_wireDay).lerp(_wireNight, nightness)
-    wireMat.opacity = 0.45 + nightness * 0.15
-  })
-  return <lineSegments geometry={geo} material={wireMat} frustumCulled={false} />
-}
 
 /** One warm ceiling light per room at night (fixed count: no shader recompiles). */
 function RoomLight({ l, nightness, on }) {
@@ -193,7 +101,8 @@ function Cover({ l, on }) {
     mat.opacity += (want - mat.opacity) * Math.min(1, dt * 6)
     if (ref.current) ref.current.visible = mat.opacity > 0.01
   })
-  return <mesh ref={ref} geometry={coverGeo} material={mat} position={[l.ox, 1.7, l.oz]} scale={[l.fw + 0.2, 3.5, l.fd + 0.2]} renderOrder={5} visible={false} />
+  // a single tinted sheet at wall height (one layer of blending, not a whole box)
+  return <mesh ref={ref} geometry={coverGeo} material={mat} position={[l.ox, 3.25, l.oz]} rotation={[-Math.PI / 2, 0, 0]} scale={[l.fw, l.fd, 1]} renderOrder={5} visible={false} />
 }
 
 export default function Campus({ floors, selectedIdx, layouts, campus, data, now, night, nightness = 0, low, selectedBot, spotlight, onSelect, onLongPress, celebrate, overview, onPickRoom }) {
@@ -227,15 +136,14 @@ export default function Campus({ floors, selectedIdx, layouts, campus, data, now
   useEffect(() => () => frozenRooms.clear(), [])
   // the room in focus keeps its side walls up
   useEffect(() => {
-    raisedRooms.clear()
-    if (!overview && sel && layouts[sel.key]) raisedRooms.add(layouts[sel.key])
-    return () => raisedRooms.clear()
+    focusRoom.layout = !overview && sel ? layouts[sel.key] || null : null
+    return () => (focusRoom.layout = null)
   }, [overview, sel?.key, layouts])
   const lightsOn = !low
   return (
     <group>
-      <Ground campus={campus} />
-      <Wireframe campus={campus} nightness={nightness} />
+      <Building campus={campus} />
+      <Lot campus={campus} nightness={nightness} night={night} />
       <Walkers data={data} followed={selectedBot} />
       {floors.map((f) => {
         const l = layouts[f.key]
@@ -267,6 +175,7 @@ export default function Campus({ floors, selectedIdx, layouts, campus, data, now
                   onLongPress={onLongPress}
                   floorCount={floors.length}
                   compact={!focus}
+                  muted={!overview && !focus}
                   celebrate={celebrate && celebrate.key === f.key ? celebrate.t : null}
                 />
               }

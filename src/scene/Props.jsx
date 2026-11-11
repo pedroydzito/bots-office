@@ -2,6 +2,8 @@ import { memo, useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { createTVCanvas, drawBoard, drawTVNow, getCodeTextures, getScreenTextures, screenKind, makeClockFace, makeTitleTexture, makeRugTexture } from './textures'
 import { botPositions, poiKey, seatYaw, sitting, tickCodeScroll } from './registry'
 import { hideTip, showTip } from '../lib/tip'
@@ -33,6 +35,22 @@ const M = {
 }
 export { M as MATS }
 
+// seat + backrest + post as one geometry (one draw call per chair instead of three)
+let _chairTop = null
+function chairTopGeo() {
+  if (_chairTop) return _chairTop
+  const seat = new RoundedBoxGeometry(0.62, 0.1, 0.58, 2, 0.04).translate(0, 0.45, -0.02)
+  const back = new RoundedBoxGeometry(0.6, 0.5, 0.07, 2, 0.03).rotateX(-0.1).translate(0, 0.76, -0.44)
+  const post = new THREE.BoxGeometry(0.05, 0.16, 0.05).translate(0, 0.55, -0.4)
+  const clean = (g) => {
+    const n = g.index ? g.toNonIndexed() : g
+    for (const k of Object.keys(n.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') n.deleteAttribute(k)
+    return n
+  }
+  _chairTop = mergeGeometries([seat, back, post].map(clean), false)
+  return _chairTop
+}
+
 /** Swivel chair: turns with the bot sitting on it, eases back when empty. */
 export const Chair = memo(function Chair({ x, z, owner, hiddenOwner, yawBase = 0 }) {
   const top = useRef()
@@ -56,11 +74,7 @@ export const Chair = memo(function Chair({ x, z, owner, hiddenOwner, yawBase = 0
         <cylinderGeometry args={[0.035, 0.035, 0.36, 10]} />
       </mesh>
       <group userData={{ dynamic: true }} ref={top}>
-        <RoundedBox args={[0.62, 0.1, 0.58]} radius={0.04} smoothness={2} position={[0, 0.45, -0.02]} material={M.black} castShadow receiveShadow />
-        <RoundedBox args={[0.6, 0.5, 0.07]} radius={0.03} smoothness={2} position={[0, 0.76, -0.44]} rotation={[-0.1, 0, 0]} material={M.black} castShadow />
-        <mesh position={[0, 0.55, -0.4]} material={M.dark}>
-          <boxGeometry args={[0.05, 0.16, 0.05]} />
-        </mesh>
+        <mesh geometry={chairTopGeo()} material={M.black} castShadow receiveShadow />
       </group>
     </group>
   )
@@ -177,7 +191,7 @@ function nearestBot(x, z) {
 }
 
 /** Plants rustle when someone walks by. */
-export function Plant({ position, scale = 1, kind = 0 }) {
+export function Plant({ position, scale = 1, kind = 0, still = false }) {
   const leaves = useRef()
   const amp = useRef(0)
   useFrame(({ clock }, dt) => {
@@ -196,7 +210,7 @@ export function Plant({ position, scale = 1, kind = 0 }) {
         <cylinderGeometry args={[0.24, 0.19, 0.44, 24]} />
       </mesh>
       {kind === 0 ? (
-        <group userData={{ dynamic: true }} ref={leaves} position={[0, 0.44, 0]}>
+        <group userData={{ dynamic: !still }} ref={still ? undefined : leaves} position={[0, 0.44, 0]}>
           <mesh position={[0, 0.35, 0]} material={M.leaf} scale={[1, 1.15, 1]}>
             <sphereGeometry args={[0.38, 18, 12]} />
           </mesh>
@@ -209,7 +223,7 @@ export function Plant({ position, scale = 1, kind = 0 }) {
         </group>
       ) : (
         // upright sword-like leaves growing out of the soil (no floating blobs)
-        <group userData={{ dynamic: true }} ref={leaves} position={[0, 0.43, 0]}>
+        <group userData={{ dynamic: !still }} ref={still ? undefined : leaves} position={[0, 0.43, 0]}>
           {LEAVES.map((l, i) => (
             <group key={i} rotation={[l.tx, l.ry, l.tz]}>
               <mesh position={[0, l.h / 2, 0]} material={i % 3 ? M.leaf : M.leaf2} scale={[l.w, l.h, 0.05]}>

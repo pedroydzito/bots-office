@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import Bot from './Bot'
@@ -56,12 +56,36 @@ function nearSide(obj, camera, side) {
   return nx * _cam.x + nz * _cam.z > 0
 }
 
-// rooms whose side walls stay up (the room in focus); the wall facing the camera still sinks
-export const raisedRooms = new Set()
+// The room in focus (or null for the whole office). In focus, only the wall most in front of the
+// camera sinks; every other room lies open (all its walls down). Whole office: the walls between
+// the camera and each room sink.
+export const focusRoom = { layout: null }
+// live height of every wall (scale 0..1), so what hangs on it appears only once it is up
+export const wallState = new Map()
+export const RoomCtx = createContext(null)
+function wallUp(layout, side, obj, camera) {
+  const f = focusRoom.layout
+  if (f && layout && f !== layout) return false
+  const room = obj.parent
+  if (!room) return true
+  _cam.copy(camera.position)
+  room.worldToLocal(_cam)
+  const len = Math.hypot(_cam.x, _cam.z) || 1
+  const dot = (n) => (NORMALS[n][0] * _cam.x + NORMALS[n][1] * _cam.z) / len
+  if (!f || !layout) return dot(side) <= 0
+  if (dot(side) > 0.8) return false
+  let best = -2, bs = null
+  for (const k of ['front', 'right', 'left', 'back']) {
+    const v = dot(k) + (k === 'front' ? 0.01 : 0)
+    if (v > best) (best = v), (bs = k)
+  }
+  return bs !== side
+}
 
 const glassMat = new THREE.MeshStandardMaterial({ color: '#cfe3f2', roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.32, depthWrite: false })
 const frameMat = new THREE.MeshStandardMaterial({ color: '#fbfbfc', roughness: 0.5 })
 const trimMat = new THREE.MeshStandardMaterial({ color: '#4b505b', roughness: 0.7 })
+const wallVC = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
 
 /** Box geometry placed at (x,y,z) in wall space (u = along the wall). */
 function wallBox(horiz, u, y, w, h, t, off = 0) {
@@ -75,53 +99,74 @@ function wallBox(horiz, u, y, w, h, t, off = 0) {
  * curb when it stands between the camera and the room (cutaway), unless the room is in focus
  * (then only the front one sinks). A dark trim runs along its top, like a building plan.
  */
-function CutWall({ side, W, D, T = 0.25, H = 3.2, mat = wallMat, openings = [], layout }) {
+export function CutWall({ side, W, D, T = 0.25, H = 3.2, mat = wallMat, openings = [], layout, skin = null, fmat = frameMat }) {
   const ref = useRef()
   const LOW = 0.32
   useFrame(({ camera }, dt) => {
     const g = ref.current
     if (!g) return
-    const up = side !== 'front' && layout && raisedRooms.has(layout)
-    const want = !up && nearSide(g, camera, side) ? LOW / H : 1
+    const want = wallUp(layout, side, g, camera) ? 1 : LOW / H
     const s = g.scale.y + (want - g.scale.y) * Math.min(1, dt * 7)
     if (Math.abs(s - g.scale.y) > 0.0005) g.scale.y = s
+    if (layout) {
+      let st = wallState.get(layout)
+      if (!st) wallState.set(layout, (st = {}))
+      st[side] = want < 1 ? 0 : g.scale.y // sinking: hide what hangs on it right away
+    }
   })
   const horiz = side === 'back' || side === 'front'
   const len = horiz ? W : D
+  // outside face (façade) of an exterior wall: a thin skin on the outer side, plus a dark plinth.
+  // Everything opaque in the wall (paint, frames, trim, façade) is one mesh with vertex colours.
+  const out = side === 'back' || side === 'left' ? -1 : 1
   const geos = useMemo(() => {
-    const solid = [], glass = [], frame = []
+    const opaque = [], glass = []
+    const tint = (g, c) => {
+      const n = g.attributes.position.count
+      const a = new Float32Array(n * 3)
+      for (let i = 0; i < n; i++) (a[i * 3] = c.r), (a[i * 3 + 1] = c.g), (a[i * 3 + 2] = c.b)
+      g.setAttribute('color', new THREE.BufferAttribute(a, 3))
+      return g
+    }
+    const cWall = mat.color, cFrame = fmat.color, cTrim = trimMat.color, cSkin = skin?.color
+    const piece = (u, y, w, h) => {
+      opaque.push(tint(wallBox(horiz, u, y, w, h, T), cWall))
+      if (skin) {
+        opaque.push(tint(wallBox(horiz, u, y, w, h, 0.06, out * (T / 2 + 0.03)), cSkin))
+        if (y - h / 2 < 0.01) opaque.push(tint(wallBox(horiz, u, 0.2, w, 0.4, 0.1, out * (T / 2 + 0.08)), cTrim))
+      }
+    }
     const ops = [...openings].sort((p, q) => p.a - q.a)
     let u = -len / 2
     for (const o of ops) {
-      if (o.a - u > 0.01) solid.push(wallBox(horiz, (u + o.a) / 2, H / 2, o.a - u, H, T))
+      if (o.a - u > 0.01) piece((u + o.a) / 2, H / 2, o.a - u, H)
       const w = o.b - o.a, c = (o.a + o.b) / 2
+      const dh = o.h || 2.2
       if (o.kind === 'door') {
-        solid.push(wallBox(horiz, c, (H + 2.2) / 2, w, H - 2.2, T))
+        piece(c, (H + dh) / 2, w, H - dh)
       } else {
-        const sill = 0.85, head = 2.25
-        solid.push(wallBox(horiz, c, sill / 2, w, sill, T))
-        solid.push(wallBox(horiz, c, (H + head) / 2, w, H - head, T))
+        const sill = o.sill ?? 0.85, head = o.head ?? 2.25
+        piece(c, sill / 2, w, sill)
+        piece(c, (H + head) / 2, w, H - head)
         glass.push(wallBox(horiz, c, (sill + head) / 2, w, head - sill, 0.04))
-        // white frame: sill, head, sides and one mullion
-        frame.push(wallBox(horiz, c, sill + 0.03, w, 0.06, T + 0.04))
-        frame.push(wallBox(horiz, c, head - 0.03, w, 0.06, T + 0.04))
-        for (const e of [o.a + 0.03, o.b - 0.03, c]) frame.push(wallBox(horiz, e, (sill + head) / 2, 0.06, head - sill, T * 0.6))
+        // frame: sill, head, sides and one mullion
+        opaque.push(tint(wallBox(horiz, c, sill + 0.03, w, 0.06, T + 0.04), cFrame))
+        opaque.push(tint(wallBox(horiz, c, head - 0.03, w, 0.06, T + 0.04), cFrame))
+        for (const e of [o.a + 0.03, o.b - 0.03]) opaque.push(tint(wallBox(horiz, e, (sill + head) / 2, 0.06, head - sill, T * 0.6), cFrame))
       }
       u = o.b
     }
-    if (len / 2 - u > 0.01) solid.push(wallBox(horiz, (u + len / 2) / 2, H / 2, len / 2 - u, H, T))
-    const trim = [wallBox(horiz, 0, H + 0.02, len, 0.05, T + 0.02)]
+    if (len / 2 - u > 0.01) piece((u + len / 2) / 2, H / 2, len / 2 - u, H)
+    opaque.push(tint(wallBox(horiz, 0, H + 0.02, len, 0.05, T + 0.02 + (skin ? 0.2 : 0), skin ? out * 0.1 : 0), cTrim))
     const m = (list) => (list.length ? mergeGeometries(list, false) : null)
-    return { solid: m(solid), glass: m(glass), frame: m(frame), trim: m(trim) }
+    return { opaque: m(opaque), glass: m(glass) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [horiz, len, H, T, JSON.stringify(openings)])
+  }, [horiz, len, H, T, out, mat.uuid, fmat.uuid, skin?.uuid, JSON.stringify(openings)])
   const pos = side === 'back' ? [0, 0, -D / 2 + T / 2] : side === 'front' ? [0, 0, D / 2 - T / 2] : side === 'left' ? [-W / 2 + T / 2, 0, 0] : [W / 2 - T / 2, 0, 0]
   return (
     <group ref={ref} position={pos} userData={{ dynamic: true }}>
-      {geos.solid && <mesh geometry={geos.solid} material={mat} receiveShadow castShadow />}
-      {geos.frame && <mesh geometry={geos.frame} material={frameMat} />}
+      {geos.opaque && <mesh geometry={geos.opaque} material={wallVC} receiveShadow castShadow />}
       {geos.glass && <mesh geometry={geos.glass} material={glassMat} />}
-      <mesh geometry={geos.trim} material={trimMat} />
     </group>
   )
 }
@@ -142,12 +187,13 @@ export function roomFinish(layout, look) {
   return { wall: paint(wall, 0.9), floor: paint(floor, 0.55) }
 }
 
-/** The room's door to the corridor: frame and a half-open leaf (hidden with its wall). */
-function RoomDoor({ x, D, T = 0.25 }) {
+/** A door to the corridor: frame and a half-open leaf (hidden with its wall). */
+function RoomDoor({ x, D, W, side = 'front', T = 0.25 }) {
   const frame = paint('#8a6446', 0.5)
   const leaf = paint('#c8996a', 0.55)
+  const pos = side === 'right' ? [W / 2 - T / 2, 0, x] : [x, 0, D / 2 - T / 2]
   return (
-    <group position={[x, 0, D / 2 - T / 2]}>
+    <group position={pos} rotation={[0, side === 'right' ? Math.PI / 2 : 0, 0]}>
       {[-0.68, 0.68].map((dx) => (
         <mesh key={dx} position={[dx, 1.1, 0]} material={frame}><boxGeometry args={[0.08, 2.2, T + 0.08]} /></mesh>
       ))}
@@ -163,10 +209,13 @@ function RoomDoor({ x, D, T = 0.25 }) {
 /** Things hung on a wall: hidden while that wall is sunk (the camera looks from that side). */
 export function WallMount({ side, children }) {
   const ref = useRef()
+  const layout = useContext(RoomCtx)
   useFrame(({ camera }) => {
     const g = ref.current
     if (!g) return
-    const v = !nearSide(g, camera, side)
+    // shown only once its wall has finished rising (not floating in the air while it grows)
+    const h = layout ? wallState.get(layout)?.[side] : null
+    const v = h != null ? h > 0.97 : !nearSide(g, camera, side)
     if (g.visible !== v) g.visible = v
   })
   return (
@@ -177,7 +226,7 @@ export function WallMount({ side, children }) {
 }
 
 /** Window openings spread evenly over [a, b] along a wall. */
-function windowsAlong(a, b, w, step) {
+export function windowsAlong(a, b, w, step) {
   const n = Math.max(0, Math.floor((b - a + 0.6) / step))
   const out = []
   if (!n) return out
@@ -193,12 +242,16 @@ export function Shell({ layout, title, subtitle, accent, look }) {
   const { W, D } = layout
   const fin = roomFinish(layout, look)
   const doorX = layout.elevator?.x ?? -W / 2 + 1.5
-  const front = [{ a: doorX - 0.7, b: doorX + 0.7, kind: 'door' }, ...windowsAlong(doorX + 1.6, W / 2 - 1.0, 1.5, 2.6)]
-  const right = windowsAlong(-D / 2 + 1.3, D / 2 - 1.3, 1.4, 2.5)
+  // one wide window per wall instead of a row of small ones
+  const front = [{ a: doorX - 0.7, b: doorX + 0.7, kind: 'door' }, ...(W / 2 - 1.2 - (doorX + 1.8) > 1.5 ? [{ a: doorX + 1.8, b: W / 2 - 1.2, kind: 'window' }] : [])]
+  // a second door on the right wall, near the back: every room opens onto two corridors
+  const door2 = -D / 2 + 2.2
+  const right = [{ a: door2 - 0.7, b: door2 + 0.7, kind: 'door' }, ...(D / 2 - 1.4 - (door2 + 1.6) > 1.5 ? [{ a: door2 + 1.6, b: D / 2 - 1.4, kind: 'window' }] : [])]
   const base = [
     [0, -D / 2 + 0.265, W, 0.03],
     [-W / 2 + 0.265, 0, 0.03, D],
-    [W / 2 - 0.265, 0, 0.03, D],
+    [W / 2 - 0.265, (door2 + 0.7 + D / 2) / 2, 0.03, D / 2 - door2 - 0.7],
+    [W / 2 - 0.265, (-D / 2 + door2 - 0.7) / 2, 0.03, door2 - 0.7 + D / 2],
     [(doorX + 0.7 + W / 2) / 2, D / 2 - 0.265, W / 2 - doorX - 0.7, 0.03],
     [(-W / 2 + doorX - 0.7) / 2, D / 2 - 0.265, doorX - 0.7 + W / 2, 0.03],
   ]
@@ -216,7 +269,8 @@ export function Shell({ layout, title, subtitle, accent, look }) {
       <CutWall side="left" W={W} D={D} mat={fin.wall} layout={layout} />
       <CutWall side="right" W={W} D={D} mat={fin.wall} layout={layout} openings={right} />
       <CutWall side="front" W={W} D={D} mat={fin.wall} layout={layout} openings={front} />
-      <WallMount side="front"><RoomDoor x={doorX} D={D} /></WallMount>
+      <WallMount side="front"><RoomDoor x={doorX} D={D} W={W} /></WallMount>
+      <WallMount side="right"><RoomDoor x={door2} D={D} W={W} side="right" /></WallMount>
       {/* white baseboards */}
       {base.filter((q) => q[2] > 0.05 && q[3] > 0.02).map(([x, z, w, d], i) => (
         <mesh key={i} position={[x, 0.06, z]} material={frameMat}>
@@ -247,7 +301,7 @@ function eventsSeries() {
   return buckets
 }
 
-export default function Floor({ floor, layout, data, now, floorY, night, selectedBot, spotlight, onSelect, onLongPress, floorCount = 1, celebrate = null, compact = false }) {
+export default function Floor({ floor, layout, data, now, floorY, night, selectedBot, spotlight, onSelect, onLongPress, floorCount = 1, celebrate = null, compact = false, muted = false }) {
   const { W, D } = layout
   const home = floor.bots
   const floorIdx = floor.num - 1
@@ -321,7 +375,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   // layout / light mode instead of on every re-render (big win on phones).
   // re-merge only when the furniture itself changes (not on day/night: that only recolours)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const mergeKey = useMemo(() => ++mergeGen, [layout, floor.key, floorY, petKind, home, look])
+  const mergeKey = useMemo(() => ++mergeGen, [layout, floor.key, floorY, petKind, home, look, night, compact])
   const staticRoom = useMemo(
     () => (
       <StaticMerge key={mergeKey}>
@@ -351,9 +405,9 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         }}
       />
       </WallMount>
-      <Plant position={[-W / 2 + 0.75, 0, -D / 2 + 0.75]} scale={1.15} />
-      {look.plants && <Plant position={[W / 2 - 1.0, 0, -D / 2 + 0.9]} scale={1.3} kind={1} />}
-      {look.plants && D > 12 && <Plant position={[W / 2 - 0.9, 0, -D / 2 + 5.5]} scale={0.9} />}
+      <Plant still={compact} position={[-W / 2 + 0.75, 0, -D / 2 + 0.75]} scale={1.15} />
+      {look.plants && <Plant still={compact} position={[W / 2 - 1.0, 0, -D / 2 + 0.9]} scale={1.3} kind={1} />}
+      {look.plants && D > 12 && <Plant still={compact} position={[W / 2 - 0.9, 0, -D / 2 + 5.5]} scale={0.9} />}
       <WaterCooler position={[-W / 2 + 0.6, 0, layout.wall.coolerZ]} rotation={[0, Math.PI / 2, 0]} />
       {layout.wall.shelfZ != null && <Bookshelf position={[-W / 2 + 0.47, 0, layout.wall.shelfZ]} rotation={[0, Math.PI / 2, 0]} seed={floor.num} />}
       <Lounge position={[layout.lounge?.x ?? W / 2 - 2.4, 0, layout.lounge?.z ?? D / 2 - 2.3]} night={night} seats={layout.pois.filter((q) => q.kind === 'sofa' && Math.abs(q.x - (layout.lounge?.x ?? W / 2 - 2.4)) < 2 && Math.abs(q.z - (layout.lounge?.z ?? D / 2 - 2.3)) < 1.6)} />
@@ -362,7 +416,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         d.type === 'meeting' ? <MeetingTable key={i} x={d.x} z={d.z} /> :
         d.type === 'whiteboard' ? <Whiteboard key={i} x={d.x} z={-D / 2 + 0.32} /> :
         d.type === 'beanbag' ? <BeanBag key={i} x={d.x} z={d.z} c={d.c} /> :
-        d.type === 'plant' ? (!look.plants ? null : <Plant key={i} position={[d.x, 0, d.z]} kind={d.k} scale={1.1} />) :
+        d.type === 'plant' ? (!look.plants ? null : <Plant key={i} still={compact} position={[d.x, 0, d.z]} kind={d.k} scale={1.1} />) :
         d.type === 'vending' ? <Vending key={i} x={d.x} z={d.z} /> :
         d.type === 'printer' ? <Printer key={i} x={d.x} z={d.z} /> :
         d.type === 'arcade' ? <Arcade key={i} x={d.x} z={d.z} /> :
@@ -412,10 +466,11 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       </StaticMerge>
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [layout, night, floor.key, floor.name, floor.num, floor.color, floorY, petKind, home, look],
+    [layout, night, floor.key, floor.name, floor.num, floor.color, floorY, petKind, home, look, compact],
   )
 
   return (
+    <RoomCtx.Provider value={layout}>
     <group>
       {staticRoom}
       {layout.wall.stickyZ != null && (
@@ -439,28 +494,55 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
             <Confetti y={0.4 + (i % 3) * 0.2} />
           </group>
         ))}
+      {/* desks, chairs and monitors: their fixed parts are baked into a few meshes per room
+          (chair seats still swivel, screens still change); cake and desk trinkets stay live */}
+      <StaticMerge key={'seats' + mergeKey}>
+        {home.map((n, i) => {
+          const seat = layout.seats[i]
+          if (!seat) return null
+          if (seat.lead)
+            // the lead's executive desk, turned to face the team (wall + highlights board behind)
+            return (
+              <group key={n} position={[seat.x, 0, seat.z]} rotation={[0, seat.yaw || 0, 0]}>
+                <ExecDesk mat={deskMat} vip={isVip(data.bots[n])} />
+                <Chair x={0} z={0} owner={n} hiddenOwner={data.bots[n]?.hidden ? n : null} yawBase={seat.yaw || 0} />
+                <Workstation seat={{ x: 0, z: 0 }} idx={i} status={data.bots[n]?.hidden ? 'resting' : effStatus(data.bots[n], now)} night={night} step={data.bots[n]?.step} color={resolveColor(data.bots[n]?.color)} />
+              </group>
+            )
+          return (
+            <group key={n}>
+              <Chair x={seat.x} z={seat.z} owner={n} hiddenOwner={data.bots[n]?.hidden ? n : null} />
+              <Workstation seat={seat} idx={i} status={data.bots[n]?.hidden ? 'resting' : effStatus(data.bots[n], now)} night={night} step={data.bots[n]?.step} color={resolveColor(data.bots[n]?.color)} />
+            </group>
+          )
+        })}
+      </StaticMerge>
       {home.map((n, i) => {
         const seat = layout.seats[i]
         if (!seat) return null
-        if (seat.lead)
-          // the lead's executive desk, turned to face the team (wall + highlights board behind)
-          return (
-            <group key={n} position={[seat.x, 0, seat.z]} rotation={[0, seat.yaw || 0, 0]}>
-              <ExecDesk mat={deskMat} vip={isVip(data.bots[n])} />
-              <Chair x={0} z={0} owner={n} hiddenOwner={data.bots[n]?.hidden ? n : null} yawBase={seat.yaw || 0} />
-              <Workstation seat={{ x: 0, z: 0 }} idx={i} status={data.bots[n]?.hidden ? 'resting' : effStatus(data.bots[n], now)} night={night} step={data.bots[n]?.step} color={resolveColor(data.bots[n]?.color)} />
-              <DeskDecor seat={{ x: 0, z: 0 }} items={data.bots[n]?.desk} name={n} trophies={data.stats?.[n]?.got?.length || 0} color={resolveColor(data.bots[n]?.color)} vip={isVip(data.bots[n])} />
-            </group>
-          )
         return (
-          <group key={n}>
-            <Chair x={seat.x} z={seat.z} owner={n} hiddenOwner={data.bots[n]?.hidden ? n : null} />
-            <Workstation seat={seat} idx={i} status={data.bots[n]?.hidden ? 'resting' : effStatus(data.bots[n], now)} night={night} step={data.bots[n]?.step} color={resolveColor(data.bots[n]?.color)} />
-            {!compact && <DeskDecor seat={seat} items={data.bots[n]?.desk} name={n} trophies={data.stats?.[n]?.got?.length || 0} color={resolveColor(data.bots[n]?.color)} />}
-            {data.bots[n]?.birthday === today && <Cake seat={seat} />}
+          <group key={'x' + n}>
+            {data.bots[n]?.birthday === today && !seat.lead && <Cake seat={seat} />}
           </group>
         )
       })}
+      {/* desk trinkets only in the room in focus (many tiny meshes) */}
+      {!compact && (
+        <StaticMerge key={'decor' + mergeKey}>
+          {home.map((n, i) => {
+            const seat = layout.seats[i]
+            if (!seat) return null
+            const props = { items: data.bots[n]?.desk, name: n, trophies: data.stats?.[n]?.got?.length || 0, color: resolveColor(data.bots[n]?.color) }
+            if (seat.lead)
+              return (
+                <group key={n} position={[seat.x, 0, seat.z]} rotation={[0, seat.yaw || 0, 0]}>
+                  <DeskDecor seat={{ x: 0, z: 0 }} {...props} vip={isVip(data.bots[n])} />
+                </group>
+              )
+            return <DeskDecor key={n} seat={seat} {...props} />
+          })}
+        </StaticMerge>
+      )}
       {/* lights stay mounted (intensity 0 by day): adding/removing lights recompiles every shader */}
       {false &&
         layout.rows.slice(0, 2).map((r, i) => (
@@ -486,6 +568,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
           onSelect={onSelect}
           onLongPress={onLongPress}
           compact={compact}
+          muted={muted}
         />
       ))}
       {visitors.map((n) => (
@@ -505,9 +588,11 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
           spotlight={spotlight === n}
           onSelect={onSelect}
           onLongPress={onLongPress}
+          muted={muted}
         />
       ))}
     </group>
+    </RoomCtx.Provider>
   )
 }
 
