@@ -144,6 +144,7 @@ function SunWithTarget({ sunRef, low, span = 11 }) {
 const keys = new Set()
 const fwd = new THREE.Vector3(), right = new THREE.Vector3(), delta = new THREE.Vector3()
 
+const _up = new THREE.Vector3(0, 1, 0)
 const VIEW_DIR = new THREE.Vector3(1, 0.78, 1).normalize()
 
 function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove, bounds }) {
@@ -151,6 +152,7 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove, bounds }) {
   const pendingZoom = useRef(0)
   const desired = useRef(new THREE.Vector3(0, 0.6, 0))
   const zoomGoal = useRef(null)
+  const spinGoal = useRef(0) // pending rotation (radians) from the horizontal wheel
   const placed = useRef(false)
   const fy = focus.y ?? 1.2
   // narrow screens (phones) need to back off so the whole room fits
@@ -166,10 +168,7 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove, bounds }) {
       // horizontal wheel (tilt / side scroll): rotate the camera around what it looks at
       const dx = e.deltaMode === 1 ? e.deltaX * 16 : e.deltaX
       if (Math.abs(dx) > Math.abs(e.deltaY) && !e.shiftKey) {
-        const off = camera.position.clone().sub(controls.target)
-        off.applyAxisAngle(new THREE.Vector3(0, 1, 0), -dx * 0.004)
-        camera.position.copy(controls.target).add(off)
-        controls.update()
+        spinGoal.current += -dx * 0.004 // eased in the frame loop, like the zoom
         return
       }
       const cur = zoomGoal.current ?? camera.position.distanceTo(controls.target)
@@ -320,6 +319,12 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove, bounds }) {
     if (pendingZoom.current && (desired.current.distanceTo(target) < 0.8 || performance.now() - pendingZoom.current > 1500)) {
       pendingZoom.current = 0
       zoomGoal.current = 11.5
+    }
+    if (Math.abs(spinGoal.current) > 0.0005) {
+      const step = spinGoal.current * Math.min(1, dt * 8)
+      spinGoal.current -= step
+      const so = camera.position.clone().sub(target).applyAxisAngle(_up, step)
+      camera.position.copy(target).add(so)
     }
     if (zoomGoal.current != null) {
       const off = camera.position.clone().sub(target)
