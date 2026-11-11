@@ -98,7 +98,7 @@ function SunWithTarget({ sunRef, low, span = 11 }) {
     if (shadowDirty.v) {
       shadowDirty.v = false
       gl.shadowMap.needsUpdate = true
-    } else if ((performance.now() / 1000) - lastShadow.current > (perfFlags.idle ? 0.25 : span > 12 ? 0.14 : 0.06)) {
+    } else if ((performance.now() / 1000) - lastShadow.current > (perfFlags.idle ? 0.25 : 0)) {
       lastShadow.current = (performance.now() / 1000)
       gl.shadowMap.needsUpdate = true
     }
