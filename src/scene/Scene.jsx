@@ -1,5 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-const Effects = lazy(() => import('./Effects'))
+import { useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import Sky from './Sky'
 import { LabelLayer } from './Labels'
@@ -36,16 +35,16 @@ function Lights({ nightness, weather, low, span }) {
     const n = k.current, w = wk.current
     const warm = Math.max(0, 1 - Math.abs(n * 2 - 1) * 1.6) // peaks at dawn/dusk
     scene.background.copy(DAY_BG).lerp(DUSK_BG, warm * 0.6).lerp(GREY_BG, w * 0.6 * (1 - n)).lerp(NIGHT_BG, n)
-    scene.environmentIntensity = THREE.MathUtils.lerp(0.6, 0.24, n) * (1 - w * 0.25)
+    scene.environmentIntensity = THREE.MathUtils.lerp(0.6, 0.32, n) * (1 - w * 0.25)
     if (hemi.current) {
-      hemi.current.intensity = THREE.MathUtils.lerp(0.7, 0.52, n) * (1 - w * 0.15)
+      hemi.current.intensity = THREE.MathUtils.lerp(0.7, 0.66, n) * (1 - w * 0.15)
       hemi.current.color.set('#e3ecff').lerp(tmpC.set('#ffd9bf'), warm * 0.5).lerp(tmpC.set('#c9b8a0'), n)
     }
     if (sun.current) {
       sun.current.intensity = THREE.MathUtils.lerp(2.6, 0.22, n) * (1 - w * 0.55)
       sun.current.color.copy(SUN).lerp(DUSK_SUN, warm * 0.8).lerp(MOON, n)
     }
-    if (fill.current) fill.current.intensity = THREE.MathUtils.lerp(0.55, 0.2, n)
+    if (fill.current) fill.current.intensity = THREE.MathUtils.lerp(0.55, 0.28, n)
     if (amb.current) amb.current.intensity = THREE.MathUtils.lerp(0.2, 0.1, n) + w * 0.08
   })
   return (
@@ -488,7 +487,8 @@ export default function Scene(props) {
   // graphics quality: Auto picks Leve on machines without a real GPU (software / basic renderer)
   const gfxPref = useStore(prefStore, (p) => p.gfx || 'auto')
   const [weakGpu, setWeakGpu] = useState(() => prefs.get('gfxAutoWeak', false) || weakHardware())
-  const q = gfxPref === 'auto' ? (weakGpu ? 'leve' : MOBILE || low ? 'media' : 'alta') : gfxPref
+  // two levels: Normal (everything below) and Leve (no sky, weather or shadows); old 'alta' = Normal
+  const q = gfxPref === 'leve' || (gfxPref === 'auto' && weakGpu) ? 'leve' : 'media'
   useEffect(() => {
     document.documentElement.classList.toggle('gfx-leve', q === 'leve')
   }, [q])
@@ -497,9 +497,9 @@ export default function Scene(props) {
   return (
     <Canvas
       key={glKey}
-      shadows={MOBILE || q === 'leve' ? false : q === 'alta' ? 'soft' : 'percentage'}
+      shadows={MOBILE || q === 'leve' ? false : 'percentage'}
       dpr={effDpr}
-      gl={{ antialias: true, powerPreference: 'high-performance', stencil: true }}
+      gl={{ antialias: true, powerPreference: 'high-performance', stencil: false }}
       camera={{ fov: 30, position: [12, 10, 12], near: 1, far: 400 }}
       onPointerMissed={onPointerMissed}
       onCreated={({ gl, scene, setEvents }) => {
@@ -528,11 +528,6 @@ export default function Scene(props) {
       <IdleSaver cap={q === 'leve'} />
       <LabelLayer />
       {/* highest graphics: bloom + colour finish (its own chunk, never downloaded otherwise) */}
-      {q === 'alta' && !pipOn && night && (
-        <Suspense fallback={null}>
-          <Effects night={night} />
-        </Suspense>
-      )}
       <Precompile />
       <ReadySignal />
       <PipFeed />
@@ -560,8 +555,8 @@ export default function Scene(props) {
           setDpr((d) => Math.min(MOBILE ? Math.min(2, window.devicePixelRatio || 1) : Math.min(2, window.devicePixelRatio || 1), d + 0.25))
         }}
       />
-      <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={gfxPref === 'alta' ? false : MOBILE || q === 'leve' || (low && q !== 'media')} span={props.overview && props.campus ? Math.max(props.campus.W, props.campus.D) * 0.55 : 11} />
-      {q !== 'leve' && <Sky nightness={nightness ?? (night ? 1 : 0)} weather={weather} desktop={!MOBILE && q === 'alta'} />}
+      <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={MOBILE || q === 'leve'} span={props.overview && props.campus ? Math.max(props.campus.W, props.campus.D) * 0.55 : 11} />
+      {q !== 'leve' && <Sky nightness={nightness ?? (night ? 1 : 0)} weather={weather} desktop={false} />}
       {q !== 'leve' && <Weather kind={weather} low={low || q === 'media'} />}
       <Environment resolution={32} frames={1}>
         <Lightformer form="rect" intensity={2.5} position={[0, 6, 0]} rotation-x={Math.PI / 2} scale={[12, 12, 1]} />

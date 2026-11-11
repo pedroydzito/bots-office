@@ -214,9 +214,10 @@ function buildTrips(floorKey, names, layout, slot, data, all, key) {
     // play with the floor's pet when it is sitting still somewhere
     const fi = world.seatOf?.(names[0])?.floorIdx
     const petKind = ['cat', 'dog', 'fish'][hash(floorKey) % 3]
-    if (fi != null && petKind !== 'fish') {
-      const pp = simPet(depart + 9000, fi, layout, petKind)
-      if (pp && pp.mode !== 'walk') extra.push({ kind: 'pet', x: pp.x + 0.6, z: pp.z, az: pp.z, yaw: -Math.PI / 2 })
+    // rooms with an aquarium: go and watch the fish (stand in front of the tank, facing it)
+    if (fi != null && petKind === 'fish') {
+      const az = -layout.D / 2 + 4.6
+      extra.push({ kind: 'aquarium', x: layout.W / 2 - 1.75, z: az, az, yaw: Math.PI / 2 })
     }
     // solo games are rare and skip anyone in game cooldown
     const pois = [...layout.pois, ...extra].filter((p) => {

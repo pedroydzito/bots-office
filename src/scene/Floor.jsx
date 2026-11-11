@@ -289,7 +289,9 @@ function ceilTexture() {
   _ceilTex = new THREE.CanvasTexture(c)
   return _ceilTex
 }
-const ceilPoolMat = new THREE.MeshBasicMaterial({ map: ceilTexture(), transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
+const ceilPoolMat = new THREE.MeshBasicMaterial({ map: ceilTexture(), transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
+
+const ceilGridMat = new THREE.MeshBasicMaterial({ map: ceilTexture(), transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
 
 /** A door to the corridor: frame and a half-open leaf (hidden with its wall). */
 function RoomDoor({ x, D, W, side = 'front', T = 0.25 }) {
@@ -561,6 +563,21 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
           <planeGeometry args={[1, 1]} />
         </mesh>
       ))}
+      {/* a grid of ceiling lamps over the rest of the room: soft pools every ~4 m */}
+      {night && (() => {
+        const out = []
+        const nx = Math.max(2, Math.round(W / 4.2)), nz = Math.max(2, Math.round(D / 4.2))
+        for (let i = 0; i < nx; i++)
+          for (let j = 0; j < nz; j++) {
+            const x = -W / 2 + ((i + 0.5) * W) / nx, z = -D / 2 + ((j + 0.5) * D) / nz
+            out.push(
+              <mesh key={`g${i}-${j}`} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.017, z]} scale={[3.4, 3.4, 1]} material={ceilGridMat} renderOrder={2}>
+                <planeGeometry args={[1, 1]} />
+              </mesh>,
+            )
+          }
+        return out
+      })()}
       {night && layout.lounge && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[layout.lounge.x, 0.018, layout.lounge.z - 0.3]} scale={[4.2, 3.4, 1]} material={ceilPoolMat} renderOrder={2}>
           <planeGeometry args={[1, 1]} />

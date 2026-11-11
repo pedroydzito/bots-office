@@ -62,3 +62,6 @@ export const botWorld = new Map()
 
 /** Room layouts frozen while another room is in focus: their bots and pet stop animating. */
 export const frozenRooms = new Set()
+
+/** Where each office pet is (world), and whether it is resting (bots nearby give it a pat). */
+export const petWorld = new Map()

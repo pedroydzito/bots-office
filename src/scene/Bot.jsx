@@ -44,6 +44,7 @@ const WORK_KIND = (step) => {
 }
 import { isDark, resolveColor, STATUS } from '../lib/constants'
 import { toWorld } from './layout'
+import { petWorld } from './registry'
 import { botPositions, labelSpots, poiKey, seatYaw, sitting, botWorld, frozenRooms } from './registry'
 import { isSleepy, rnd, simBot, statusAt, syncNow } from './sim'
 import { Clap, Heart, Laugh, Party, ThumbUp } from '../ui/Icons'
@@ -793,6 +794,31 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
       }
     }
     // hover: lift a little and look up (asleep bots stay asleep)
+    // a resting pet right next to an idle, standing bot: it crouches and gives it a pat
+    if (!moving && !seated && !isTalking && st !== 'working' && !(sim.sitting)) {
+      const bw = botWorld.get(p.name)
+      if (bw) {
+        for (const q of petWorld.values()) {
+          if (!q.rest || q.y > 0.2) continue
+          const dx = q.x - bw.x, dz = q.z - bw.z
+          if (dx * dx + dz * dz > 1.1 * 1.1) continue
+          const pat = Math.max(0, Math.sin(t * 5 + phase))
+          rx = 0.32
+          by = -0.05
+          hr = 0.1 + pat * 0.12
+          hz = 0.26
+          eyeY = Math.min(eyeY, 0.25) // happy squint
+          break
+        }
+      }
+    }
+    // at the aquarium: lean in to watch the fish, tap the glass now and then
+    if (act === 'aquarium') {
+      rx = 0.18
+      hz = 0.2
+      hr = (t + phase) % 4 < 0.5 ? 0.3 + Math.sin(t * 30) * 0.03 : 0.1
+      ry = Math.sin(t * 0.8 + phase) * 0.25
+    }
     const hk = (V.current.hk = (V.current.hk || 0) + ((p.hover && !moving && st !== 'resting' ? 1 : 0) - (V.current.hk || 0)) * Math.min(1, dt * 10))
     if (hk > 0.001) {
       by += 0.06 * hk

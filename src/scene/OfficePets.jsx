@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { AISLE, navGridPath, planPath, toWorld } from './layout'
 import { hash, pathLen, pointAt, syncNow } from './sim'
-import { botWorld } from './registry'
+import { botWorld, petWorld } from './registry'
 import { Label } from './Labels'
 
 // The office pets. They live in the whole office and mostly sleep: each one picks a cosy spot in
@@ -153,6 +153,9 @@ function Pet({ spec, idx, cats, campus, rooms, spots, overview, focusLayout }) {
     g.visible = !!vis
     if (!vis) return
     g.position.set(s.x, s.y || 0, s.z)
+    const pw = petWorld.get(spec.name) || {}
+    pw.x = s.x, pw.z = s.z, pw.rest = s.pose === 'sit' || s.pose === 'sleep', pw.y = s.y || 0
+    petWorld.set(spec.name, pw)
     // turn smoothly: walking = along the path; sitting by a desk = toward the nearest bot
     let want = s.yaw
     if (want == null && s.pose === 'sit' && s.b?.desk) {
