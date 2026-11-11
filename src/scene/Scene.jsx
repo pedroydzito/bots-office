@@ -468,7 +468,9 @@ export default function Scene(props) {
       gl={{ antialias: true, powerPreference: 'high-performance', stencil: true }}
       camera={{ fov: 30, position: [12, 10, 12], near: 1, far: 400 }}
       onPointerMissed={onPointerMissed}
-      onCreated={({ gl, scene }) => {
+      onCreated={({ gl, scene, setEvents }) => {
+        // hidden things (other rooms while one is open) can't be clicked or hovered
+        setEvents({ filter: (hits) => hits.filter((h) => { for (let o = h.object; o; o = o.parent) if (!o.visible) return false; return true }) })
         glRef.current = gl
         // ?perf: expose the renderer for measuring draw calls (debug only)
         if (window.location.search.includes('perf')) (window.__gl = gl), (window.__scene = scene)

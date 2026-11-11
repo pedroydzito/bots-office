@@ -30,8 +30,8 @@ export function LabelLayer() {
   // Positioned right after the frame is drawn: bots and the camera have already moved this frame,
   // so names and icons stick to their bot instead of trailing one frame behind.
   useEffect(() => {
-    const prev = scene.onAfterRender
-    scene.onAfterRender = (r, sc, cam) => {
+    const prev = scene.onBeforeRender
+    scene.onBeforeRender = (r, sc, cam) => {
       if (cam !== camera) return
       const size = sizeRef.current
       const vFov = (camera.fov * Math.PI) / 180
@@ -58,7 +58,7 @@ export function LabelLayer() {
         if (z !== e.z) (el.style.zIndex = String(z)), (e.z = z)
       }
     }
-    return () => (scene.onAfterRender = prev)
+    return () => (scene.onBeforeRender = prev)
   }, [scene, camera])
   return null
 }
@@ -87,6 +87,8 @@ export function Label({ anchor, y = 0, factor = 10, fixed = false, children }) {
     rootRef.current = r
     const e = entry.current
     e.el = el
+    e.hidden = true // starts hidden (display:none) until the first placement
+    e.t = e.z = null
     entries.add(e)
     return () => {
       entries.delete(e)
