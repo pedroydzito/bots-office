@@ -548,7 +548,7 @@ export function Lounge({ position, night, seats = [] }) {
           <coneGeometry args={[0.18, 0.2, 24, 1, true]} />
           <meshStandardMaterial color="#fff6e0" emissive="#ffe2b0" emissiveIntensity={night ? 1.6 : 0.1} side={THREE.DoubleSide} />
         </mesh>
-        {night && <mesh geometry={beamGeo(1.6)} material={beamMat} renderOrder={4} />}
+        {night && [1, 1.18, 1.36].map((sc) => <mesh key={sc} geometry={beamGeo(1.6)} material={beamMat} scale={[sc, 1, sc]} renderOrder={4} />)}
         {night && (
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} material={lampPoolMat} renderOrder={2}>
             <planeGeometry args={[3.6, 3.6]} />
@@ -1095,7 +1095,7 @@ export function FloorLamp({ x, z, night }) {
         <meshStandardMaterial color="#fff6e0" emissive="#ffe2b0" emissiveIntensity={night ? 1.6 : 0.15} side={THREE.DoubleSide} />
       </mesh>
       {/* glow around the lit shade (a soft halo sprite: the bloom look, for the cost of one quad) */}
-      {night && <mesh geometry={beamGeo(1.5)} material={beamMat} position={[0, 0, 0]} renderOrder={4} />}
+      {night && [1, 1.18, 1.36].map((sc) => <mesh key={sc} geometry={beamGeo(1.5)} material={beamMat} scale={[sc, 1, sc]} renderOrder={4} />)}
       {/* at night the lamp lights its surroundings: a warm pool on the floor (no real light: free) */}
       {night && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} material={lampPoolMat} renderOrder={2}>
@@ -1147,7 +1147,7 @@ function beamGeo(top) {
   const col = new Float32Array(n * 3)
   const warm = new THREE.Color('#ffd9a8')
   for (let i = 0; i < n; i++) {
-    const k = Math.pow(pos.getY(i) / top, 1.3) // 1 at the shade, 0 at the floor
+    const k = Math.pow(pos.getY(i) / top, 2.2) // 1 at the shade, fading out well before the floor
     col[i * 3] = warm.r * k
     col[i * 3 + 1] = warm.g * k
     col[i * 3 + 2] = warm.b * k
@@ -1156,14 +1156,14 @@ function beamGeo(top) {
   beamGeos.set(top, g)
   return g
 }
-const beamMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })
+const beamMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })
 
 export function setLampStrength(k) {
-  beamMat.opacity = 0.22 * Math.min(1.4, k)
-  lampPoolMat.opacity = 0.15 * k
+  beamMat.opacity = 0.12 * Math.min(1.4, k)
+  lampPoolMat.opacity = 0.1 * k
   haloMat.opacity = 0.45 * Math.min(1.3, k)
 }
-const lampPoolMat = new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
+const lampPoolMat = new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
 
 /** Aquarium on a low cabinet: fish swim around, bubbles rise. */
 export function Aquarium({ x, z }) {
