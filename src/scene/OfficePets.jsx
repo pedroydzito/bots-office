@@ -68,7 +68,7 @@ function napSpots(rooms) {
   const s = []
   for (const l of rooms) {
     // on the sofa cushions (they hop up and curl there)
-    for (const p of l.pois) if (p.kind === 'sofa') s.push({ ...toWorld(l, p.x, p.z + 0.1), y: 0.44, room: l, sofa: true })
+    for (const p of l.pois) if (p.kind === 'sofa') s.push({ ...toWorld(l, p.x, p.z + 0.1), y: 0.6, room: l, sofa: true })
     const st = l.seats[hash(l.variant + 'p') % Math.max(1, l.seats.length)]
     if (st) s.push({ ...toWorld(l, st.x + 0.85, (st.az ?? st.z) + 0.25), room: l, desk: true })
     // a clear patch of floor: away from furniture, desks and walls
