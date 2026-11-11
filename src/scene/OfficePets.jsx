@@ -194,12 +194,35 @@ function Pet({ spec, idx, cats, campus, rooms, spots, overview, focusLayout }) {
       b.position.y = lay ? 0.11 : moving ? 0.3 + Math.abs(Math.sin(t * f)) * (P === 'run' ? 0.06 : 0.03) : 0.3
       // stretch: chest down, rear up; sit: rear down
       b.rotation.x = P === 'stretch' ? 0.35 * Math.sin(Math.min(1, s.k * 1.4) * Math.PI) : P === 'sit' || P === 'groom' || P === 'swat' ? -0.45 : 0
-      b.scale.set(lay ? 1.15 : 1, lay ? 0.72 + Math.sin(t * 1.4) * 0.035 : 1, lay ? 0.85 : 1) // breathing while asleep
+      // cartoon squash and stretch: bouncy steps (stretch in the air, squash on landing), a big
+      // stretch when waking, a soft breath while sitting, slow breathing while asleep
+      let sx = 1, sy = 1, sz = 1
+      if (moving) {
+        const hop = Math.abs(Math.sin(t * f))
+        const land = Math.pow(1 - hop, 6)
+        sy = 1 + hop * 0.12 - land * 0.14
+        sx = sz = 1 - hop * 0.05 + land * 0.08
+        sz *= P === 'run' ? 1.12 : 1
+      } else if (P === 'stretch') {
+        const k = Math.sin(Math.min(1, s.k * 1.4) * Math.PI)
+        sz = 1 + 0.25 * k
+        sy = 1 - 0.12 * k
+      } else if (lay) {
+        sx = 1.15
+        sy = 0.72 + Math.sin(t * 1.4) * 0.035
+        sz = 0.85
+      } else {
+        sy = 1 + Math.sin(t * 2) * 0.025
+      }
+      b.scale.set(sx, sy, sz)
       b.rotation.z = lay ? 0.25 : 0
     }
     if (head.current) {
       const h = head.current
-      h.position.y = lay ? 0.14 : P === 'stretch' ? 0.38 : P === 'sit' || P === 'groom' || P === 'swat' ? 0.62 : 0.48
+      // head bobs a beat behind the body when walking, and squashes a little on each landing
+      const hb = moving ? Math.abs(Math.sin(t * f - 0.6)) : 0
+      h.scale.set(1 + (moving ? (1 - hb) * 0.05 : 0), 1 - (moving ? (1 - hb) * 0.06 : 0), 1)
+      h.position.y = (lay ? 0.14 : P === 'stretch' ? 0.38 : P === 'sit' || P === 'groom' || P === 'swat' ? 0.62 : 0.48) + hb * (P === 'run' ? 0.07 : 0.045)
       h.position.z = lay ? 0.22 : 0.26
       h.rotation.z = P === 'sit' && spec.kind === 'dog' ? Math.sin(t * 1.3) * 0.18 : 0 // head tilt
       h.rotation.x = P === 'groom' ? 0.5 + Math.sin(t * 9) * 0.15 : lay ? 0.3 : P === 'stretch' ? -0.3 : 0 // licking / yawning
