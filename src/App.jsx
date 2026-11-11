@@ -121,7 +121,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
       }),
     [],
   )
-  const [overview, setOverview] = useState(true) // all rooms side by side (default) or one room in focus
+  const [overview, setOverview] = useState(false) // opens on the top room (highest in the hierarchy); Esc shows all rooms
   const [searchOpen, setSearchOpen] = useState(false)
   const [tour, setTour] = useState(false)
   const [floorKey, setFloorKey] = useState(null)
