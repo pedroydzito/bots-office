@@ -23,7 +23,11 @@ const KINDS = [
 ]
 const eyeM = new THREE.MeshBasicMaterial({ color: '#1b1b1b' })
 const noseM = new THREE.MeshBasicMaterial({ color: '#2a2020' })
-const sph = new THREE.SphereGeometry(1, 14, 10)
+const sph = new THREE.SphereGeometry(1, 24, 18)
+const white = new THREE.MeshStandardMaterial({ color: '#fff8ef', roughness: 0.8 })
+const pinkM = new THREE.MeshStandardMaterial({ color: '#ffb3c4', roughness: 0.7 })
+const blushM = new THREE.MeshBasicMaterial({ color: '#ff9fb0', transparent: true, opacity: 0.55 })
+const shineM = new THREE.MeshBasicMaterial({ color: '#ffffff' })
 const cone = new THREE.ConeGeometry(1, 1, 8)
 const cyl = new THREE.CylinderGeometry(1, 1, 1, 8)
 
@@ -214,35 +218,51 @@ function Pet({ spec, idx, cats, campus, rooms, spots, overview, focusLayout }) {
   })
   const sz = spec.size
   const cat = spec.kind === 'cat'
+  // chibi proportions: big round head, small soft body, stubby paws, curly tail
   return (
     <group ref={root} scale={sz}>
       <group ref={body} position={[0, 0.3, 0]}>
-        <mesh geometry={sph} material={spec.fur} scale={[0.17, 0.15, 0.3]} castShadow />
-        {spec.name === 'dalmatian' && [[0.08, 0.06, 0.05], [-0.1, 0.04, -0.12], [0.02, 0.11, -0.2]].map((q, i) => (
-          <mesh key={i} geometry={sph} material={spec.dark} position={q} scale={0.045} />
+        <mesh geometry={sph} material={spec.fur} scale={[0.16, 0.14, 0.21]} position={[0, -0.04, -0.04]} castShadow />
+        {/* light belly / chest */}
+        <mesh geometry={sph} material={white} scale={[0.11, 0.1, 0.12]} position={[0, -0.06, 0.07]} />
+        {spec.name === 'dalmatian' && [[0.1, 0.03, -0.05], [-0.11, 0.01, -0.12], [0.03, 0.09, -0.14]].map((q, i) => (
+          <mesh key={i} geometry={sph} material={spec.dark} position={q} scale={0.035} />
         ))}
-        <group ref={tail} position={[0, 0.06, -0.28]}>
-          <mesh geometry={cyl} material={cat ? spec.fur : spec.dark} position={[0, cat ? 0.14 : 0.06, -0.08]} rotation={[cat ? -0.3 : -0.9, 0, 0]} scale={[0.03, cat ? 0.32 : 0.2, 0.03]} />
+        <group ref={tail} position={[0, 0.02, -0.22]}>
+          {(cat ? [[0, 0.05, -0.03, 0.035], [0, 0.12, -0.05, 0.032], [0, 0.19, -0.04, 0.03], [0, 0.24, 0, 0.032]] : [[0, 0.04, -0.03, 0.035], [0, 0.09, -0.05, 0.03]]).map(([x, y, z, r], i) => (
+            <mesh key={i} geometry={sph} material={cat && i === 3 ? spec.dark : spec.fur} position={[x, y, z]} scale={r} />
+          ))}
         </group>
       </group>
       <group ref={head} position={[0, 0.48, 0.26]}>
-        <mesh geometry={sph} material={spec.fur} scale={cat ? [0.13, 0.12, 0.12] : [0.13, 0.13, 0.14]} castShadow />
-        {!cat && <mesh geometry={sph} material={spec.fur} position={[0, -0.03, 0.12]} scale={[0.07, 0.06, 0.08]} />}
-        <mesh geometry={sph} material={noseM} position={[0, -0.01, cat ? 0.12 : 0.2]} scale={0.022} />
+        <mesh geometry={sph} material={spec.fur} scale={cat ? [0.17, 0.15, 0.15] : [0.17, 0.16, 0.16]} castShadow />
+        {/* muzzle, nose, eyes with a shine, blush */}
+        <mesh geometry={sph} material={white} position={[0, -0.05, 0.11]} scale={cat ? [0.08, 0.055, 0.05] : [0.09, 0.07, 0.07]} />
+        <mesh geometry={sph} material={cat ? pinkM : noseM} position={[0, -0.02, cat ? 0.155 : 0.175]} scale={cat ? [0.018, 0.013, 0.012] : [0.026, 0.02, 0.018]} />
         {[-1, 1].map((k) => (
-          <mesh key={'e' + k} geometry={sph} material={eyeM} position={[k * 0.05, 0.03, 0.11]} scale={0.018} />
+          <group key={'e' + k} position={[k * 0.065, 0.025, 0.125]}>
+            <mesh geometry={sph} material={eyeM} scale={[0.026, 0.032, 0.02]} />
+            <mesh geometry={sph} material={shineM} position={[0.008, 0.012, 0.016]} scale={0.008} />
+          </group>
+        ))}
+        {[-1, 1].map((k) => (
+          <mesh key={'b' + k} geometry={sph} material={blushM} position={[k * 0.105, -0.035, 0.105]} scale={[0.025, 0.015, 0.01]} />
         ))}
         {[-1, 1].map((k) =>
           cat ? (
-            <mesh key={'r' + k} geometry={cone} material={spec.dark} position={[k * 0.07, 0.12, 0]} scale={[0.04, 0.08, 0.03]} />
+            <group key={'r' + k} position={[k * 0.095, 0.12, -0.01]} rotation={[0, 0, -k * 0.35]}>
+              <mesh geometry={cone} material={spec.fur} scale={[0.055, 0.1, 0.04]} />
+              <mesh geometry={cone} material={pinkM} position={[0, -0.005, 0.012]} scale={[0.032, 0.065, 0.02]} />
+            </group>
           ) : (
-            <mesh key={'r' + k} geometry={sph} material={spec.dark} position={[k * 0.12, 0.02, -0.01]} rotation={[0, 0, k * 0.3]} scale={[0.035, 0.08, 0.05]} />
+            <mesh key={'r' + k} geometry={sph} material={spec.dark} position={[k * 0.15, 0.02, -0.02]} rotation={[0, 0, k * 0.5]} scale={[0.04, 0.095, 0.06]} />
           ),
         )}
       </group>
-      {[[-0.08, 0.17], [0.08, 0.17], [-0.08, -0.17], [0.08, -0.17]].map(([x, z], i) => (
-        <group key={i} ref={(l) => (legs.current[i] = l)} position={[x, 0.2, z]}>
-          <mesh geometry={cyl} material={spec.name === 'corgi' ? spec.dark : spec.fur} position={[0, -0.1, 0]} scale={[0.035, 0.2, 0.035]} />
+      {[[-0.07, 0.12], [0.07, 0.12], [-0.07, -0.13], [0.07, -0.13]].map(([x, z], i) => (
+        <group key={i} ref={(l) => (legs.current[i] = l)} position={[x, 0.18, z]}>
+          <mesh geometry={cyl} material={spec.name === 'corgi' ? spec.dark : spec.fur} position={[0, -0.07, 0]} scale={[0.04, 0.14, 0.04]} />
+          <mesh geometry={sph} material={spec.name === 'corgi' || spec.name === 'dalmatian' ? white : spec.fur} position={[0, -0.155, 0.012]} scale={[0.045, 0.03, 0.055]} />
         </group>
       ))}
       <group ref={zz} position={[0, 0.5, 0]} visible={false}>
