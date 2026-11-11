@@ -417,7 +417,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   // layout / light mode instead of on every re-render (big win on phones).
   // re-merge only when the furniture itself changes (not on day/night: that only recolours)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const mergeKey = useMemo(() => ++mergeGen, [layout, floor.key, floorY, petKind, home, look, night, compact])
+  const mergeKey = useMemo(() => ++mergeGen, [layout, floor.key, floorY, petKind, home, look, night])
   const staticRoom = useMemo(
     () => (
       <StaticMerge key={mergeKey}>
@@ -447,9 +447,9 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         }}
       />
       </WallMount>
-      <Plant still={compact} position={[-W / 2 + 0.75, 0, -D / 2 + 0.75]} scale={1.15} />
-      {look.plants && <Plant still={compact} position={[W / 2 - 1.0, 0, -D / 2 + 0.9]} scale={1.3} kind={1} />}
-      {look.plants && D > 12 && <Plant still={compact} position={[W / 2 - 0.9, 0, -D / 2 + 5.5]} scale={0.9} />}
+      <Plant still position={[-W / 2 + 0.75, 0, -D / 2 + 0.75]} scale={1.15} />
+      {look.plants && <Plant still position={[W / 2 - 1.0, 0, -D / 2 + 0.9]} scale={1.3} kind={1} />}
+      {look.plants && D > 12 && <Plant still position={[W / 2 - 0.9, 0, -D / 2 + 5.5]} scale={0.9} />}
       <WaterCooler position={[-W / 2 + 0.6, 0, layout.wall.coolerZ]} rotation={[0, Math.PI / 2, 0]} />
       {layout.wall.shelfZ != null && <Bookshelf position={[-W / 2 + 0.47, 0, layout.wall.shelfZ]} rotation={[0, Math.PI / 2, 0]} seed={floor.num} />}
       <Lounge position={[layout.lounge?.x ?? W / 2 - 2.4, 0, layout.lounge?.z ?? D / 2 - 2.3]} night={night} seats={layout.pois.filter((q) => q.kind === 'sofa' && Math.abs(q.x - (layout.lounge?.x ?? W / 2 - 2.4)) < 2 && Math.abs(q.z - (layout.lounge?.z ?? D / 2 - 2.3)) < 1.6)} />
@@ -458,7 +458,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         d.type === 'meeting' ? <MeetingTable key={i} x={d.x} z={d.z} /> :
         d.type === 'whiteboard' ? <Whiteboard key={i} x={d.x} z={-D / 2 + 0.32} /> :
         d.type === 'beanbag' ? <BeanBag key={i} x={d.x} z={d.z} c={d.c} /> :
-        d.type === 'plant' ? (!look.plants ? null : <Plant key={i} still={compact} position={[d.x, 0, d.z]} kind={d.k} scale={1.1} />) :
+        d.type === 'plant' ? (!look.plants ? null : <Plant key={i} still position={[d.x, 0, d.z]} kind={d.k} scale={1.1} />) :
         d.type === 'vending' ? <Vending key={i} x={d.x} z={d.z} /> :
         d.type === 'printer' ? <Printer key={i} x={d.x} z={d.z} /> :
         d.type === 'arcade' ? <Arcade key={i} x={d.x} z={d.z} /> :
@@ -508,7 +508,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       </StaticMerge>
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [layout, night, floor.key, floor.name, floor.num, floor.color, floorY, petKind, home, look, compact],
+    [layout, night, floor.key, floor.name, floor.num, floor.color, floorY, petKind, home, look],
   )
 
   return (

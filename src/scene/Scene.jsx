@@ -540,7 +540,7 @@ export default function Scene(props) {
         onStart={onUserMove}
       />
       <CameraRig floorIdx={floorIdx} focus={focus} selectedBot={selectedBot} tour={tour} onUserMove={onUserMove} bounds={props.campus} />
-      <Campus {...props} low={q === 'leve'} />
+      <Campus {...props} low={q !== 'alta'} />
     </Canvas>
   )
 }

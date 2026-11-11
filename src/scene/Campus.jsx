@@ -165,14 +165,18 @@ export default function Campus({ floors, selectedIdx, layouts, campus, data, now
   const lightsOn = !low
   return (
     <group>
-      <Building campus={campus} />
-      <Walkers data={data} followed={selectedBot} />
+      {/* one room open: only that room is drawn. Everything else stays mounted but hidden (not
+          drawn, not in the shadow pass, bots frozen), so going back to the whole office is instant */}
+      <group visible={overview}>
+        <Building campus={campus} />
+        <Walkers data={data} followed={selectedBot} />
+      </group>
       {floors.map((f) => {
         const l = layouts[f.key]
         if (!l) return null
         const focus = !overview && sel?.key === f.key
         return (
-          <group key={f.key}>
+          <group key={f.key} visible={overview || focus}>
             <group
               position={[l.ox, 0, l.oz]}
               rotation={[0, l.rot || 0, 0]}
@@ -203,8 +207,7 @@ export default function Campus({ floors, selectedIdx, layouts, campus, data, now
               }
             </group>
             {lightsOn && <RoomLight l={l} nightness={nightness} on={overview || focus} />}
-            <Cover l={l} on={!overview && !focus} order={floors.indexOf(f)} />
-            <RoomChip f={f} l={l} data={data} now={now} dim={!overview && !focus} onPick={onPickRoom} />
+            {(overview || focus) && <RoomChip f={f} l={l} data={data} now={now} dim={false} onPick={onPickRoom} />}
           </group>
         )
       })}
