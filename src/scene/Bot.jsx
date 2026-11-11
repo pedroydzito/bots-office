@@ -338,7 +338,9 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
   )
 
   const ranOnce = useRef(false)
-  useFrame(({ camera, size, clock }, rawDt) => {
+  // one bot with odd data must never stop the others: R3F runs every per-frame update in one
+  // loop, so an error here would freeze every bot (and label) updated after this one
+  const frameStep = ({ camera, size, clock }, rawDt) => {
     // another room is in focus: stay frozen where we are (after placing ourselves once)
     if (ranOnce.current && !selected && frozenRooms.has(layout)) return
     ranOnce.current = true
@@ -820,6 +822,15 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
       ringMat.opacity = (st === 'resting' ? 0 : 0.55) * pulse
       ring.current.visible = !v.hidden && st !== 'resting'
       ring.current.scale.setScalar(st === 'waiting_user' ? 1 + 0.15 * Math.sin(t * 5) : 1)
+    }
+  }
+  const failed = useRef(false)
+  useFrame((st, dt) => {
+    try {
+      frameStep(st, dt)
+    } catch (err) {
+      if (!failed.current) console.error('[bot-office] bot update failed:', bot.name, err)
+      failed.current = true
     }
   })
 

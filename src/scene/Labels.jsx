@@ -37,6 +37,7 @@ export function LabelLayer() {
       const vFov = (camera.fov * Math.PI) / 180
       const k = 2 * Math.tan(vFov / 2)
       for (const e of entries) {
+        try {
         const o = e.anchor.current, el = e.el
         if (!o || !el) continue
         o.getWorldPosition(v)
@@ -56,6 +57,9 @@ export function LabelLayer() {
         if (t !== e.t) (el.style.transform = t), (e.t = t)
         const z = Math.round((1 - v.z) * 10000)
         if (z !== e.z) (el.style.zIndex = String(z)), (e.z = z)
+        } catch {
+          /* one bad label never stops the others */
+        }
       }
     }
     return () => (scene.onBeforeRender = prev)
