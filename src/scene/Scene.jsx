@@ -89,8 +89,8 @@ function SunWithTarget({ sunRef, low, span = 11 }) {
     return () => (gl.shadowMap.autoUpdate = true)
   }, [gl])
   useFrame(({ clock }) => {
-    if (clock.elapsedTime - lastShadow.current > (perfFlags.idle ? 0.15 : 0.05)) {
-      lastShadow.current = clock.elapsedTime
+    if ((performance.now() / 1000) - lastShadow.current > (perfFlags.idle ? 0.15 : 0.05)) {
+      lastShadow.current = (performance.now() / 1000)
       gl.shadowMap.needsUpdate = true
     }
     if (!controls || !sunRef.current || !target.current) return

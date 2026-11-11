@@ -143,8 +143,8 @@ export default function Campus({ floors, selectedIdx, layouts, campus, data, now
   }, [floors, layouts])
   const lastCull = useRef(0)
   useFrame(({ camera, clock }) => {
-    if (clock.elapsedTime - lastCull.current < 0.25) return
-    lastCull.current = clock.elapsedTime
+    if ((performance.now() / 1000) - lastCull.current < 0.25) return
+    lastCull.current = (performance.now() / 1000)
     camera.updateMatrixWorld()
     _pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
     _fr.setFromProjectionMatrix(_pm)

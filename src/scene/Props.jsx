@@ -262,8 +262,8 @@ export function Clock({ position, rotation }) {
   const h = useRef(), m = useRef()
   const last = useRef(0)
   useFrame(({ clock }) => {
-    if (clock.elapsedTime - last.current < 1) return
-    last.current = clock.elapsedTime
+    if ((performance.now() / 1000) - last.current < 1) return
+    last.current = (performance.now() / 1000)
     const d = new Date()
     const mins = d.getMinutes() + d.getSeconds() / 60
     if (m.current) m.current.rotation.z = -(mins / 60) * Math.PI * 2
