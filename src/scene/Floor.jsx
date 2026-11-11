@@ -417,6 +417,22 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   // re-merge only when the furniture itself changes (not on day/night: that only recolours)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const mergeKey = useMemo(() => ++mergeGen, [layout, floor.key, floorY, petKind, home, look, night])
+  const decorEl = (d, i) =>
+        d.type === 'rug' ? (look.rugs ? <Rug key={i} {...d} /> : null) :
+        d.type === 'meeting' ? <MeetingTable key={i} x={d.x} z={d.z} /> :
+        d.type === 'whiteboard' ? <Whiteboard key={i} x={d.x} z={-D / 2 + 0.32} /> :
+        d.type === 'beanbag' ? <BeanBag key={i} x={d.x} z={d.z} c={d.c} /> :
+        d.type === 'plant' ? (!look.plants ? null : <Plant key={i} still position={[d.x, 0, d.z]} kind={d.k} scale={1.1} />) :
+        d.type === 'vending' ? <Vending key={i} x={d.x} z={d.z} /> :
+        d.type === 'printer' ? <Printer key={i} x={d.x} z={d.z} /> :
+        d.type === 'arcade' ? <Arcade key={i} x={d.x} z={d.z} /> :
+        d.type === 'armchair' ? <Armchair key={i} x={d.x} z={d.z} c={d.c} /> :
+        d.type === 'pingpong' ? <PingPong key={i} x={d.x} z={d.z} /> :
+        d.type === 'pool' ? <PoolTable key={i} x={d.x} z={d.z} /> :
+        d.type === 'bookcase' ? <Bookshelf key={i} position={[d.x, 0, d.z]} width={1.7} shelves={4} seed={i + 5} /> :
+        d.type === 'foosball' ? <Foosball key={i} x={d.x} z={d.z} /> :
+        d.type === 'bench' ? <Bench key={i} x={d.x} z={d.z} /> :
+        d.type === 'lamp' ? <FloorLamp key={i} x={d.x} z={d.z} night={night} /> : null
   const staticRoom = useMemo(
     () => (
       <StaticMerge key={mergeKey}>
@@ -450,25 +466,15 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
       {look.plants && <Plant still position={[W / 2 - 1.0, 0, -D / 2 + 0.9]} scale={1.3} kind={1} />}
       {look.plants && D > 12 && <Plant still position={[W / 2 - 0.9, 0, -D / 2 + 5.5]} scale={0.9} />}
       <WaterCooler position={[-W / 2 + 0.6, 0, layout.wall.coolerZ]} rotation={[0, Math.PI / 2, 0]} />
-      {layout.wall.shelfZ != null && <Bookshelf position={[-W / 2 + 0.47, 0, layout.wall.shelfZ]} rotation={[0, Math.PI / 2, 0]} seed={floor.num} />}
+      {layout.wall.shelfZ != null && <WallMount side="left"><Bookshelf position={[-W / 2 + 0.47, 0, layout.wall.shelfZ]} rotation={[0, Math.PI / 2, 0]} seed={floor.num} /></WallMount>}
       <Lounge position={[layout.lounge?.x ?? W / 2 - 2.4, 0, layout.lounge?.z ?? D / 2 - 2.3]} night={night} seats={layout.pois.filter((q) => q.kind === 'sofa' && Math.abs(q.x - (layout.lounge?.x ?? W / 2 - 2.4)) < 2 && Math.abs(q.z - (layout.lounge?.z ?? D / 2 - 2.3)) < 1.6)} />
-      {layout.decor.map((d, i) =>
-        d.type === 'rug' ? (look.rugs ? <Rug key={i} {...d} /> : null) :
-        d.type === 'meeting' ? <MeetingTable key={i} x={d.x} z={d.z} /> :
-        d.type === 'whiteboard' ? <Whiteboard key={i} x={d.x} z={-D / 2 + 0.32} /> :
-        d.type === 'beanbag' ? <BeanBag key={i} x={d.x} z={d.z} c={d.c} /> :
-        d.type === 'plant' ? (!look.plants ? null : <Plant key={i} still position={[d.x, 0, d.z]} kind={d.k} scale={1.1} />) :
-        d.type === 'vending' ? <Vending key={i} x={d.x} z={d.z} /> :
-        d.type === 'printer' ? <Printer key={i} x={d.x} z={d.z} /> :
-        d.type === 'arcade' ? <Arcade key={i} x={d.x} z={d.z} /> :
-        d.type === 'armchair' ? <Armchair key={i} x={d.x} z={d.z} c={d.c} /> :
-        d.type === 'pingpong' ? <PingPong key={i} x={d.x} z={d.z} /> :
-        d.type === 'pool' ? <PoolTable key={i} x={d.x} z={d.z} /> :
-        d.type === 'bookcase' ? <Bookshelf key={i} position={[d.x, 0, d.z]} width={1.7} shelves={4} seed={i + 5} /> :
-        d.type === 'foosball' ? <Foosball key={i} x={d.x} z={d.z} /> :
-        d.type === 'bench' ? <Bench key={i} x={d.x} z={d.z} /> :
-        d.type === 'lamp' ? <FloorLamp key={i} x={d.x} z={d.z} night={night} /> : null,
-      )}
+      {/* furniture standing against a wall goes down and up with that wall */}
+      {layout.decor.map((d, i) => {
+        const el = decorEl(d, i)
+        if (!el || d.type === 'rug' || d.type === 'plant' || d.type === 'lamp') return el
+        const side = d.type === 'whiteboard' ? 'back' : d.x < -W / 2 + 1.2 ? 'left' : d.x > W / 2 - 1.2 ? 'right' : d.z < -D / 2 + 1.2 ? 'back' : d.z > D / 2 - 1.2 ? 'front' : null
+        return side ? <WallMount key={i} side={side}>{el}</WallMount> : el
+      })}
       {layout.rows.filter((r) => r.solo && !r.lead).map((r, i) => (
         <SoloSetup key={'solo' + i} row={r} seed={(layout.variant >>> 4) + i} rug={['#cbb8ec', '#b5d3dc', '#e3c7a2', '#c2d9b4', '#ebbcc8', '#b8c6e6'][((layout.variant >>> 4) + i) % 6]} />
       ))}
@@ -476,7 +482,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
         <DeskRow key={i} row={r} mat={deskMat} />
       ))}
       <group userData={{ dynamic: true }}>{petKind !== 'fish' && petKind !== 'none' && <Pet layout={layout} floorIdx={floorIdx} kind={petKind} />}</group>
-      {petKind === 'fish' && <Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} />}
+      {petKind === 'fish' && <WallMount side="right"><Aquarium x={W / 2 - 0.7} z={-D / 2 + 4.6} /></WallMount>}
       <group userData={{ dynamic: true }}>{look.seasonal && <Seasonal layout={layout} seed={floor.key} />}</group>
       {/* wall art keeps both walls lively: posters high above the left-wall furniture, art + shelf on the back wall */}
       {/* pictures sit in the gaps between the left-wall furniture, at one shared height */}
