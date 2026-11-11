@@ -1204,6 +1204,114 @@ export function SoloSetup({ row, rug = '#e9e4f5', seed = 0 }) {
   )
 }
 
+
+// ---- games that are really played: pieces move only while two bots stand at the table
+function usePlayers(x, z, r = 2.0) {
+  const st = useRef({ k: 0, n: 0 })
+  return () => {
+    const s = st.current
+    if (s.k++ % 15 === 0) {
+      let n = 0
+      for (const q of botPositions.values()) if (Math.hypot(q.x - x, q.z - z) < r) n++
+      s.n = n
+    }
+    return s.n
+  }
+}
+
+/** Ping-pong ball rallying over the net, with a bounce on each half. */
+function PingPongRally({ x, z }) {
+  const ball = useRef()
+  const players = usePlayers(x, z)
+  useFrame(({ clock }) => {
+    const b = ball.current
+    if (!b) return
+    const on = players() >= 2
+    b.visible = on
+    if (!on) return
+    const t = clock.elapsedTime * 0.9
+    const k = t % 1, dir = Math.floor(t) % 2 ? -1 : 1
+    // hit at one end, bounce on the far half, reach the other paddle
+    const px = dir * (-1.25 + 2.5 * k)
+    const h = k < 0.62 ? Math.sin((k / 0.62) * Math.PI) * 0.32 : Math.sin(((k - 0.62) / 0.38) * Math.PI) * 0.18
+    b.position.set(px, 0.79 + h, Math.sin(t * 2.3) * 0.35)
+  })
+  return (
+    <group userData={{ dynamic: true }}>
+      <mesh ref={ball} material={M.white} visible={false} castShadow>
+        <sphereGeometry args={[0.035, 10, 8]} />
+      </mesh>
+    </group>
+  )
+}
+
+/** Pool: every few seconds the cue ball is struck, rolls, knocks a ball that rolls on and sinks. */
+function PoolShots({ x, z }) {
+  const cue = useRef(), target = useRef()
+  const players = usePlayers(x, z, 2.2)
+  useFrame(({ clock }) => {
+    if (!cue.current || !target.current) return
+    const on = players() >= 2
+    const t = clock.elapsedTime
+    const shot = Math.floor(t / 5), k = (t % 5) / 5
+    const ang = ((shot * 2.39) % (Math.PI * 2)) - Math.PI
+    const sx = -0.6, sz = 0.1
+    const tx = 0.25 + Math.cos(ang) * 0.25, tz = Math.sin(ang) * 0.3
+    if (!on || k < 0.2) {
+      cue.current.position.set(sx, 0.84, sz)
+      target.current.position.set(tx, 0.84, tz)
+      return
+    }
+    const ease = (u) => 1 - Math.pow(1 - Math.min(1, u), 3)
+    const a = ease((k - 0.2) / 0.25) // cue ball travels to the target
+    cue.current.position.set(sx + (tx - sx) * a * 0.92, 0.84, sz + (tz - sz) * a * 0.92)
+    cue.current.rotation.z -= 0.25 * (1 - a)
+    if (k > 0.45) {
+      const b = ease((k - 0.45) / 0.4) // target rolls toward the nearest pocket and drops
+      const px = tx > 0 ? 1.1 : -1.1, pz = tz > 0 ? 0.58 : -0.58
+      target.current.position.set(tx + (px - tx) * b, 0.84 - (b > 0.95 ? (b - 0.95) * 3 : 0), tz + (pz - tz) * b)
+    }
+  })
+  return (
+    <group userData={{ dynamic: true }}>
+      <mesh ref={cue} material={sharedMat('#ffffff', 0.25)} castShadow><sphereGeometry args={[0.035, 12, 10]} /></mesh>
+      <mesh ref={target} material={sharedMat('#E5484D', 0.25)} castShadow><sphereGeometry args={[0.035, 12, 10]} /></mesh>
+    </group>
+  )
+}
+
+/** Foosball: rods twist and slide, the little ball zips across. */
+function FoosballPlay({ x, z }) {
+  const rods = useRef([]), ball = useRef()
+  const players = usePlayers(x, z, 1.8)
+  useFrame(({ clock }) => {
+    const on = players() >= 2
+    const t = clock.elapsedTime
+    rods.current.forEach((r, i) => {
+      if (!r) return
+      r.rotation.y = on ? Math.sin(t * (6 + i) + i) * 1.2 : 0
+      r.position.z = on ? Math.sin(t * (2.2 + i * 0.4) + i * 2) * 0.12 : 0
+    })
+    if (ball.current) {
+      ball.current.visible = on
+      if (on) ball.current.position.set(Math.sin(t * 1.7) * 0.5, 0.92, Math.sin(t * 2.9) * 0.25)
+    }
+  })
+  return (
+    <group userData={{ dynamic: true }}>
+      {[-0.42, -0.14, 0.14, 0.42].map((rx, i) => (
+        <group key={i} ref={(g) => (rods.current[i] = g)} position={[rx, 0.95, 0]}>
+          <mesh rotation={[Math.PI / 2, 0, 0]} material={M.metal}><cylinderGeometry args={[0.012, 0.012, 1.0, 6]} /></mesh>
+          {[-0.2, 0, 0.2].map((pz) => (
+            <mesh key={pz} position={[0, -0.04, pz]} material={sharedMat(i % 2 ? '#1E86FC' : '#E5484D', 0.5)}><boxGeometry args={[0.04, 0.09, 0.03]} /></mesh>
+          ))}
+        </group>
+      ))}
+      <mesh ref={ball} material={M.white} visible={false}><sphereGeometry args={[0.025, 8, 6]} /></mesh>
+    </group>
+  )
+}
+
 /** Ping-pong table (games corner). */
 export function PingPong({ x, z }) {
   return (
@@ -1214,7 +1322,7 @@ export function PingPong({ x, z }) {
       {[[-1.1, -0.6], [1.1, -0.6], [-1.1, 0.6], [1.1, 0.6]].map(([lx, lz], i) => (
         <mesh key={i} position={[lx, 0.36, lz]} material={M.dark}><boxGeometry args={[0.06, 0.72, 0.06]} /></mesh>
       ))}
-      <mesh position={[0.5, 0.8, 0.3]} rotation={[0, 0.4, 0]} material={sharedMat('#E5484D', 0.5)}><cylinderGeometry args={[0.08, 0.08, 0.015, 16]} /></mesh>
+      <PingPongRally x={x} z={z} />
     </group>
   )
 }
@@ -1225,9 +1333,7 @@ export function Foosball({ x, z }) {
     <group position={[x, 0, z]} rotation={[0, Math.PI / 2, 0]}>
       <mesh position={[0, 0.78, 0]} material={sharedMat('#6b4a33', 0.6)} castShadow><boxGeometry args={[1.3, 0.22, 0.75]} /></mesh>
       <mesh position={[0, 0.895, 0]} material={sharedMat('#2FB36B', 0.8)}><boxGeometry args={[1.2, 0.01, 0.65]} /></mesh>
-      {[-0.42, -0.14, 0.14, 0.42].map((rx, i) => (
-        <mesh key={i} position={[rx, 0.95, 0]} rotation={[Math.PI / 2, 0, 0]} material={M.metal}><cylinderGeometry args={[0.012, 0.012, 1.0, 6]} /></mesh>
-      ))}
+      <FoosballPlay x={x} z={z} />
       {[-0.5, 0.5].map((lx) => [-0.3, 0.3].map((lz) => (
         <mesh key={`${lx}${lz}`} position={[lx, 0.34, lz]} material={M.dark}><boxGeometry args={[0.07, 0.68, 0.07]} /></mesh>
       )))}
@@ -1279,7 +1385,8 @@ export function PoolTable({ x, z }) {
       {[[-1.12, -0.6], [0, -0.62], [1.12, -0.6], [-1.12, 0.6], [0, 0.62], [1.12, 0.6]].map(([px, pz], i) => (
         <mesh key={i} position={[px, 0.812, pz]} material={M.black}><cylinderGeometry args={[0.055, 0.055, 0.01, 12]} /></mesh>
       ))}
-      {[['#ffffff', -0.6, 0.1], ['#E5484D', 0.3, -0.1], ['#F5B70A', 0.42, 0.06], ['#1E86FC', 0.42, -0.26], ['#111111', 0.55, -0.08]].map(([c, bx, bz], i) => (
+      <PoolShots x={x} z={z} />
+      {[['#F5B70A', 0.62, 0.16], ['#1E86FC', 0.6, -0.3], ['#111111', 0.75, -0.06]].map(([c, bx, bz], i) => (
         <mesh key={'b' + i} position={[bx, 0.84, bz]} material={sharedMat(c, 0.25)}><sphereGeometry args={[0.035, 10, 8]} /></mesh>
       ))}
       <mesh position={[-0.2, 0.83, 0.35]} rotation={[0, 0, Math.PI / 2 - 0.05]} material={sharedMat('#c49a6c', 0.5)}><cylinderGeometry args={[0.012, 0.018, 1.4, 6]} /></mesh>

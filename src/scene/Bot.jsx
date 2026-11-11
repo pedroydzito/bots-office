@@ -800,6 +800,24 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     // landing squash when sitting down
     const lt = (T - sim.arrivedT) / 1000
     if (seated && lt >= 0 && lt < 0.45) sy *= 1 - Math.sin((lt / 0.45) * Math.PI) * 0.12
+    // getting up: a quick stretch as the body rises off the chair
+    const ut = (T - (sim.departT ?? -Infinity)) / 1000
+    if (!seated && ut >= 0 && ut < 0.6) sy *= 1 + Math.sin((ut / 0.6) * Math.PI) * 0.14
+    // clicked: anticipation squash, springy hop with stretch, landing squash, then a wobble
+    const pk = (performance.now() - (v.poke || -1e9)) / 1000
+    if (pk >= 0 && pk < 0.9) {
+      if (pk < 0.12) sy *= 1 - (pk / 0.12) * 0.2
+      else if (pk < 0.5) {
+        const u = (pk - 0.12) / 0.38
+        by += Math.sin(u * Math.PI) * 0.38
+        sy *= 1 + Math.sin(u * Math.PI) * 0.18
+        ry += u * Math.PI * 2 * (v.pokeDir || 1)
+      } else {
+        const u = (pk - 0.5) / 0.4
+        sy *= 1 - Math.sin(u * Math.PI) * 0.16 * (1 - u)
+        rz += Math.sin(u * Math.PI * 3) * 0.12 * (1 - u)
+      }
+    }
 
     {
       const sm = (v.sm ||= { by: 0, rx: 0, ry: 0, rz: 0, sy: 1, hl: 0, hr: 0, hz: 0 })
@@ -936,6 +954,8 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
           onClick={(e) => {
             e.stopPropagation()
             if (press.current.fired) return
+            V.current.poke = performance.now()
+            V.current.pokeDir = Math.random() < 0.5 ? -1 : 1
             onSelect && onSelect(bot.name)
           }}
         />

@@ -226,64 +226,54 @@ export function floorGeo(W, D) {
   return g
 }
 
-// ---- baked-looking ambient occlusion, for free: soft darkening where walls meet the floor and
-// under furniture. One texture (left half: edge gradient, right half: soft blob), one mesh per room.
-let aoTex = null
-function aoTexture() {
-  if (aoTex) return aoTex
+// ---- sunlight through the windows: the soft warm patch the sun leaves on the floor (window shape
+// projected along the sun direction, edges blurred). Additive, unlit: looks like light, costs a decal.
+let sunTex = null
+function sunTexture() {
+  if (sunTex) return sunTex
   const c = document.createElement('canvas')
-  c.width = 128
-  c.height = 64
+  c.width = c.height = 64
   const g = c.getContext('2d')
-  const lin = g.createLinearGradient(0, 0, 0, 64)
-  lin.addColorStop(0, 'rgba(20,24,40,0.34)')
-  lin.addColorStop(0.45, 'rgba(20,24,40,0.10)')
-  lin.addColorStop(1, 'rgba(20,24,40,0)')
-  g.fillStyle = lin
-  g.fillRect(0, 0, 62, 64)
-  const rad = g.createRadialGradient(96, 32, 2, 96, 32, 30)
-  rad.addColorStop(0, 'rgba(20,24,40,0.30)')
-  rad.addColorStop(0.6, 'rgba(20,24,40,0.16)')
-  rad.addColorStop(1, 'rgba(20,24,40,0)')
-  g.fillStyle = rad
-  g.fillRect(66, 0, 62, 64)
-  aoTex = new THREE.CanvasTexture(c)
-  return aoTex
+  const img = g.createImageData(64, 64)
+  for (let y = 0; y < 64; y++)
+    for (let x = 0; x < 64; x++) {
+      const e = Math.min(x, 63 - x, y, 63 - y) / 14 // soft border, flat middle
+      const a = Math.min(1, e) ** 1.6
+      const i = (y * 64 + x) * 4
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = 255 * a
+      img.data[i + 3] = 255
+    }
+  g.putImageData(img, 0, 0)
+  sunTex = new THREE.CanvasTexture(c)
+  return sunTex
 }
-const aoMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })
-const AO_FOOT = { meeting: [3.4, 2.8], vending: [1.3, 1.5], printer: [1.3, 1.2], pool: [3.6, 2.4], pingpong: [3.7, 2.4], foosball: [1.8, 2.3], arcade: [1.5, 1.5], bench: [2.3, 1.2], armchair: [1.6, 1.6], beanbag: [1.5, 1.5], plant: [1.1, 1.1], bookcase: [2.3, 1.1] }
-function aoGeometry(L) {
-  const { W, D } = L
+const sunMat = new THREE.MeshBasicMaterial({ color: '#ffcf8f', transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
+const SUN_DIR = new THREE.Vector3(-0.42, -0.72, -0.55).normalize()
+function sunGeometry(W, D, windows) {
   const pos = [], uv = [], idx = []
-  const y = 0.012
-  // quad from 4 corners (a,b near the dark edge; c,d far), with the given uv rectangle
-  const quad = (p, u0, u1, v0, v1) => {
-    const n = pos.length / 3
-    for (const [x, z] of p) pos.push(x, y, z)
-    uv.push(u0, v1, u1, v1, u1, v0, u0, v0)
-    idx.push(n, n + 2, n + 1, n, n + 3, n + 2)
+  const floorHit = (x, y, z) => {
+    const t = (y - 0.016) / -SUN_DIR.y
+    return [x + SUN_DIR.x * t, z + SUN_DIR.z * t]
   }
-  const E = 1.0, i = 0.25 // strip width, wall thickness
-  const x1 = -W / 2 + i, x2 = W / 2 - i, z1 = -D / 2 + i, z2 = D / 2 - i
-  // v1 (top of the texture) is the dark side: first two corners sit on the wall
-  quad([[x1, z1], [x2, z1], [x2, z1 + E], [x1, z1 + E]], 0, 0.48, 0, 1)
-  quad([[x2, z2], [x1, z2], [x1, z2 - E], [x2, z2 - E]], 0, 0.48, 0, 1)
-  quad([[x1, z2], [x1, z1], [x1 + E, z1], [x1 + E, z2]], 0, 0.48, 0, 1)
-  quad([[x2, z1], [x2, z2], [x2 - E, z2], [x2 - E, z1]], 0, 0.48, 0, 1)
-  const blob = (cx, cz, w, d) => quad([[cx - w / 2, cz - d / 2], [cx + w / 2, cz - d / 2], [cx + w / 2, cz + d / 2], [cx - w / 2, cz + d / 2]], 0.52, 1, 0, 1)
-  for (const r of L.rows || []) blob((r.x1 + r.x2) / 2, r.z + 0.8, r.x2 - r.x1 + 1.4, 2.6)
-  if (L.lounge) blob(L.lounge.x, L.lounge.z - 0.3, 4.2, 2.8)
-  for (const d of L.decor || []) {
-    const f = AO_FOOT[d.type]
-    if (f) blob(d.x, d.z, f[0], f[1])
+  for (const w of windows) {
+    const P = w.side === 'front'
+      ? [[w.a, 0.9, D / 2 - 0.27], [w.b, 0.9, D / 2 - 0.27], [w.b, 2.2, D / 2 - 0.27], [w.a, 2.2, D / 2 - 0.27]]
+      : [[W / 2 - 0.27, 0.9, w.b], [W / 2 - 0.27, 0.9, w.a], [W / 2 - 0.27, 2.2, w.a], [W / 2 - 0.27, 2.2, w.b]]
+    const n = pos.length / 3
+    for (const [x, y, z] of P) {
+      const [fx, fz] = floorHit(x, y, z)
+      pos.push(Math.max(-W / 2 + 0.3, Math.min(W / 2 - 0.3, fx)), 0.016, Math.max(-D / 2 + 0.3, Math.min(D / 2 - 0.3, fz)))
+    }
+    uv.push(0, 0, 1, 0, 1, 1, 0, 1)
+    idx.push(n, n + 1, n + 2, n, n + 2, n + 3)
   }
   const g = new THREE.BufferGeometry()
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
   g.setIndex(idx)
+  g.computeVertexNormals()
   return g
 }
-
 /** A door to the corridor: frame and a half-open leaf (hidden with its wall). */
 function RoomDoor({ x, D, W, side = 'front', T = 0.25 }) {
   const frame = paint('#8a6446', 0.5)
@@ -339,7 +329,7 @@ export function windowsAlong(a, b, w, step) {
   return out
 }
 
-export function Shell({ layout, title, subtitle, accent, look }) {
+export function Shell({ layout, title, subtitle, accent, look, night }) {
   const { W, D } = layout
   const fin = roomFinish(layout, look)
   const doorX = layout.elevator?.x ?? -W / 2 + 1.5
@@ -363,13 +353,21 @@ export function Shell({ layout, title, subtitle, accent, look }) {
         <boxGeometry args={[W - 0.04, 0.34, D - 0.04]} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]} material={fin.floor} geometry={floorGeo(W, D)} receiveShadow />
-      <mesh geometry={aoGeometry(layout)} material={aoMat} material-map={aoTexture()} renderOrder={1} />
       {/* four real walls in the room's own paint; corridors run outside them */}
       <CutWall side="back" W={W} D={D} mat={fin.wall} layout={layout} />
       <CutWall side="left" W={W} D={D} mat={fin.wall} layout={layout} />
       <CutWall side="right" W={W} D={D} mat={fin.wall} layout={layout} openings={right} />
       <CutWall side="front" W={W} D={D} mat={fin.wall} layout={layout} openings={front} />
       <WallMount side="front"><RoomDoor x={doorX} D={D} W={W} /></WallMount>
+      {!night && (
+        <mesh
+          geometry={sunGeometry(W, D, [...front.filter((o) => o.kind === 'window').map((o) => ({ ...o, side: 'front' })), ...right.filter((o) => o.kind === 'window').map((o) => ({ ...o, side: 'right' }))])}
+          material={sunMat}
+          material-map={sunTexture()}
+          renderOrder={3}
+          userData={{ dynamic: true }}
+        />
+      )}
       <WallMount side="right"><RoomDoor x={door2} D={D} W={W} side="right" /></WallMount>
       {/* white baseboards */}
       {base.filter((q) => q[2] > 0.05 && q[3] > 0.02).map(([x, z, w, d], i) => (
@@ -495,7 +493,7 @@ export default function Floor({ floor, layout, data, now, floorY, night, selecte
   const staticRoom = useMemo(
     () => (
       <StaticMerge key={mergeKey}>
-      <Shell layout={layout} look={look} title={floor.name} subtitle={`${floor.bots.length} bots`} accent={look.accent ? floor.color : null} />
+      <Shell layout={layout} look={look} night={night} title={floor.name} subtitle={`${floor.bots.length} bots`} accent={look.accent ? floor.color : null} />
       <WallMount side="back">
       <CoffeeCorner position={[-W / 2 + 3.0, 0, -D / 2 + 0.52]} />
       {/* the clock is not in the same spot in every room: each room has its own habits */}

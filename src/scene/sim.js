@@ -433,7 +433,7 @@ export function simBot(ctx, T) {
   else if (arrived && goal?.sit) y = sitY * Math.min(1, (T - arrivedT) / 400)
   return {
     x: cur.x, z: cur.z, y, yaw: cur.yaw, moving: !arrived && !cur.rising,
-    hidden, gone, at: arrived ? goal : null, seated, sitting: arrived && !!goal?.sit,
+    hidden, gone, departT, at: arrived ? goal : null, seated, sitting: arrived && !!goal?.sit,
     talk: arrived && talk ? { ...talk, since: arrivedT } : null,
     arrivedT,
   }

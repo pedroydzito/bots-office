@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+const Effects = lazy(() => import('./Effects'))
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import Sky from './Sky'
 import { LabelLayer } from './Labels'
@@ -71,7 +72,7 @@ function SunWithTarget({ sunRef, low, span = 11 }) {
     c.updateProjectionMatrix()
     // the whole office in view needs a bigger shadow map to stay sharp
     const sh = sunRef.current.shadow
-    const size = span > 12 ? 2048 : 1024
+    const size = MOBILE ? 1024 : 2048 // crisp, soft-edged shadows on desktop
     if (sh.mapSize.x !== size) {
       sh.mapSize.set(size, size)
       sh.map?.dispose()
@@ -159,11 +160,16 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove, bounds }) {
   }, [gl, controls, camera])
 
   const focusGen = useRef(0)
+  const swoopT = useRef(0)
   useEffect(() => {
     focusGen.current++
     dragging.current = false
     desired.current.set(focus.x, fy, focus.z)
-    zoomGoal.current = goalDist
+    // a little cinematic swoop between rooms: pull back while travelling, settle in on arrival
+    const swoop = placed.current && controls && controls.target.distanceTo(desired.current) > 3
+    zoomGoal.current = swoop ? Math.max(goalDist, camera.position.distanceTo(controls.target)) * 1.3 : goalDist
+    clearTimeout(swoopT.current)
+    if (swoop) swoopT.current = setTimeout(() => (zoomGoal.current = goalDist), 520)
     if (!placed.current && controls) {
       // first frame: put the camera right at the room, no fly-in
       placed.current = true
@@ -364,6 +370,13 @@ function IdleSaver({ cap = false }) {
 
 export const perfFlags = { idle: false }
 
+// Soft cel shading for every lit material (the "painted" look): the direct light wraps into a
+// bright band with a short soft edge instead of a long gradient. One string change, no extra cost.
+THREE.ShaderChunk.lights_physical_pars_fragment = THREE.ShaderChunk.lights_physical_pars_fragment.replace(
+  'vec3 irradiance = dotNL * directLight.color;',
+  'float toonNL = smoothstep( 0.0, 0.14, dotNL ) * 0.8 + dotNL * 0.2;\n\tvec3 irradiance = toonNL * directLight.color;',
+)
+
 /** Fog follows the zoom: the ground fades out past the campus instead of ending in an edge. */
 function CampusFog() {
   const { scene, camera, controls } = useThree()
@@ -466,7 +479,7 @@ export default function Scene(props) {
   return (
     <Canvas
       key={glKey}
-      shadows={MOBILE || q === 'leve' ? false : q === 'alta' ? 'soft' : 'percentage'}
+      shadows={MOBILE || q === 'leve' ? false : 'soft'}
       dpr={effDpr}
       gl={{ antialias: true, powerPreference: 'high-performance', stencil: true }}
       camera={{ fov: 30, position: [12, 10, 12], near: 1, far: 400 }}
@@ -496,7 +509,12 @@ export default function Scene(props) {
     >
       <IdleSaver cap={q === 'leve'} />
       <LabelLayer />
-      {/* no post-processing: the look comes from colours, soft shadows and fog (much lighter) */}
+      {/* highest graphics: bloom + colour finish (its own chunk, never downloaded otherwise) */}
+      {q === 'alta' && !pipOn && (
+        <Suspense fallback={null}>
+          <Effects night={night} />
+        </Suspense>
+      )}
       <Precompile />
       <PipFeed />
       <PerformanceMonitor
