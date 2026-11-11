@@ -66,6 +66,8 @@ function nearSide(obj, camera, side) {
 // camera sinks; every other room lies open (all its walls down). Whole office: the walls between
 // the camera and each room sink.
 export const focusRoom = { layout: null }
+// a wall is moving: redraw shadows every frame until it stops (they would step otherwise)
+export const shadowDirty = { v: false }
 // live height of every wall (scale 0..1), so what hangs on it appears only once it is up
 export const wallState = new Map()
 export const RoomCtx = createContext(null)
@@ -108,7 +110,7 @@ export function CutWall({ side, W, D, T = 0.25, H = 3.2, mat = wallMat, openings
     if (!g) return
     const want = wallUp(layout, side, g, camera) ? 1 : LOW / H
     const s = g.scale.y + (want - g.scale.y) * Math.min(1, dt * 7)
-    if (Math.abs(s - g.scale.y) > 0.0005) g.scale.y = s
+    if (Math.abs(s - g.scale.y) > 0.0005) (g.scale.y = s), (shadowDirty.v = true)
     if (layout) {
       let st = wallState.get(layout)
       if (!st) wallState.set(layout, (st = {}))

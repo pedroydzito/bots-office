@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import Sky from './Sky'
+import { shadowDirty } from './Floor'
 import { LabelLayer } from './Labels'
 import { useStore } from '../lib/createStore'
 import { prefs, prefStore } from '../lib/notify'
@@ -94,7 +95,10 @@ function SunWithTarget({ sunRef, low, span = 11 }) {
   useFrame(({ clock }) => {
     // shadows don't need every frame: ~16/s with one room open, ~7/s for the whole office (tiny moving
     // bots far away), ~4/s when idle
-    if ((performance.now() / 1000) - lastShadow.current > (perfFlags.idle ? 0.25 : span > 12 ? 0.14 : 0.06)) {
+    if (shadowDirty.v) {
+      shadowDirty.v = false
+      gl.shadowMap.needsUpdate = true
+    } else if ((performance.now() / 1000) - lastShadow.current > (perfFlags.idle ? 0.25 : span > 12 ? 0.14 : 0.06)) {
       lastShadow.current = (performance.now() / 1000)
       gl.shadowMap.needsUpdate = true
     }
