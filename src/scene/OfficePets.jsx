@@ -222,8 +222,8 @@ function Pet({ spec, idx, cats, campus, rooms, spots, overview, focusLayout }) {
       // head bobs a beat behind the body when walking, and squashes a little on each landing
       const hb = moving ? Math.abs(Math.sin(t * f - 0.6)) : 0
       h.scale.set(1 + (moving ? (1 - hb) * 0.05 : 0), 1 - (moving ? (1 - hb) * 0.06 : 0), 1)
-      h.position.y = (lay ? 0.14 : P === 'stretch' ? 0.38 : P === 'sit' || P === 'groom' || P === 'swat' ? 0.62 : 0.48) + hb * (P === 'run' ? 0.07 : 0.045)
-      h.position.z = lay ? 0.22 : 0.26
+      h.position.y = (lay ? 0.14 : P === 'stretch' ? 0.38 : P === 'sit' || P === 'groom' || P === 'swat' ? 0.55 : 0.43) + hb * 0.02
+      h.position.z = lay ? 0.2 : 0.17
       h.rotation.z = P === 'sit' && spec.kind === 'dog' ? Math.sin(t * 1.3) * 0.18 : 0 // head tilt
       h.rotation.x = P === 'groom' ? 0.5 + Math.sin(t * 9) * 0.15 : lay ? 0.3 : P === 'stretch' ? -0.3 : 0 // licking / yawning
       h.rotation.y = P === 'groom' ? -0.6 : 0
@@ -246,6 +246,7 @@ function Pet({ spec, idx, cats, campus, rooms, spots, overview, focusLayout }) {
     <group ref={root} scale={sz}>
       <group ref={body} position={[0, 0.3, 0]}>
         <mesh geometry={sph} material={spec.fur} scale={[0.16, 0.14, 0.21]} position={[0, -0.04, -0.04]} castShadow />
+        <mesh geometry={sph} material={spec.fur} position={[0, 0.06, 0.12]} scale={[0.11, 0.12, 0.1]} />
         {/* light belly / chest */}
         <mesh geometry={sph} material={white} scale={[0.11, 0.1, 0.12]} position={[0, -0.06, 0.07]} />
         {spec.name === 'dalmatian' && [[0.1, 0.03, -0.05], [-0.11, 0.01, -0.12], [0.03, 0.09, -0.14]].map((q, i) => (
@@ -257,7 +258,7 @@ function Pet({ spec, idx, cats, campus, rooms, spots, overview, focusLayout }) {
           ))}
         </group>
       </group>
-      <group ref={head} position={[0, 0.48, 0.26]}>
+      <group ref={head} position={[0, 0.43, 0.17]}>
         <mesh geometry={sph} material={spec.fur} scale={cat ? [0.17, 0.15, 0.15] : [0.17, 0.16, 0.16]} castShadow />
         {/* muzzle, nose, eyes with a shine, blush */}
         <mesh geometry={sph} material={white} position={[0, -0.05, 0.11]} scale={cat ? [0.08, 0.055, 0.05] : [0.09, 0.07, 0.07]} />
