@@ -72,14 +72,9 @@ function wallUp(layout, side, obj, camera) {
   room.worldToLocal(_cam)
   const len = Math.hypot(_cam.x, _cam.z) || 1
   const dot = (n) => (NORMALS[n][0] * _cam.x + NORMALS[n][1] * _cam.z) / len
-  if (!f || !layout) return dot(side) <= 0
-  if (dot(side) > 0.8) return false
-  let best = -2, bs = null
-  for (const k of ['front', 'right', 'left', 'back']) {
-    const v = dot(k) + (k === 'front' ? 0.01 : 0)
-    if (v > best) (best = v), (bs = k)
-  }
-  return bs !== side
+  // always the two walls most turned to the camera go down (never just one), so the room is open
+  const order = ['front', 'right', 'left', 'back'].map((k) => [k, dot(k) + (k === 'front' ? 0.001 : 0)]).sort((p, q) => q[1] - p[1])
+  return side !== order[0][0] && side !== order[1][0]
 }
 
 const glassMat = new THREE.MeshStandardMaterial({ color: '#cfe3f2', roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.32, depthWrite: false })
