@@ -226,6 +226,64 @@ export function floorGeo(W, D) {
   return g
 }
 
+// ---- baked-looking ambient occlusion, for free: soft darkening where walls meet the floor and
+// under furniture. One texture (left half: edge gradient, right half: soft blob), one mesh per room.
+let aoTex = null
+function aoTexture() {
+  if (aoTex) return aoTex
+  const c = document.createElement('canvas')
+  c.width = 128
+  c.height = 64
+  const g = c.getContext('2d')
+  const lin = g.createLinearGradient(0, 0, 0, 64)
+  lin.addColorStop(0, 'rgba(20,24,40,0.34)')
+  lin.addColorStop(0.45, 'rgba(20,24,40,0.10)')
+  lin.addColorStop(1, 'rgba(20,24,40,0)')
+  g.fillStyle = lin
+  g.fillRect(0, 0, 62, 64)
+  const rad = g.createRadialGradient(96, 32, 2, 96, 32, 30)
+  rad.addColorStop(0, 'rgba(20,24,40,0.30)')
+  rad.addColorStop(0.6, 'rgba(20,24,40,0.16)')
+  rad.addColorStop(1, 'rgba(20,24,40,0)')
+  g.fillStyle = rad
+  g.fillRect(66, 0, 62, 64)
+  aoTex = new THREE.CanvasTexture(c)
+  return aoTex
+}
+const aoMat = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })
+const AO_FOOT = { meeting: [3.4, 2.8], vending: [1.3, 1.5], printer: [1.3, 1.2], pool: [3.6, 2.4], pingpong: [3.7, 2.4], foosball: [1.8, 2.3], arcade: [1.5, 1.5], bench: [2.3, 1.2], armchair: [1.6, 1.6], beanbag: [1.5, 1.5], plant: [1.1, 1.1], bookcase: [2.3, 1.1] }
+function aoGeometry(L) {
+  const { W, D } = L
+  const pos = [], uv = [], idx = []
+  const y = 0.012
+  // quad from 4 corners (a,b near the dark edge; c,d far), with the given uv rectangle
+  const quad = (p, u0, u1, v0, v1) => {
+    const n = pos.length / 3
+    for (const [x, z] of p) pos.push(x, y, z)
+    uv.push(u0, v1, u1, v1, u1, v0, u0, v0)
+    idx.push(n, n + 2, n + 1, n, n + 3, n + 2)
+  }
+  const E = 1.0, i = 0.25 // strip width, wall thickness
+  const x1 = -W / 2 + i, x2 = W / 2 - i, z1 = -D / 2 + i, z2 = D / 2 - i
+  // v1 (top of the texture) is the dark side: first two corners sit on the wall
+  quad([[x1, z1], [x2, z1], [x2, z1 + E], [x1, z1 + E]], 0, 0.48, 0, 1)
+  quad([[x2, z2], [x1, z2], [x1, z2 - E], [x2, z2 - E]], 0, 0.48, 0, 1)
+  quad([[x1, z2], [x1, z1], [x1 + E, z1], [x1 + E, z2]], 0, 0.48, 0, 1)
+  quad([[x2, z1], [x2, z2], [x2 - E, z2], [x2 - E, z1]], 0, 0.48, 0, 1)
+  const blob = (cx, cz, w, d) => quad([[cx - w / 2, cz - d / 2], [cx + w / 2, cz - d / 2], [cx + w / 2, cz + d / 2], [cx - w / 2, cz + d / 2]], 0.52, 1, 0, 1)
+  for (const r of L.rows || []) blob((r.x1 + r.x2) / 2, r.z + 0.8, r.x2 - r.x1 + 1.4, 2.6)
+  if (L.lounge) blob(L.lounge.x, L.lounge.z - 0.3, 4.2, 2.8)
+  for (const d of L.decor || []) {
+    const f = AO_FOOT[d.type]
+    if (f) blob(d.x, d.z, f[0], f[1])
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  g.setIndex(idx)
+  return g
+}
+
 /** A door to the corridor: frame and a half-open leaf (hidden with its wall). */
 function RoomDoor({ x, D, W, side = 'front', T = 0.25 }) {
   const frame = paint('#8a6446', 0.5)
@@ -305,6 +363,7 @@ export function Shell({ layout, title, subtitle, accent, look }) {
         <boxGeometry args={[W - 0.04, 0.34, D - 0.04]} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]} material={fin.floor} geometry={floorGeo(W, D)} receiveShadow />
+      <mesh geometry={aoGeometry(layout)} material={aoMat} material-map={aoTexture()} renderOrder={1} />
       {/* four real walls in the room's own paint; corridors run outside them */}
       <CutWall side="back" W={W} D={D} mat={fin.wall} layout={layout} />
       <CutWall side="left" W={W} D={D} mat={fin.wall} layout={layout} />

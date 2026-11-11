@@ -22,7 +22,7 @@ const tmpC = new THREE.Color()
 /** nightness: 0 day … 1 night (fractions = dawn/dusk, warm tones). weather dims and greys the sky. */
 function Lights({ nightness, weather, low, span }) {
   const { scene } = useThree()
-  const hemi = useRef(), sun = useRef(), amb = useRef()
+  const hemi = useRef(), sun = useRef(), amb = useRef(), fill = useRef()
   const k = useRef(nightness)
   const wk = useRef(0)
   useEffect(() => {
@@ -37,13 +37,14 @@ function Lights({ nightness, weather, low, span }) {
     scene.background.copy(DAY_BG).lerp(DUSK_BG, warm * 0.6).lerp(GREY_BG, w * 0.6 * (1 - n)).lerp(NIGHT_BG, n)
     scene.environmentIntensity = THREE.MathUtils.lerp(0.9, 0.18, n) * (1 - w * 0.25)
     if (hemi.current) {
-      hemi.current.intensity = THREE.MathUtils.lerp(1.15, 0.25, n) * (1 - w * 0.15)
+      hemi.current.intensity = THREE.MathUtils.lerp(0.95, 0.25, n) * (1 - w * 0.15)
       hemi.current.color.set('#ffffff').lerp(tmpC.set('#ffd9bf'), warm * 0.5).lerp(tmpC.set('#7f8fc9'), n)
     }
     if (sun.current) {
       sun.current.intensity = THREE.MathUtils.lerp(2.1, 0.35, n) * (1 - w * 0.55)
       sun.current.color.copy(SUN).lerp(DUSK_SUN, warm * 0.8).lerp(MOON, n)
     }
+    if (fill.current) fill.current.intensity = THREE.MathUtils.lerp(0.55, 0.22, n)
     if (amb.current) amb.current.intensity = THREE.MathUtils.lerp(0.35, 0.12, n) + w * 0.08
   })
   return (
@@ -51,6 +52,8 @@ function Lights({ nightness, weather, low, span }) {
       <hemisphereLight ref={hemi} args={['#ffffff', '#d4d7de', 1.15]} />
       <ambientLight ref={amb} intensity={0.35} />
       <SunWithTarget sunRef={sun} low={low} span={span} />
+      {/* cool fill from the other side: shape and depth without a second shadow pass */}
+      <directionalLight ref={fill} position={[-9, 7, -6]} intensity={0.55} color="#c4d8ff" />
     </>
   )
 }
@@ -463,7 +466,7 @@ export default function Scene(props) {
   return (
     <Canvas
       key={glKey}
-      shadows={q === 'alta' && !MOBILE ? 'soft' : false}
+      shadows={MOBILE || q === 'leve' ? false : q === 'alta' ? 'soft' : 'percentage'}
       dpr={effDpr}
       gl={{ antialias: true, powerPreference: 'high-performance', stencil: true }}
       camera={{ fov: 30, position: [12, 10, 12], near: 1, far: 400 }}
@@ -520,7 +523,7 @@ export default function Scene(props) {
           setDpr((d) => Math.min(MOBILE ? Math.min(2, window.devicePixelRatio || 1) : Math.min(2, window.devicePixelRatio || 1), d + 0.25))
         }}
       />
-      <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={gfxPref === 'alta' ? false : low || q !== 'alta'} span={props.overview && props.campus ? Math.max(props.campus.W, props.campus.D) * 0.55 : 11} />
+      <Lights nightness={nightness ?? (night ? 1 : 0)} weather={weather} low={gfxPref === 'alta' ? false : MOBILE || q === 'leve' || (low && q !== 'media')} span={props.overview && props.campus ? Math.max(props.campus.W, props.campus.D) * 0.55 : 11} />
       {q !== 'leve' && <Sky nightness={nightness ?? (night ? 1 : 0)} weather={weather} desktop={!MOBILE && q === 'alta'} />}
       {q !== 'leve' && <Weather kind={weather} low={low || q === 'media'} />}
       <Environment resolution={32} frames={1}>

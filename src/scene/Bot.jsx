@@ -21,6 +21,20 @@ function blobTexture() {
   blobTex = new THREE.CanvasTexture(c)
   return blobTex
 }
+// Cartoon rim light: a soft bright edge where the surface turns away from the camera, stronger on
+// top. A few shader instructions, one shared program for every bot.
+export function rimLit(m) {
+  m.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace(
+      '#include <opaque_fragment>',
+      `float rimK = pow(1.0 - clamp(dot(normalize(vViewPosition), normal), 0.0, 1.0), 2.6);
+       outgoingLight += diffuseColor.rgb * rimK * 0.55 + vec3(rimK * 0.12);
+       #include <opaque_fragment>`,
+    )
+  }
+  m.customProgramCacheKey = () => 'rimLit'
+  return m
+}
 const blobGeo = new THREE.PlaneGeometry(1, 1)
 const NO_RAY = () => null
 let blobMat = null
@@ -270,7 +284,7 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
   // hidden bots (hidden in the Grok app) are quieter: washed-out colour, translucent, a bit smaller
   const color = bot.hidden ? '#' + new THREE.Color(resolveColor(bot.color)).lerp(new THREE.Color('#c3c7cf'), 0.6).getHexString() : resolveColor(bot.color)
   const dark = isDark(color)
-  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color, roughness: 0.38, metalness: 0, transparent: !!bot.hidden, opacity: bot.hidden ? 0.55 : 1 }), [color, bot.hidden])
+  const mat = useMemo(() => rimLit(new THREE.MeshStandardMaterial({ color, roughness: 0.38, metalness: 0, transparent: !!bot.hidden, opacity: bot.hidden ? 0.55 : 1 })), [color, bot.hidden])
   useEffect(() => () => mat.dispose(), [mat])
   const ringMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#fff', transparent: true, opacity: 0.5, depthWrite: false }), [])
 
@@ -449,8 +463,12 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
     const isTalking = !!sim.talk
     const act = sim.at && sim.at.poi ? sim.at.kind : null
     if (moving) {
-      by = Math.abs(Math.sin(t * 11 + phase)) * 0.07
-      rz = Math.sin(t * 11 + phase) * 0.09
+      // a springy little walk: hop, stretch on the way up, squash on landing, lean into the step
+      const hop = Math.abs(Math.sin(t * 11 + phase))
+      by = hop * 0.1
+      sy = 0.94 + hop * 0.11
+      rx = 0.09
+      rz = Math.sin(t * 11 + phase) * 0.1
       hl = Math.sin(t * 11) * 0.06
       hr = -hl
     } else if (isTalking) {
