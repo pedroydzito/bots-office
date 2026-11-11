@@ -493,7 +493,7 @@ export default function Scene(props) {
     document.documentElement.classList.toggle('gfx-leve', q === 'leve')
   }, [q])
   const pipOn = useStore(pipStore, (p) => p.on)
-  const effDpr = pipOn ? 1 : q === 'leve' ? Math.min(dpr, MOBILE ? 1.25 : 1) : q === 'media' ? Math.min(dpr, MOBILE ? 1.6 : 1.25) : dpr
+  const effDpr = pipOn ? 1 : q === 'leve' ? Math.min(dpr, MOBILE ? 1.25 : 1) : q === 'media' ? Math.min(dpr, MOBILE ? 1.6 : 1.5) : dpr
   return (
     <Canvas
       key={glKey}
@@ -540,7 +540,7 @@ export default function Scene(props) {
         flipflops={3}
         onFallback={() => {
           setLow(true)
-          setDpr(MOBILE ? 1.15 : 1)
+          setDpr(Math.min(MOBILE ? 1.25 : 1.25, window.devicePixelRatio || 1))
           // Auto: this device can't keep up -> Leve from now on (remembered)
           setWeakGpu(true)
           prefs.set('gfxAutoWeak', true)
@@ -552,7 +552,7 @@ export default function Scene(props) {
         bounds={(refresh) => [refresh * 0.72, refresh * 0.92]}
         onDecline={() => {
           // phones keep at least 1.5x so edges stay smooth (MSAA alone isn't enough at 1x)
-          setDpr((d) => Math.max(MOBILE ? Math.min(1.5, window.devicePixelRatio || 1) : 1, d - 0.25))
+          setDpr((d) => Math.max(Math.min(MOBILE ? 1.5 : 1.25, window.devicePixelRatio || 1), d - 0.25))
           setLow(true)
         }}
         onIncline={() => {

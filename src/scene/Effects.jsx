@@ -17,7 +17,7 @@ export default function Effects({ night }) {
     return () => (gl.toneMapping = prev)
   }, [gl])
   return (
-    <EffectComposer multisampling={0} disableNormalPass>
+    <EffectComposer multisampling={4} disableNormalPass>
       <Bloom resolutionScale={0.5} mipmapBlur intensity={night ? 0.7 : 0.25} luminanceThreshold={night ? 0.9 : 1.4} luminanceSmoothing={0.3} radius={0.6} />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
     </EffectComposer>
