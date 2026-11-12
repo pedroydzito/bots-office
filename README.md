@@ -43,7 +43,7 @@ When you open your deployment for the first time, it shows an **Enter access cod
 - The code is saved in this browser's `localStorage`, so you stay logged in on that browser until you sign out.
 - The app never shows the code in the UI, never logs it, and never leaves it in the URL.
 - To log in on another device with one link, open `https://<your-site>/#<your-code>`. The app saves the code and immediately strips the `#…` from the address bar and history with `history.replaceState`.
-- For a wall display, open `https://<your-site>/?tv=salas#ver:<your-code>`: TV mode parked on the whole campus (all rooms), logged in view-only. Plain `?tv` cuts from bot to bot instead. `?salas` opens on all rooms without TV mode.
+- For a wall display, open `https://<your-site>/?tv=salas#ver:<your-code>`: TV mode parked on the whole campus (all rooms), logged in view-only. Plain `?tv` cuts from bot to bot instead. `?salas` shows all rooms with the interface hidden, without fullscreen or the TV camera tour.
 - **Sign out:** open the ⚙ menu (top left) and choose *Sign out*. This removes the code and the cached office state from the browser.
 - **View demo** on the login screen opens demo mode with example bots and simulated activity.
 

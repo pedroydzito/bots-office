@@ -100,6 +100,8 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const [replayT, setReplayT] = useState(null) // timeline replay (ms) or null = live
   const [tv, setTv] = useState(() => new URLSearchParams(window.location.search).has('tv'))
   // `?tv=salas`: TV mode parked on the whole campus (every room in view) instead of cutting from bot to bot
+  // `?salas`: whole campus with the interface hidden, but no fullscreen or camera tour
+  const [clean, setClean] = useState(() => new URLSearchParams(window.location.search).has('salas'))
   const tvAll = useMemo(() => /^(salas|all|todas)$/i.test(new URLSearchParams(window.location.search).get('tv') || ''), [])
   const [celebration, setCelebration] = useState(null)
   // one notice at a time: a request waiting on you always wins; the rest wait their turn
@@ -643,7 +645,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   }, [])
 
   return (
-    <div className={`app ${night ? 'night' : ''} ${tv ? 'tv' : ''} ${intro ? 'intro' : ''}`}>
+    <div className={`app ${night ? 'night' : ''} ${tv || clean ? 'tv' : ''} ${intro ? 'intro' : ''}`}>
       <div className={`scene-loader ${sceneReady ? 'done' : ''}`} aria-hidden={sceneReady}>
         <div className="sl-bots">
           <i style={{ '--c': '#1E86FC', '--d': '0s' }} />
@@ -804,7 +806,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         <HoverTip />
         {searchOpen && <Search data={data} now={now} onPick={(n) => { setOverview(false); pickBot(n) }} onClose={() => setSearchOpen(false)} />}
       </div>}
-      {tv && <TvExit onExit={() => setTv(false)} />}
+      {(tv || clean) && <TvExit onExit={() => (setTv(false), setClean(false))} />}
     </div>
   )
 }
