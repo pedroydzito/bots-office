@@ -381,10 +381,17 @@ function Bot({ bot, status, layout, seat, role = 'home', names, data, floorKey =
           break
         }
       }
-      if (off !== v.off || crowded !== v.crowded) {
+      // names don't blink while the camera moves: a change only sticks once it has held ~0.6 s
+      const now = performance.now()
+      if (crowded !== v.crowded) {
+        if (v.crowdSince == null) v.crowdSince = now
+      } else v.crowdSince = null
+      const crowdedNow = v.crowdSince != null && now - v.crowdSince > 600 ? crowded : v.crowded
+      if (off !== v.off || crowdedNow !== v.crowded) {
         v.off = off
-        v.crowded = crowded
-        setView({ off, crowded })
+        v.crowded = crowdedNow
+        v.crowdSince = null
+        setView({ off, crowded: crowdedNow })
       }
     }
     const T = syncNow()

@@ -168,7 +168,7 @@ function CameraRig({ floorIdx, focus, selectedBot, tour, onUserMove, bounds }) {
       // horizontal wheel (tilt / side scroll): rotate the camera around what it looks at
       const dx = e.deltaMode === 1 ? e.deltaX * 16 : e.deltaX
       if (Math.abs(dx) > Math.abs(e.deltaY) && !e.shiftKey) {
-        spinGoal.current += -dx * 0.004 // eased in the frame loop, like the zoom
+        spinGoal.current += -dx * 0.0013 // eased in the frame loop, like the zoom
         return
       }
       const cur = zoomGoal.current ?? camera.position.distanceTo(controls.target)
