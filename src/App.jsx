@@ -123,7 +123,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
       }),
     [],
   )
-  const [overview, setOverview] = useState(tvAll) // opens on the top room (highest in the hierarchy); Esc shows all rooms
+  const [overview, setOverview] = useState(() => tvAll || new URLSearchParams(window.location.search).has('salas')) // `?salas`: open on every room, outside TV mode too // opens on the top room (highest in the hierarchy); Esc shows all rooms
   const [searchOpen, setSearchOpen] = useState(false)
   const [tour, setTour] = useState(false)
   const [floorKey, setFloorKey] = useState(null)
