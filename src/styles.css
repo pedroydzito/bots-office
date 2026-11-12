@@ -1091,3 +1091,16 @@ html[data-transicao='onda']::view-transition-new(root) { z-index: 1; }
 .look-val { font-style: normal; color: var(--muted); font-size: 11.5px; margin-left: 6px; }
 .sw.sw-mix { background: conic-gradient(#d9b68f 0 25%, #b98c66 0 50%, #e2c9a6 0 75%, #c8a17b 0) !important; }
 .sw.sw-mixw { background: conic-gradient(#f3eee6 0 25%, #dde8df 0 50%, #e6e1f0 0 75%, #f2e3d7 0) !important; }
+
+/* ---------- lock screen (?bloqueio) */
+.lock { position: fixed; inset: 0; z-index: 1000; overflow: hidden; cursor: none; transition: background 1.2s ease, color 1.2s ease; font-family: inherit; }
+.lock-eyes { position: absolute; left: 50%; top: 46%; width: 0; height: 0; transition: transform 1.1s cubic-bezier(.5, 0, .3, 1); }
+.lock.busy .lock-eyes { transition-duration: .55s; }
+.lock-eyes span { position: absolute; top: -8vmin; width: 8.5vmin; height: 16vmin; border-radius: 50%; transition: transform .18s ease, background 1.2s ease; }
+.lock-eyes span:first-child { left: -10.5vmin; }
+.lock-eyes span:last-child { left: 3vmin; }
+.lock-info { position: absolute; left: 4vmin; bottom: 4vmin; max-width: 70vw; display: grid; gap: .6vmin; opacity: .85; animation: lockIn .8s ease both; }
+.lock-info b { font-size: 3.6vmin; }
+.lock-info span { font-size: 2.6vmin; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lock-info i { font-style: normal; font-size: 2vmin; opacity: .55; }
+@keyframes lockIn { from { opacity: 0; transform: translateY(1.5vmin); } }
