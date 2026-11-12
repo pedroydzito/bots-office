@@ -99,6 +99,8 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   }, [lightMode])
   const [replayT, setReplayT] = useState(null) // timeline replay (ms) or null = live
   const [tv, setTv] = useState(() => new URLSearchParams(window.location.search).has('tv'))
+  // `?tv=salas`: TV mode parked on the whole campus (every room in view) instead of cutting from bot to bot
+  const tvAll = useMemo(() => /^(salas|all|todas)$/i.test(new URLSearchParams(window.location.search).get('tv') || ''), [])
   const [celebration, setCelebration] = useState(null)
   // one notice at a time: a request waiting on you always wins; the rest wait their turn
   const [notices, setNotices] = useState([])
@@ -121,7 +123,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
       }),
     [],
   )
-  const [overview, setOverview] = useState(false) // opens on the top room (highest in the hierarchy); Esc shows all rooms
+  const [overview, setOverview] = useState(tvAll) // opens on the top room (highest in the hierarchy); Esc shows all rooms
   const [searchOpen, setSearchOpen] = useState(false)
   const [tour, setTour] = useState(false)
   const [floorKey, setFloorKey] = useState(null)
@@ -568,14 +570,15 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   // TV mode: full screen, no panels, guided tour
   useEffect(() => {
     if (tv) {
-      setTour(true)
+      if (tvAll) setOverview(true)
+      else setTour(true)
       document.documentElement.requestFullscreen?.().catch(() => {})
     } else if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {})
   }, [tv])
 
   // TV mode camera: cuts from bot to bot like a documentary, favouring whoever is doing something
   useEffect(() => {
-    if (!tv) return
+    if (!tv || tvAll) return
     let i = 0
     const cut = () => {
       const s = dataStore.get()
