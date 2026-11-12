@@ -99,6 +99,10 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   }, [lightMode])
   const [replayT, setReplayT] = useState(null) // timeline replay (ms) or null = live
   const [tv, setTv] = useState(() => new URLSearchParams(window.location.search).has('tv'))
+  // `?tv=salas`: TV mode parked on the whole campus (every room in view) instead of cutting from bot to bot
+  // `?salas`: whole campus with the interface hidden, but no fullscreen or camera tour
+  const [clean, setClean] = useState(() => new URLSearchParams(window.location.search).has('salas'))
+  const tvAll = useMemo(() => /^(salas|all|todas)$/i.test(new URLSearchParams(window.location.search).get('tv') || ''), [])
   const [celebration, setCelebration] = useState(null)
   // one notice at a time: a request waiting on you always wins; the rest wait their turn
   const [notices, setNotices] = useState([])
@@ -121,7 +125,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
       }),
     [],
   )
-  const [overview, setOverview] = useState(false) // opens on the top room (highest in the hierarchy); Esc shows all rooms
+  const [overview, setOverview] = useState(() => tvAll || new URLSearchParams(window.location.search).has('salas')) // `?salas`: open on every room, outside TV mode too // opens on the top room (highest in the hierarchy); Esc shows all rooms
   const [searchOpen, setSearchOpen] = useState(false)
   const [tour, setTour] = useState(false)
   const [floorKey, setFloorKey] = useState(null)
@@ -568,14 +572,15 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   // TV mode: full screen, no panels, guided tour
   useEffect(() => {
     if (tv) {
-      setTour(true)
+      if (tvAll) setOverview(true)
+      else setTour(true)
       document.documentElement.requestFullscreen?.().catch(() => {})
     } else if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {})
   }, [tv])
 
   // TV mode camera: cuts from bot to bot like a documentary, favouring whoever is doing something
   useEffect(() => {
-    if (!tv) return
+    if (!tv || tvAll) return
     let i = 0
     const cut = () => {
       const s = dataStore.get()
@@ -640,7 +645,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   }, [])
 
   return (
-    <div className={`app ${night ? 'night' : ''} ${tv ? 'tv' : ''} ${intro ? 'intro' : ''}`}>
+    <div className={`app ${night ? 'night' : ''} ${tv || clean ? 'tv' : ''} ${intro ? 'intro' : ''}`}>
       <div className={`scene-loader ${sceneReady ? 'done' : ''}`} aria-hidden={sceneReady}>
         <div className="sl-bots">
           <i style={{ '--c': '#1E86FC', '--d': '0s' }} />
@@ -801,7 +806,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         <HoverTip />
         {searchOpen && <Search data={data} now={now} onPick={(n) => { setOverview(false); pickBot(n) }} onClose={() => setSearchOpen(false)} />}
       </div>}
-      {tv && <TvExit onExit={() => setTv(false)} />}
+      {(tv || clean) && <TvExit onExit={() => (setTv(false), setClean(false))} />}
     </div>
   )
 }
