@@ -20,7 +20,7 @@ function light(hex) {
 
 const rand = (a, b) => a + Math.random() * (b - a)
 
-export function LockScreen({ topic }) {
+export function LockScreen({ topic, embedded, onExit }) {
   const live = useStore(dataStore)
   const [now, setNow] = useState(Date.now())
   const [turn, setTurn] = useState(0)
@@ -29,9 +29,17 @@ export function LockScreen({ topic }) {
   const spinRef = useRef(0)
 
   useEffect(() => {
+    if (embedded) return // inside the office, data is already flowing
     loadTopic(topic)
     return topic ? connectNtfy(topic, { onMessages: ingest, onStatus: () => {} }) : startDemo()
-  }, [topic])
+  }, [topic, embedded])
+
+  useEffect(() => {
+    if (!onExit) return
+    const k = (e) => e.key === 'Escape' && onExit()
+    window.addEventListener('keydown', k)
+    return () => window.removeEventListener('keydown', k)
+  }, [onExit])
 
   // keep the display awake and the cursor out of the way
   useEffect(() => {
@@ -98,15 +106,13 @@ export function LockScreen({ topic }) {
     return () => clearTimeout(t)
   }, [busy])
 
-  const clock = new Date(now).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   return (
-    <div className={`lock ${busy ? 'busy' : ''}`} style={{ background: bg, color: eye }}>
+    <div className={`lock ${busy ? 'busy' : ''}`} style={{ background: bg, color: eye }} onDoubleClick={onExit}>
       <div className="lock-eyes" style={{ transform: `translate(${pose.x}vmin, ${pose.y}vmin) rotate(${pose.spin}deg) scale(${pose.size})` }}>
         {[0, 1].map((i) => (
           <span key={i} style={{ background: eye, transform: `rotate(24deg) scaleY(${pose.open})` }} />
         ))}
       </div>
-      <div className="lock-clock">{clock}</div>
       {bot && (
         <div className="lock-info" key={name}>
           <b>{name}</b>

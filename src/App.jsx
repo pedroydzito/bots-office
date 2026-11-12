@@ -101,6 +101,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     prefs.set('light', lightMode)
   }, [lightMode])
   const [replayT, setReplayT] = useState(null) // timeline replay (ms) or null = live
+  const [lock, setLock] = useState(false) // lock screen turned on from the menu or with B
   const [tv, setTv] = useState(() => new URLSearchParams(window.location.search).has('tv'))
   // `?tv=salas`: TV mode parked on the whole campus (every room in view) instead of cutting from bot to bot
   // `?salas`: whole campus with the interface hidden, but no fullscreen or camera tour
@@ -427,6 +428,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   // Esc closes the top-most thing that is open; with nothing open it leaves the room for the whole office
   const escRef = useRef(() => {})
   escRef.current = () => {
+    if (lock) return setLock(false)
     if (quick) return setQuick(null)
     if (searchOpen) return setSearchOpen(false)
     if (keysOpen) return setKeysOpen(false)
@@ -452,6 +454,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
       else if (e.key === 't' || e.key === 'T') setTour((x) => !x)
       else if (e.key === 'n' || e.key === 'N') setLightMode((m) => (m === 'night' ? 'day' : 'night'))
       else if (e.key === 'f' || e.key === 'F') setTv((x) => !x)
+      else if (e.key === 'b' || e.key === 'B') setLock(true)
       else if (e.key === 'b' || e.key === 'B') setOverview((x) => !x)
       else if (e.key === 'a' || e.key === 'A') setQueueOpen((x) => !x)
       else if (e.key === '[') setLeftHidden((x) => !x)
@@ -704,7 +707,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
           <Brand conn={conn} now={now} name={live.office?.name} onClick={() => setOfficesOpen(true)} />
           <SearchField onOpen={() => setSearchOpen(true)} />
           <ModeToggles mode={lightMode} setMode={setLightMode} tour={tour} setTour={setTour} onSearch={() => setSearchOpen(true)} />
-          <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} mode={lightMode} setMode={setLightMode} onOffices={() => setOfficesOpen(true)} onHealth={() => setHealthOpen(true)} onKeys={() => setKeysOpen(true)} onOfficeSettings={() => setOfficeCfg(true)} readonly={readonly} />
+          <Settings live={!!topic} onSignOut={onSignOut} onSignIn={onSignIn} onTv={() => setTv(true)} onLock={() => setLock(true)} mode={lightMode} setMode={setLightMode} onOffices={() => setOfficesOpen(true)} onHealth={() => setHealthOpen(true)} onKeys={() => setKeysOpen(true)} onOfficeSettings={() => setOfficeCfg(true)} readonly={readonly} />
         </div>
         {/* one stack for every notice, under the top bar: they line up, never on top of each other */}
         <div className="notice-stack" aria-live="polite">
@@ -809,6 +812,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
         <HoverTip />
         {searchOpen && <Search data={data} now={now} onPick={(n) => { setOverview(false); pickBot(n) }} onClose={() => setSearchOpen(false)} />}
       </div>}
+      {lock && <LockScreen embedded onExit={() => setLock(false)} />}
       {(tv || clean) && <TvExit onExit={() => (setTv(false), setClean(false))} />}
     </div>
   )

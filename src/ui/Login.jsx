@@ -52,7 +52,7 @@ export function Login({ onSubmit, onDemo, onCancel }) {
   )
 }
 
-export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOffices, onHealth, onKeys, onOfficeSettings, readonly }) {
+export function Settings({ live, onSignOut, onSignIn, onTv, onLock, mode, setMode, onOffices, onHealth, onKeys, onOfficeSettings, readonly }) {
   const [open, setOpen] = useState(false)
   const [notify, setNotify] = useState(() => prefs.get('notify', false) && notificationsSupported() && Notification.permission === 'granted')
   const [sound, setSound] = useState(() => prefs.get('sound', true))
@@ -149,6 +149,7 @@ export function Settings({ live, onSignOut, onSignIn, onTv, mode, setMode, onOff
           {onOffices && <button onClick={() => { setOpen(false); onOffices() }}><Layers size={14} /> Trocar de escritório{readonly ? ' · só leitura' : ''}</button>}
           {onHealth && <button onClick={() => { setOpen(false); onHealth() }}><Pulse size={14} /> Painel do sistema</button>}
           <button onClick={() => { setOpen(false); onTv() }}><Tv size={14} /> Modo TV</button>
+          <button onClick={() => { setOpen(false); onLock() }}><Tv size={14} /> Tela de bloqueio</button>
           {onKeys && !window.matchMedia?.('(pointer: coarse)').matches && <button onClick={() => { setOpen(false); onKeys() }}><Keyboard size={14} /> Atalhos</button>}
           <hr />
           {live ? (

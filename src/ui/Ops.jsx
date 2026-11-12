@@ -220,6 +220,7 @@ const KEYS = [
   ['T', 'Tour'],
   ['N', 'Dia / noite'],
   ['F', 'Modo TV'],
+  ['B', 'Tela de bloqueio'],
   ['H', 'Saúde do sistema'],
   ['?', 'Esta ajuda'],
   ['Esc', 'Fechar / desmarcar'],

@@ -44,7 +44,7 @@ When you open your deployment for the first time, it shows an **Enter access cod
 - The app never shows the code in the UI, never logs it, and never leaves it in the URL.
 - To log in on another device with one link, open `https://<your-site>/#<your-code>`. The app saves the code and immediately strips the `#…` from the address bar and history with `history.replaceState`.
 - For a wall display, open `https://<your-site>/?tv=salas#ver:<your-code>`: TV mode parked on the whole campus (all rooms), logged in view-only. Plain `?tv` cuts from bot to bot instead. `?salas` shows all rooms with the interface hidden, without fullscreen or the TV camera tour.
-- Lock screen: `https://<your-site>/?bloqueio#ver:<your-code>` shows only the bot eyes on black; the background takes the colour of the bot that is working (name and step in the corner), rotating between working bots. `?bloqueio&demo` previews it with demo data.
+- Lock screen: `https://<your-site>/?bloqueio#ver:<your-code>` shows only the bot eyes on black; the background takes the colour of the bot that is working (name and step in the corner), rotating between working bots. `?bloqueio&demo` previews it with demo data. It can also be turned on from Settings → Tela de bloqueio or with B (Esc or double-click leaves).
 - **Sign out:** open the ⚙ menu (top left) and choose *Sign out*. This removes the code and the cached office state from the browser.
 - **View demo** on the login screen opens demo mode with example bots and simulated activity.
 
