@@ -3,7 +3,8 @@ import { pipStore, setPipShape, SHAPES, togglePiP } from './lib/pip'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 // the 3D bundle loads after the interface shell
 const loadScene = () => import('./scene/Scene')
-loadScene()
+const LOCK = new URLSearchParams(window.location.search).has('bloqueio') // `?bloqueio`: 2D lock screen, no 3D
+if (!LOCK) loadScene()
 const Scene = lazy(loadScene)
 import { floorLayout, LEAD_RE, naturalSize } from './scene/layout'
 import { botPositions, ridePositions, sceneSignals } from './scene/registry'
@@ -16,6 +17,7 @@ import { captureHash, clearCode, getCode, isReadonly, rememberOffice, setCode } 
 import { demoApprove, startDemo } from './lib/demo'
 import { Activity, Brand, PanelIcon, ConnectBanner, Hints, LeftPanel, ModeToggles, Pills, RightPanel, Toast, Weekly } from './ui/Panels'
 import { Login, Settings } from './ui/Login'
+import { LockScreen } from './ui/LockScreen'
 import { Celebration, MobileFloors, MobileTabs, Search, Timeline, TvExit } from './ui/Extras'
 import { EmptyOffice, HealthModal, LookModal, Modal, OfficesModal, QueueModal, SendStatus, ShortcutsModal } from './ui/Ops'
 import { buzz, HoverTip, MiniMap, QuickMenu, SearchField, Welcome } from './ui/Interact'
@@ -72,6 +74,7 @@ export default function App() {
     setCodeState(c)
     setDemo(false)
   }, [])
+  if (LOCK && !adding && (code || new URLSearchParams(window.location.search).has('demo'))) return <LockScreen topic={code} />
   if (adding || (!code && !demo)) return <Login onSubmit={signIn} onDemo={() => (setAdding(false), setDemo(true))} onCancel={adding && code ? () => setAdding(false) : null} />
   return <Office key={code || 'demo'} topic={code} onSignOut={signOut} onSignIn={toLogin} onSwitch={switchTo} />
 }
