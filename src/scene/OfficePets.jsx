@@ -72,7 +72,7 @@ function napSpots(rooms) {
   const s = []
   for (const l of rooms) {
     // on the sofa cushions (they hop up and curl there)
-    for (const p of l.pois) if (p.kind === 'sofa') s.push({ ...toWorld(l, p.x, p.z + 0.1), y: 0.6, room: l, sofa: true })
+    for (const p of l.pois) if (p.kind === 'sofa') s.push({ ...toWorld(l, p.x, p.z + 0.1), y: 0.5, room: l, sofa: true })
     const st = l.seats[hash(l.variant + 'p') % Math.max(1, l.seats.length)]
     if (st) s.push({ ...toWorld(l, st.x + 0.85, (st.az ?? st.z) + 0.25), room: l, desk: true })
     // a clear patch of floor: away from furniture, desks and walls
@@ -156,6 +156,14 @@ function Pet({ spec, idx, cats, campus, rooms, spots, overview, focusLayout }) {
     const vis = overview || (room && room === focusLayout)
     g.visible = !!vis
     if (!vis) return
+    if (s.b?.sofa && s.y) {
+      for (const q of botWorld.values())
+        if (Math.hypot(q.x - s.x, q.z - s.z) < 0.75) {
+          s.y = 0
+          s.z += 0.85 // a bot is sitting there: curl up on the floor in front of the sofa
+          break
+        }
+    }
     g.position.set(s.x, s.y || 0, s.z)
     const pw = petWorld.get(spec.name) || {}
     pw.x = s.x, pw.z = s.z, pw.rest = s.pose === 'sit' || s.pose === 'sleep', pw.y = s.y || 0
@@ -215,7 +223,7 @@ function Pet({ spec, idx, cats, campus, rooms, spots, overview, focusLayout }) {
         sy = 1 + Math.sin(t * 2) * 0.025
       }
       b.scale.set(sx, sy, sz)
-      b.rotation.z = lay ? 0.25 : 0
+      b.rotation.z = 0
     }
     if (head.current) {
       const h = head.current
@@ -223,7 +231,7 @@ function Pet({ spec, idx, cats, campus, rooms, spots, overview, focusLayout }) {
       const hb = moving ? Math.abs(Math.sin(t * f - 0.6)) : 0
       h.scale.set(1 + (moving ? (1 - hb) * 0.05 : 0), 1 - (moving ? (1 - hb) * 0.06 : 0), 1)
       h.position.y = (lay ? 0.14 : P === 'stretch' ? 0.38 : P === 'sit' || P === 'groom' || P === 'swat' ? 0.55 : 0.43) + hb * 0.02 + (body.current ? body.current.position.y - 0.3 : 0) // rides with the body's bounce
-      h.position.z = lay ? 0.2 : 0.17
+      h.position.z = lay ? 0.15 : 0.17
       h.rotation.z = P === 'sit' && spec.kind === 'dog' ? Math.sin(t * 1.3) * 0.18 : 0 // head tilt
       h.rotation.x = P === 'groom' ? 0.5 + Math.sin(t * 9) * 0.15 : lay ? 0.3 : P === 'stretch' ? -0.3 : 0 // licking / yawning
       h.rotation.y = P === 'groom' ? -0.6 : 0
