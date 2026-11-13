@@ -521,10 +521,14 @@ export function loadTopic(topic) {
     }
     const c = readJSON(partKey(topic, 'cortex'))
     if (c) s.cortex = c
-    const u = readJSON(partKey(topic, 'usage'))
-    if (u) s.usage = u
+    // a saved limit only counts when it says which account it is (older builds saved another
+    // account's limit as the main one): unlabeled ones are dropped and the replay brings them back
+    const okU = (a, x) => x && typeof x === 'object' && x.account === a
     const ua = readJSON(partKey(topic, 'usageacct'))
-    s.usageByAcct = ua && typeof ua === 'object' ? ua : u ? { [DEFAULT_ACCOUNT]: u } : {}
+    s.usageByAcct = {}
+    if (ua && typeof ua === 'object') for (const [a, x] of Object.entries(ua)) if (okU(a, x)) s.usageByAcct[a] = x
+    const u = readJSON(partKey(topic, 'usage'))
+    s.usage = s.usageByAcct[DEFAULT_ACCOUNT] || (okU(DEFAULT_ACCOUNT, u) ? u : null)
   }
   if (storageKey) {
     try {
@@ -539,7 +543,7 @@ export function loadTopic(topic) {
           bots,
           order: [...new Set([...s.order, ...(p.order || [])])].filter((n) => bots[n]),
           routines: p.routines || {},
-          usage: s.usage || p.usage || null,
+          usage: s.usage || (p.usage?.account === DEFAULT_ACCOUNT ? p.usage : null),
           cortex: s.cortex || p.cortex || null,
           activity: p.activity || [],
           history: p.history || [],
@@ -626,6 +630,17 @@ export function ingest(msgs) {
     if (m.id) {
       if (seen.has(m.id)) {
         const p = m.payload
+        // the latest limit of each account is re-read too (it may have been filed under the wrong account)
+        const uu = p && typeof p === 'object' ? (p.type === 'usage' ? p : p.usage && typeof p.usage === 'object' ? p.usage : null) : null
+        if (uu) {
+          const a = accountOf(uu.account || p.account)
+          if (!d.usageByAcct[a] || (d.usageByAcct[a].t || 0) < m.time) {
+            const hist = d.usageHist
+            applyPayload(d, { type: 'usage', ...uu, account: a }, m.time)
+            d.usageHist = hist
+            changed = true
+          }
+        }
         if (p && typeof p === 'object' && Array.isArray(p.roster)) {
           try {
             applyPayload(d, { roster: p.roster, ...(p.account ? { account: p.account } : {}) }, m.time)
