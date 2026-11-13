@@ -2,6 +2,9 @@
 # Publish Bot Office messages to your ntfy topic.
 #
 #   export BOT_OFFICE_TOPIC=your-secret-topic      # your access code (the ntfy topic)
+#   export BOT_OFFICE_ACCOUNT=captacao              # optional: which Grok account these bots belong to.
+#                                                   # Several accounts can share one office: each one's roster
+#                                                   # and weekly limit are kept apart (none replaces the other).
 #
 #   scripts/post.sh status "X Writer" working "Drafting tonight's post"
 #   scripts/post.sh status "X Writer" waiting_user "Needs your OK to publish"
@@ -19,6 +22,7 @@ set -euo pipefail
 export LC_ALL=C # byte lengths for the 4 KB ntfy limit
 
 TOPIC="${BOT_OFFICE_TOPIC:-${TOPIC:-}}"
+ACCOUNT="${BOT_OFFICE_ACCOUNT:-}"
 SERVER="${NTFY_SERVER:-https://ntfy.sh}"
 if [[ -z "$TOPIC" ]]; then
   echo "Set BOT_OFFICE_TOPIC (your ntfy topic) first." >&2
@@ -56,7 +60,8 @@ case "$cmd" in
     ;;
   usage)
     [[ $# -ge 1 ]] || { echo "usage: usage <total_pct> [resets_at_iso] [bots_json]" >&2; exit 1; }
-    send "{\"type\":\"usage\",\"total_used_pct\":$1,\"resets_at\":$(js "${2:-}"),\"bots\":${3:-{\}}}"
+    acc=""; [[ -n "$ACCOUNT" ]] && acc=",\"account\":$(js "$ACCOUNT")"
+    send "{\"type\":\"usage\"$acc,\"total_used_pct\":$1,\"resets_at\":$(js "${2:-}"),\"bots\":${3:-{\}}}"
     ;;
   cortex)
     [[ $# -ge 1 ]] || { echo "usage: cortex <notes> [recent_json_array]" >&2; exit 1; }
@@ -73,7 +78,7 @@ case "$cmd" in
     parts=0
     flush() {
       [[ -z "$chunk" ]] && return
-      send "{\"roster\":[$chunk]}"
+      if [[ -n "$ACCOUNT" ]]; then send "{\"account\":$(js "$ACCOUNT"),\"roster\":[$chunk]}"; else send "{\"roster\":[$chunk]}"; fi
       parts=$((parts + 1))
       chunk=""
     }
@@ -84,7 +89,7 @@ case "$cmd" in
       fi
       if [[ -n "$chunk" ]] && (( ${#chunk} + ${#item} + 16 > max )); then flush; fi
       chunk="${chunk:+$chunk,}$item"
-    done < <(jq -c '.[] | {name, id, shape, color, accessory, team, photo, hidden} | with_entries(select(.value != null))' "${1:-$here/src/roster.json}")
+    done < <(jq -c '.[] | {name, id, shape, color, accessory, team, photo, hidden, role, beside, account} | with_entries(select(.value != null))' "${1:-$here/src/roster.json}")
     flush
     echo "roster sent in $parts message(s)"
     ;;

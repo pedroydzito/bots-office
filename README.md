@@ -165,6 +165,22 @@ Every bot in a roster appears on its team's floor **right away** (resting), befo
 
 Only `data:image/png|jpeg|webp;base64,…` is accepted (max ~12 KB; a 64×64 JPEG is ~2 KB), so the app still never fetches anything outside ntfy.sh. `scripts/post.sh photo "Closer" face.jpg` builds and sends it for you (needs ImageMagick). Without a photo, `photo`/`circle` render as a plain circle.
 
+### Várias contas Grok no mesmo escritório (`account`)
+
+Mais de uma conta Grok Bot pode publicar no mesmo tópico. Cada conta manda o próprio roster com o campo `account`; o site guarda **um roster por conta** e junta tudo (a conta principal primeiro, ela define a ordem dos andares). O roster de uma conta nunca substitui nem apaga os bots de outra.
+
+```json
+{"account":"captacao","roster":[{"name":"Sócio","id":"…","shape":"circle","color":"black","team":"Staff","role":"gerente","beside":"Lima_","account":"captacao"}]}
+{"type":"usage","account":"captacao","total_used_pct":42,"resets_at":"2026-11-18T21:34:00Z","bots":{"Captador":20}}
+```
+
+- Mensagem sem `account` = conta `principal` (compatível com o que já existia).
+- `usage` é por conta: o painel mostra o limite semanal de cada conta e "Quem mais gasta" junta o uso por bot de todas. Se uma conta não manda uso por bot, aparece "Uso por bot indisponível" (nada é estimado).
+- A ficha do bot mostra de qual conta ele é.
+- Os nomes precisam ser únicos entre as contas (o site casa bots pelo nome).
+- `role: "gerente"` (ou `sócio`, `manager`, `partner`) ganha uma segunda mesa executiva ao lado da mesa do líder do andar; `beside: "<bot>"` diz ao lado de quem (esse bot fica com a mesa de líder).
+- `scripts/post.sh` usa `BOT_OFFICE_ACCOUNT` para marcar roster e uso.
+
 ### `groups`: teams (one floor per team)
 
 ```bash

@@ -19,15 +19,18 @@ function viewDistance(w, d) {
   return Math.min(22, Math.max(12, 4 + Math.max(w, d) * 1.25))
 }
 
-function leftWall(W, D, v = 0) {
+function leftWall(W, D, v = 0, colead = false) {
   // the area's entrance: an opening in the front partition, at the front-left, onto the aisle
   const elevator = { kind: 'elevator', x: -W / 2 + 1.5, z: D / 2 - 0.75, az: D / 2 - 0.75, yaw: 0 }
   // Everything else on this wall is spread evenly along its free length (entrance corner kept clear),
   // so the wall is never crowded at one end and empty at the other.
   const a = -D / 2 + 1.6, b = D / 2 - 2.3
-  const base = [['cooler', 0.6], ['board', 1.8], ['shelf', 1.7], ['vending', 0.9]]
+  // with a manager beside the lead, the board slot holds both executive desks (one each side of it)
+  const base = [['cooler', 0.6], ['board', colead ? 5.0 : 1.8], ['shelf', 1.7], ['vending', 0.9]]
   const ORDERS = [[0, 1, 2, 3], [2, 1, 0, 3], [0, 2, 1, 3], [3, 1, 2, 0], [1, 0, 3, 2], [2, 3, 1, 0]]
-  const items = ORDERS[(v >>> 18) % ORDERS.length].map((i) => base[i])
+  let items = ORDERS[(v >>> 18) % ORDERS.length].map((i) => base[i])
+  // not enough wall for everything: the bookshelf gives way
+  if (items.reduce((s, [, w]) => s + w, 0) + 0.3 * (items.length + 1) > b - a) items = items.filter(([k]) => k !== 'shelf')
   const total = items.reduce((s, [, w]) => s + w, 0)
   const gap = Math.max(0.3, (b - a - total) / (items.length + 1))
   const z = {}
@@ -182,8 +185,9 @@ function fillEmpty({ W, D, v, decor, pois, rows, seats, xL, furniture, lounge, g
     }
 }
 
-export function floorLayout(nAll, W, D, { lead = false, furniture = true, seed = '' } = {}) {
-  const n = lead ? nAll - 1 : nAll
+export function floorLayout(nAll, W, D, { lead = false, colead = false, furniture = true, seed = '' } = {}) {
+  colead = colead && lead
+  const n = nAll - (lead ? 1 : 0) - (colead ? 1 : 0)
   // every floor gets its own personality (same on every screen): corner type, rug colours, games...
   const v = strHash(seed)
   const GAMES = nAll >= 2 ? ['pingpong', 'pool', 'foosball', 'arcade'] : ['arcade', null]
@@ -221,17 +225,22 @@ export function floorLayout(nAll, W, D, { lead = false, furniture = true, seed =
     // ex: side lane between chairs, so bots step out sideways instead of walking through the chair back
     for (let c = 0; c < cnt; c++) seats.push({ x: x0 + c * sx, z, az: z - 1.1, ex: x0 + c * sx + sx / 2, row: r })
   }
-  const lw0 = leftWall(W, D, v)
+  const lw0 = leftWall(W, D, v, colead)
   let leadRow = null
   if (lead) {
     // the lead sits beside the "Destaques de hoje" board, facing the team, own desk
     // the lead sits with the wall (and the highlights board) behind, facing the team
-    const x = -W / 2 + 1.25, z = lw0.boardZ
+    // with a manager ("colead") the two executive desks sit side by side, the board between them
+    const x = -W / 2 + 1.25, z = lw0.boardZ - (colead ? 1.5 : 0)
+    if (colead) {
+      const cz = lw0.boardZ + 1.5
+      seats.unshift({ x, z: cz, az: cz - 1.05, row: -1, lead: true, colead: true, yaw: Math.PI / 2, talk: { x: -W / 2 + 3.05, z: cz - 0.3 } })
+    }
     seats.unshift({ x, z, az: z - 1.05, row: -1, lead: true, yaw: Math.PI / 2, talk: { x: -W / 2 + 3.05, z: z - 0.3 } })
     leadRow = null
   }
   const xL = -W / 2 + 3.05
-  const lw = leftWall(W, D, v)
+  const lw = leftWall(W, D, v, colead)
   const blockEnd = x0 + (cols - 1) * sx + 0.88
   const deskFront = z0 + (rowsN - 1) * sz + 1.3
   const decor = []

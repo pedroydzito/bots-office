@@ -36,9 +36,23 @@ function blank() {
     history: [], weather: null, talkLog: [], reactions: [],
     // mail between floors, team goals, office pets, all-time stats for achievements, weekly counts
     mail: [], goals: {}, pets: {}, stats: {}, week: null, unlocks: [],
-    usageHist: [], // [{ t, total }] for the weekly-limit forecast
+    usageHist: [], // [{ t, total, account? }] for the weekly-limit forecast
+    // several Grok accounts can publish to the same office: roster order and weekly limit per account
+    rosterByAcct: {}, // { principal: { order: [names], t }, captacao: {...} }
+    usageByAcct: {}, // { principal: { total, resets_at, bots, t }, captacao: {...} }
   }
 }
+
+/** Grok account a message/bot belongs to. Messages without one come from the original (main) account. */
+export const DEFAULT_ACCOUNT = 'principal'
+export const accountOf = (v) => {
+  const a = clean(typeof v === 'string' ? v : '', 24).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9_-]/g, '')
+  return a || DEFAULT_ACCOUNT
+}
+const ACCOUNT_LABELS = { principal: 'Principal', captacao: 'Captação' }
+export const accountLabel = (a) => ACCOUNT_LABELS[a || DEFAULT_ACCOUNT] || String(a).charAt(0).toUpperCase() + String(a).slice(1)
+/** Accounts in a stable order: the main one first, then the others alphabetically. */
+export const sortAccounts = (list) => [...new Set(list)].sort((x, y) => (x === DEFAULT_ACCOUNT ? -1 : y === DEFAULT_ACCOUNT ? 1 : x.localeCompare(y)))
 
 function ensureBot(d, rawName) {
   const name = clean(rawName, 48)
@@ -84,6 +98,11 @@ function setLook(d, name, l) {
   if (role) b.role = role
   const id = clean(l.id, 64)
   if (id) b.id = id
+  // which Grok account the bot lives in (only set when the message says so; default = main account)
+  if (typeof l.account === 'string' && l.account.trim()) b.account = accountOf(l.account)
+  // a manager/partner desk next to another bot's desk ("beside": "Lima_")
+  const beside = clean(l.beside, 48)
+  if (beside) b.beside = beside
   d.bots[name] = b
 }
 
@@ -217,6 +236,8 @@ function applyPayload(d, p, t) {
   }
 
   if (Array.isArray(p.roster)) {
+    // every account sends its own roster; one account's roster never replaces another's
+    const acct = accountOf(p.account)
     const names = []
     for (const item of p.roster.slice(0, MAX_BOTS)) {
       if (typeof item === 'string') {
@@ -225,19 +246,20 @@ function applyPayload(d, p, t) {
       } else if (item && typeof item === 'object') {
         const name = ensureBot(d, item.name)
         if (name) {
-          setLook(d, name, item)
+          setLook(d, name, p.account && !item.account ? { ...item, account: acct } : item)
           names.push(name)
         }
       }
     }
-    // The most recent roster decides the order of floors and bots. Parts that arrive within a
-    // few seconds of each other belong to the same list and are joined in arrival order.
-    if (names.length && t >= d.rosterT - ROSTER_GAP_MS) {
-      const continuing = d.rosterT && t - d.rosterT <= ROSTER_GAP_MS && t >= d.rosterT
-      const list = continuing ? [...d.rosterOrder] : []
+    // The most recent roster of each account decides the order of its bots. Parts that arrive within
+    // a few seconds of each other belong to the same list and are joined in arrival order.
+    const prev = d.rosterByAcct[acct] || { order: [], t: 0 }
+    if (names.length && t >= prev.t - ROSTER_GAP_MS) {
+      const continuing = prev.t && t - prev.t <= ROSTER_GAP_MS && t >= prev.t
+      const list = continuing ? [...prev.order] : []
       for (const n of names) if (!list.includes(n)) list.push(n)
-      d.rosterOrder = list
-      d.rosterT = Math.max(d.rosterT, t)
+      d.rosterByAcct = { ...d.rosterByAcct, [acct]: { order: list, t: Math.max(prev.t, t) } }
+      joinRosters(d)
     }
   }
 
@@ -277,6 +299,7 @@ function applyPayload(d, p, t) {
 
   const u = p.type === 'usage' ? p : p.usage && typeof p.usage === 'object' ? p.usage : null
   if (u) {
+    const acct = accountOf(u.account || p.account)
     const bots = {}
     if (u.bots && typeof u.bots === 'object') {
       for (const [k, v] of Object.entries(u.bots).slice(0, MAX_BOTS)) {
@@ -285,13 +308,15 @@ function applyPayload(d, p, t) {
         if (name && n != null) bots[name] = n
       }
     }
-    d.usageHist = [...(d.usageHist || []).filter((h) => t - h.t < 8 * 24 * 3600e3), { t, total: Math.max(0, Math.min(100, num(u.total_used_pct) ?? 0)) }].slice(-200)
-    d.usage = {
-      total: Math.max(0, Math.min(100, num(u.total_used_pct) ?? 0)),
-      resets_at: clean(u.resets_at, 40),
-      bots,
-      t,
+    const total = Math.max(0, Math.min(100, num(u.total_used_pct) ?? 0))
+    const prevU = d.usageByAcct[acct]
+    if (!prevU || t >= (prevU.t || 0)) {
+      const entry = { total, resets_at: clean(u.resets_at, 40), bots, t, account: acct }
+      d.usageByAcct = { ...d.usageByAcct, [acct]: entry }
+      // d.usage keeps meaning "the main account" for older parts of the app (report, health)
+      if (acct === DEFAULT_ACCOUNT) d.usage = entry
     }
+    d.usageHist = [...(d.usageHist || []).filter((h) => t - h.t < 8 * 24 * 3600e3), { t, total, ...(acct !== DEFAULT_ACCOUNT ? { account: acct } : {}) }].slice(-300)
   }
 
   // {"decision":{"bot":"Closer","action":"approve|reject","note":"..."}} — your answer, published from the site
@@ -371,6 +396,15 @@ function withRoster(s) {
   return d
 }
 
+/** The office list = every account's latest roster, main account first (its teams set the floor order). */
+function joinRosters(d) {
+  const accts = sortAccounts(Object.keys(d.rosterByAcct || {}))
+  const list = []
+  for (const a of accts) for (const n of d.rosterByAcct[a].order) if (!list.includes(n)) list.push(n)
+  d.rosterOrder = list
+  d.rosterT = Math.max(0, ...accts.map((a) => d.rosterByAcct[a].t || 0))
+}
+
 /** Bots in the latest roster's order first, then anyone else (e.g. seen only in a status). */
 function applyRosterOrder(d) {
   if (!d.rosterOrder.length) return
@@ -385,6 +419,8 @@ function draft(s) {
   return {
     ...s,
     rosterOrder: [...(s.rosterOrder || [])],
+    rosterByAcct: { ...(s.rosterByAcct || {}) },
+    usageByAcct: { ...(s.usageByAcct || {}) },
     bots: { ...s.bots },
     order: [...s.order],
     routines: { ...s.routines },
@@ -410,7 +446,7 @@ let persistTimer = null
 const keyFor = (topic) => `bot-office:v1:${topic}`
 // Roster, Cortex and usage live in their own keys so they survive even if the main
 // snapshot (activity, history ids) ever fails to save (quota, private mode).
-const PARTS = ['roster', 'cortex', 'usage']
+const PARTS = ['roster', 'cortex', 'usage', 'usageacct']
 const partKey = (topic, part) => `${keyFor(topic)}:${part}`
 let currentTopic = null
 
@@ -442,12 +478,16 @@ export function loadTopic(topic) {
     // 1) the saved roster: show the last known office immediately, even with no new messages
     const r = readJSON(partKey(topic, 'roster'))
     if (r && r.bots && typeof r.bots === 'object') {
-      s = { ...s, bots: { ...r.bots }, order: Array.isArray(r.order) ? r.order.filter((n) => r.bots[n]) : Object.keys(r.bots), chat: r.chat || {}, rosterOrder: r.rosterOrder || [], rosterT: r.rosterT || 0 }
+      // older caches had a single roster: it belonged to the main account
+      const byAcct = r.rosterByAcct && typeof r.rosterByAcct === 'object' ? r.rosterByAcct : r.rosterOrder?.length ? { [DEFAULT_ACCOUNT]: { order: r.rosterOrder, t: r.rosterT || 0 } } : {}
+      s = { ...s, bots: { ...r.bots }, order: Array.isArray(r.order) ? r.order.filter((n) => r.bots[n]) : Object.keys(r.bots), chat: r.chat || {}, rosterOrder: r.rosterOrder || [], rosterT: r.rosterT || 0, rosterByAcct: byAcct }
     }
     const c = readJSON(partKey(topic, 'cortex'))
     if (c) s.cortex = c
     const u = readJSON(partKey(topic, 'usage'))
     if (u) s.usage = u
+    const ua = readJSON(partKey(topic, 'usageacct'))
+    s.usageByAcct = ua && typeof ua === 'object' ? ua : u ? { [DEFAULT_ACCOUNT]: u } : {}
   }
   if (storageKey) {
     try {
@@ -508,9 +548,10 @@ function saveNow() {
   if (!storageKey || !currentTopic) return
   const s = dataStore.get()
   // small, important parts first and separately
-  writeJSON(partKey(currentTopic, 'roster'), { bots: s.bots, order: s.order, chat: s.chat, rosterOrder: s.rosterOrder, rosterT: s.rosterT })
+  writeJSON(partKey(currentTopic, 'roster'), { bots: s.bots, order: s.order, chat: s.chat, rosterOrder: s.rosterOrder, rosterT: s.rosterT, rosterByAcct: s.rosterByAcct })
   if (s.cortex) writeJSON(partKey(currentTopic, 'cortex'), s.cortex)
   if (s.usage) writeJSON(partKey(currentTopic, 'usage'), s.usage)
+  if (s.usageByAcct && Object.keys(s.usageByAcct).length) writeJSON(partKey(currentTopic, 'usageacct'), s.usageByAcct)
   const main = {
     bots: s.bots, order: s.order, routines: s.routines, usage: s.usage, cortex: s.cortex,
     activity: s.activity, office: s.office, history: compactHistory(s.history), talkLog: s.talkLog, mail: s.mail, usageHist: s.usageHist, goals: s.goals, pets: s.pets, stats: s.stats, week: s.week, unlocks: s.unlocks, weather: s.weather, chat: s.chat, talks: s.talks, lastTime: s.lastTime,

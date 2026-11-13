@@ -1104,3 +1104,12 @@ html[data-transicao='onda']::view-transition-new(root) { z-index: 1; }
 .lock-info span { font-size: 2.6vmin; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lock-info i { font-style: normal; font-size: 2vmin; opacity: .55; }
 @keyframes lockIn { from { opacity: 0; transform: translateY(1.5vmin); } }
+
+/* several Grok accounts in one office: one limit block per account */
+.weekly.multi { width: 270px; }
+.weekly .acct-limit + .acct-limit { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(127, 127, 127, 0.14); }
+.weekly .acct-limit .hd { padding: 0 0 4px; display: flex; justify-content: space-between; font-size: 12px; }
+.weekly.multi .pct b { font-size: 20px; }
+.weekly .top-spend { display: flex; justify-content: space-between; align-items: center; margin: 8px 0 4px; font-size: 11.5px; }
+.weekly .top-spend .seg2 { margin-bottom: 0; }
+.ub .acct-tag { font-size: 10px; color: var(--muted); padding: 0 5px; border-radius: 6px; background: rgba(127, 127, 127, 0.1); }
