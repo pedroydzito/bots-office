@@ -254,7 +254,9 @@ function applyPayload(d, p, t) {
     // The most recent roster of each account decides the order of its bots. Parts that arrive within
     // a few seconds of each other belong to the same list and are joined in arrival order.
     const prev = d.rosterByAcct[acct] || { order: [], t: 0 }
-    if (names.length && t >= prev.t - ROSTER_GAP_MS) {
+    // a part we already have (seen again on reload / replay) changes nothing
+    const fresh = names.some((n) => !prev.order.includes(n)) || t > prev.t + ROSTER_GAP_MS
+    if (names.length && fresh && t >= prev.t - ROSTER_GAP_MS) {
       const continuing = prev.t && t - prev.t <= ROSTER_GAP_MS && t >= prev.t
       const list = continuing ? [...prev.order] : []
       for (const n of names) if (!list.includes(n)) list.push(n)
@@ -405,14 +407,46 @@ function joinRosters(d) {
   d.rosterT = Math.max(0, ...accts.map((a) => d.rosterByAcct[a].t || 0))
 }
 
-/** Bots in the latest roster's order first, then anyone else (e.g. seen only in a status). */
+const acctOfBot = (d, n) => d.bots[n]?.account || DEFAULT_ACCOUNT
+
+/**
+ * A roster only lists bots of its own account: drop names that belong to another account
+ * (older caches mixed them up) and forget an account's roster time when nothing is left.
+ */
+function sanitizeRosters(d) {
+  const out = {}
+  for (const [a, r] of Object.entries(d.rosterByAcct || {})) {
+    if (!r || !Array.isArray(r.order)) continue
+    const order = r.order.filter((n) => d.bots[n] && acctOfBot(d, n) === a)
+    if (order.length) out[a] = { order, t: r.t || 0 }
+  }
+  d.rosterByAcct = out
+  joinRosters(d)
+}
+
+/**
+ * Office order, account by account (main account first): an account with a known roster shows that
+ * roster; an account whose roster this browser doesn't have (yet) keeps its last known bots, so one
+ * account's roster can never make another account's bots disappear. Bots outside every roster only
+ * stay while they are active (a status in the last 30 min).
+ */
 function applyRosterOrder(d) {
-  if (!d.rosterOrder.length) return
-  const inRoster = new Set(d.rosterOrder)
-  // bots that are not in the latest roster only stay while they are actually active (a status in the
-  // last 30 min): old names left in this browser's cache (renamed / removed bots) disappear
+  sanitizeRosters(d)
+  const prev = [...new Set([...d.order, ...Object.keys(d.bots)])].filter((n) => d.bots[n])
+  if (!Object.keys(d.rosterByAcct).length) {
+    d.order = prev
+    return
+  }
   const recent = Date.now() - 30 * 60e3
-  d.order = [...d.rosterOrder.filter((n) => d.bots[n]), ...d.order.filter((n) => !inRoster.has(n) && (d.bots[n]?.ts || 0) > recent)]
+  const list = []
+  for (const a of sortAccounts([...Object.keys(d.rosterByAcct), ...prev.map((n) => acctOfBot(d, n))])) {
+    const r = d.rosterByAcct[a]
+    // no roster for this account in this browser: its last known bots (one per id), never dropped
+    const ids = new Set()
+    const names = r ? r.order : prev.filter((n) => acctOfBot(d, n) === a && d.bots[n].id && !ids.has(d.bots[n].id) && ids.add(d.bots[n].id))
+    for (const n of names) if (!list.includes(n)) list.push(n)
+  }
+  d.order = [...list, ...prev.filter((n) => !list.includes(n) && (d.bots[n]?.ts || 0) > recent)]
 }
 
 function draft(s) {
@@ -447,6 +481,7 @@ const keyFor = (topic) => `bot-office:v1:${topic}`
 // Roster, Cortex and usage live in their own keys so they survive even if the main
 // snapshot (activity, history ids) ever fails to save (quota, private mode).
 const PARTS = ['roster', 'cortex', 'usage', 'usageacct']
+const ROSTER_V = 2
 const partKey = (topic, part) => `${keyFor(topic)}:${part}`
 let currentTopic = null
 
@@ -479,7 +514,9 @@ export function loadTopic(topic) {
     const r = readJSON(partKey(topic, 'roster'))
     if (r && r.bots && typeof r.bots === 'object') {
       // older caches had a single roster: it belonged to the main account
-      const byAcct = r.rosterByAcct && typeof r.rosterByAcct === 'object' ? r.rosterByAcct : r.rosterOrder?.length ? { [DEFAULT_ACCOUNT]: { order: r.rosterOrder, t: r.rosterT || 0 } } : {}
+      // rosters saved before v2 (single list, or the first multi-account build) may mix accounts:
+      // start them over; the 12 h replay rebuilds them, and meanwhile every cached bot stays visible
+      const byAcct = r.v === ROSTER_V && r.rosterByAcct && typeof r.rosterByAcct === 'object' ? r.rosterByAcct : {}
       s = { ...s, bots: { ...r.bots }, order: Array.isArray(r.order) ? r.order.filter((n) => r.bots[n]) : Object.keys(r.bots), chat: r.chat || {}, rosterOrder: r.rosterOrder || [], rosterT: r.rosterT || 0, rosterByAcct: byAcct }
     }
     const c = readJSON(partKey(topic, 'cortex'))
@@ -522,12 +559,13 @@ export function loadTopic(topic) {
         }
         seen = new Set(p.seen || [])
         // cached bots that are no longer in the roster (renamed/removed) don't come back on load
-        if (s.rosterOrder?.length) applyRosterOrder(s)
+        applyRosterOrder(s)
       }
     } catch {
       /* corrupt storage: start fresh */
     }
   }
+  if (storageKey) applyRosterOrder(s)
   dataStore.set(() => ({ ...s, rev: (dataStore.get().rev || 0) + 1 }))
 }
 
@@ -548,7 +586,7 @@ function saveNow() {
   if (!storageKey || !currentTopic) return
   const s = dataStore.get()
   // small, important parts first and separately
-  writeJSON(partKey(currentTopic, 'roster'), { bots: s.bots, order: s.order, chat: s.chat, rosterOrder: s.rosterOrder, rosterT: s.rosterT, rosterByAcct: s.rosterByAcct })
+  writeJSON(partKey(currentTopic, 'roster'), { bots: s.bots, order: s.order, chat: s.chat, rosterOrder: s.rosterOrder, rosterT: s.rosterT, rosterByAcct: s.rosterByAcct, v: ROSTER_V })
   if (s.cortex) writeJSON(partKey(currentTopic, 'cortex'), s.cortex)
   if (s.usage) writeJSON(partKey(currentTopic, 'usage'), s.usage)
   if (s.usageByAcct && Object.keys(s.usageByAcct).length) writeJSON(partKey(currentTopic, 'usageacct'), s.usageByAcct)
@@ -586,7 +624,18 @@ export function ingest(msgs) {
   const sorted = [...msgs].sort((a, b) => a.time - b.time)
   for (const m of sorted) {
     if (m.id) {
-      if (seen.has(m.id)) continue
+      if (seen.has(m.id)) {
+        const p = m.payload
+        if (p && typeof p === 'object' && Array.isArray(p.roster)) {
+          try {
+            applyPayload(d, { roster: p.roster, ...(p.account ? { account: p.account } : {}) }, m.time)
+            changed = true
+          } catch {
+            /* ignore */
+          }
+        }
+        continue
+      }
       seen.add(m.id)
     }
     try {
