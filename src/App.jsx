@@ -20,7 +20,7 @@ import { Login, Settings } from './ui/Login'
 import { LockScreen } from './ui/LockScreen'
 import { Celebration, MobileFloors, MobileTabs, Search, Timeline, TvExit } from './ui/Extras'
 import { EmptyOffice, HealthModal, LookModal, Modal, OfficesModal, QueueModal, SendStatus, ShortcutsModal } from './ui/Ops'
-import { buzz, HoverTip, MiniMap, QuickMenu, SearchField, Welcome } from './ui/Interact'
+import { buzz, HoverTip, QuickMenu, SearchField, Welcome } from './ui/Interact'
 import { campusPath, officeFrom, planOffice, toWorld } from './scene/layout'
 import { ACCENTS, DEFAULT_LOOK, lookStore } from './lib/look'
 import { botsAt } from './lib/metrics'
@@ -800,7 +800,6 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
             onFollow={pickBot}
           />
         )}
-        {!overview && <MiniMap layout={lay} floor={floor} data={data} now={now} onPick={pickBot} selected={selectedBot} />}
         {welcome && <Welcome onDone={() => (prefs.set('welcomed', true), setWelcome(false))} />}
         {officesOpen && <OfficesModal current={topic} onSwitch={onSwitch} onAdd={onSignIn} onClose={() => setOfficesOpen(false)} />}
         {officeCfg && (
