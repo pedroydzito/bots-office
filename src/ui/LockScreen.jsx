@@ -1,13 +1,13 @@
-// `?bloqueio`: a lock-screen style display. Black screen with a pair of Grok-style eyes that idle
-// (blink, glance, spin now and then). When bots are working the background takes the working bot's
-// colour, the eyes get busy, and the bot's name + step sit quietly in a corner. Several working bots
-// take turns. Motion is a handful of discrete poses eased by CSS, so it still reads on a ~10 fps screen.
+// `?bloqueio`: a lock-screen display. The face runs the same vocabulary as the Grok avatar
+// (9 expressions, glance / squash / spin clips, a few morphs) and follows whoever needs the room:
+// working, thinking, waiting, error, done, or asleep when the office is quiet.
 import { useEffect, useRef, useState } from 'react'
 import { dataStore, loadTopic, ingest } from '../lib/state'
 import { useStore } from '../lib/createStore'
 import { effStatus, resolveColor } from '../lib/constants'
 import { connectOffice } from '../lib/transport'
 import { startDemo } from '../lib/demo'
+import { poseAt } from './lockAnim'
 
 const TURN_MS = 9000
 
@@ -18,15 +18,25 @@ function light(hex) {
   return 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255) > 170
 }
 
-const rand = (a, b) => a + Math.random() * (b - a)
+function faceMode(status, step) {
+  if (status === 'working' && /pens|pesquis|analis|busca|think|search/i.test(step || '')) return 'thinking'
+  if (status === 'working') return 'working'
+  if (status === 'waiting_user') return 'waiting'
+  if (status === 'error') return 'error'
+  if (status === 'done') return 'done'
+  return 'resting'
+}
+
+function EyePair({ name, children }) {
+  return <g data-eye={name}>{children}</g>
+}
 
 export function LockScreen({ topic, embedded, onExit }) {
   const live = useStore(dataStore)
   const [now, setNow] = useState(Date.now())
   const [turn, setTurn] = useState(0)
-  // eye pose: x/y offset (vmin), open (scaleY), size (scale), spin (deg)
-  const [pose, setPose] = useState({ x: 0, y: 0, open: 1, size: 1, spin: 0 })
-  const spinRef = useRef(0)
+  const stage = useRef(null)
+  const lids = useRef(null)
 
   useEffect(() => {
     if (embedded) return // inside the office, data is already flowing
@@ -56,68 +66,106 @@ export function LockScreen({ topic, embedded, onExit }) {
     return () => clearInterval(id)
   }, [])
 
-  const working = live.order.filter((n) => live.bots[n] && !live.bots[n].hidden && effStatus(live.bots[n], now) === 'working')
-  const name = working.length ? working[turn % working.length] : null
+  const visible = live.order.filter((n) => live.bots[n] && !live.bots[n].hidden)
+  const of = (st) => visible.filter((n) => effStatus(live.bots[n], now) === st)
+  const working = of('working')
+  const waiting = of('waiting_user')
+  const errored = of('error')
+  const done = of('done')
+  const pool = working.length ? working : waiting.length ? waiting : errored.length ? errored : done
+  const name = pool.length ? pool[turn % pool.length] : null
   const bot = name ? live.bots[name] : null
+  const mode = bot ? faceMode(effStatus(bot, now), bot.step) : visible.length ? 'resting' : 'idle'
   const bg = bot ? resolveColor(bot.color) : '#000'
   const eye = bot && light(bg) ? '#111' : '#fff'
-  const busy = !!bot
 
-  // take turns between working bots
   useEffect(() => {
-    if (working.length < 2) return
+    if (pool.length < 2) return
     const id = setInterval(() => setTurn((t) => t + 1), TURN_MS)
     return () => clearInterval(id)
-  }, [working.length])
+  }, [pool.length])
 
-  // a new bot on screen: blink and spin so the change shows even between same-colour bots
+  // paint the face every frame from the shared clock
+  const modeRef = useRef(mode)
+  modeRef.current = mode
   useEffect(() => {
-    if (!name) return
-    spinRef.current += 360
-    setPose((p) => ({ ...p, open: 0.1, spin: spinRef.current }))
-    const id = setTimeout(() => setPose((p) => ({ ...p, open: 1.15, size: 1.2 })), 450)
-    return () => clearTimeout(id)
-  }, [name])
-
-  // the eyes' little life: a new pose every so often
-  useEffect(() => {
-    let t
-    const step = () => {
-      const r = Math.random()
-      setPose((p) => {
-        if (r < 0.2) {
-          // blink, then open again
-          setTimeout(() => setPose((q) => ({ ...q, open: busy ? rand(0.55, 0.8) : 1 })), 180)
-          return { ...p, open: 0.08 }
-        }
-        if (r < (busy ? 0.3 : 0.27)) return { ...p, spin: (spinRef.current += 360), x: 0, y: 0 }
-        if (busy) {
-          // focused: squinted, quick little darts, sometimes a wide "aha"
-          const aha = Math.random() < 0.25
-          return { ...p, x: rand(-4, 4), y: rand(-1.5, 2.5), open: aha ? 1.2 : rand(0.5, 0.75), size: aha ? 1.25 : 1.12 }
-        }
-        // idle: slow glances to the sides, often back to centre
-        const centre = Math.random() < 0.35
-        return { ...p, x: centre ? 0 : rand(-9, 9), y: centre ? 0 : rand(-3, 3), open: 1, size: 1 }
-      })
-      t = setTimeout(step, busy ? rand(700, 1500) : rand(1800, 3500))
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    let raf = 0
+    const paint = (ms) => {
+      const el = stage.current
+      const lid = lids.current
+      if (el) {
+        const p = reduce
+          ? { x: 0, y: 0, tilt: 0, spin: 0, sx: 1, sy: 1, open: 1, expr: 'neutral', morph: '' }
+          : poseAt(modeRef.current, ms)
+        el.dataset.expr = p.expr
+        el.dataset.morph = p.morph || ''
+        el.style.transform = `translate(calc(-50% + ${p.x}vmin), calc(-50% + ${p.y}vmin)) rotate(${p.spin + p.tilt}deg) scale(${p.sx}, ${p.sy})`
+        if (lid) lid.style.transform = `scaleY(${Math.max(0.12, p.open)})`
+      }
+      raf = requestAnimationFrame(paint)
     }
-    t = setTimeout(step, 800)
-    return () => clearTimeout(t)
-  }, [busy])
+    raf = requestAnimationFrame(paint)
+    return () => cancelAnimationFrame(raf)
+  }, [])
 
   return (
-    <div className={`lock ${busy ? 'busy' : ''}`} style={{ background: bg, color: eye }} onDoubleClick={onExit}>
-      <div className="lock-eyes" style={{ transform: `translate(${pose.x}vmin, ${pose.y}vmin) rotate(${pose.spin}deg) scale(${pose.size})` }}>
-        {[0, 1].map((i) => (
-          <span key={i} style={{ background: eye, transform: `rotate(24deg) scaleY(${pose.open})` }} />
-        ))}
+    <div className={`lock ${bot ? 'busy' : ''}`} style={{ background: bg, color: eye }} onDoubleClick={onExit}>
+      <div className="lock-stage" ref={stage} data-expr="neutral">
+        <svg className="lock-svg" viewBox="-70 -78 140 156" aria-hidden="true">
+          <g ref={lids} className="lock-lids">
+            <EyePair name="neutral">
+              <ellipse cx="-26" cy="0" rx="12" ry="28" />
+              <ellipse cx="26" cy="0" rx="12" ry="28" />
+            </EyePair>
+            <EyePair name="happy">
+              <path d="M-42 12 Q-26 -22 -10 12" />
+              <path d="M10 12 Q26 -22 42 12" />
+            </EyePair>
+            <EyePair name="surprised">
+              <ellipse cx="-26" cy="-2" rx="18" ry="32" />
+              <ellipse cx="26" cy="-2" rx="18" ry="32" />
+            </EyePair>
+            <EyePair name="sad">
+              <ellipse cx="-26" cy="6" rx="11" ry="22" transform="rotate(-22 -26 6)" />
+              <ellipse cx="26" cy="6" rx="11" ry="22" transform="rotate(22 26 6)" />
+            </EyePair>
+            <EyePair name="sleepy">
+              <path d="M-40 4 Q-26 18 -12 4" />
+              <path d="M12 4 Q26 18 40 4" />
+            </EyePair>
+            <EyePair name="squinted">
+              <path d="M-42 6 Q-26 -6 -10 6" />
+              <path d="M10 6 Q26 -6 42 6" />
+            </EyePair>
+            <EyePair name="calm">
+              <ellipse cx="-26" cy="2" rx="20" ry="14" />
+              <ellipse cx="26" cy="2" rx="20" ry="14" />
+            </EyePair>
+            <EyePair name="inspecting">
+              <ellipse cx="-28" cy="-2" rx="18" ry="18" />
+              <ellipse cx="24" cy="8" rx="9" ry="9" />
+            </EyePair>
+            <EyePair name="confused">
+              <ellipse cx="-28" cy="-10" rx="10" ry="22" transform="rotate(14 -28 -10)" />
+              <ellipse cx="24" cy="10" rx="10" ry="20" transform="rotate(-12 24 10)" />
+            </EyePair>
+          </g>
+          <g className="lock-morph">
+            <g data-m="thinking">
+              {[-16, 0, 16].map((x) => <circle key={x} cx={x} cy="-52" r="4.5" />)}
+            </g>
+            <g data-m="orbit">
+              <circle cx="0" cy="0" r="58" />
+            </g>
+          </g>
+        </svg>
       </div>
       {bot && (
         <div className="lock-info" key={name}>
           <b>{name}</b>
           {bot.step && <span>{bot.step}</span>}
-          {working.length > 1 && <i>{(turn % working.length) + 1}/{working.length}</i>}
+          {pool.length > 1 && <i>{(turn % pool.length) + 1}/{pool.length}</i>}
         </div>
       )}
     </div>
