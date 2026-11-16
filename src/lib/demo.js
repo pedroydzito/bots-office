@@ -1,4 +1,4 @@
-// Demo mode: simulates bots publishing to ntfy so the office looks alive
+// Demo mode: simulates bots publishing messages so the office looks alive
 // before a topic is connected. Uses the exact same message protocol.
 import { dataStore, ingest } from './state'
 

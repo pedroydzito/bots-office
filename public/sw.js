@@ -3,7 +3,7 @@
 //   copy is only used when offline or the network takes too long. (Serving a stale page first
 //   could point at build files that no longer exist after a deploy -> stuck on the splash.)
 // - Hashed build assets (/assets/*): cache-first (their name changes when they change).
-// - ntfy.sh (live data) is never intercepted.
+// - Supabase (live data) is another origin, so it is never intercepted.
 const VERSION = 'bot-office-v5'
 
 self.addEventListener('install', (e) => {

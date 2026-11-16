@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { dataStore, loadTopic, ingest } from '../lib/state'
 import { useStore } from '../lib/createStore'
 import { effStatus, resolveColor } from '../lib/constants'
-import { connectNtfy } from '../lib/ntfy'
+import { connectOffice } from '../lib/transport'
 import { startDemo } from '../lib/demo'
 
 const TURN_MS = 9000
@@ -31,7 +31,7 @@ export function LockScreen({ topic, embedded, onExit }) {
   useEffect(() => {
     if (embedded) return // inside the office, data is already flowing
     loadTopic(topic)
-    return topic ? connectNtfy(topic, { onMessages: ingest, onStatus: () => {} }) : startDemo()
+    return topic ? connectOffice(topic, { onMessages: ingest, onStatus: () => {}, sinceMs: dataStore.get().lastTime || 0 }) : startDemo()
   }, [topic, embedded])
 
   useEffect(() => {

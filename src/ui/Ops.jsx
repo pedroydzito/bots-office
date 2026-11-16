@@ -9,6 +9,7 @@ import { forgetOffice, listOffices, renameOffice, viewOnlyLink } from '../lib/au
 import { ACCENTS, DECOR, DESKS, FLOORS, LAMPS, PETS, STYLES, WALLS } from '../lib/look'
 import { useStore } from '../lib/createStore'
 import { prefStore, setPref } from '../lib/notify'
+import { exampleCurl } from '../lib/transport'
 
 export const STUCK_MS = 20 * 60e3
 /** A bot that has said "working" on the same step for 20+ minutes may be stuck. */
@@ -299,8 +300,8 @@ export function OfficesModal({ current, onSwitch, onAdd, onClose }) {
       ))}
       <button className="ghost add" onClick={() => (onAdd(), onClose())}>+ Adicionar escritório</button>
       <p className="muted pad small">
-        O link só leitura esconde aprovar, reagir e responder naquele aparelho. Quem tem o código do ntfy ainda consegue
-        publicar no tópico, então compartilhe só com quem você confia.
+        O link só leitura esconde aprovar, reagir e responder naquele aparelho. Quem tem o código de acesso ainda consegue
+        publicar no escritório, então compartilhe só com quem você confia.
       </p>
     </Modal>
   )
@@ -405,13 +406,13 @@ export function EmptyOffice({ topic, hasRoster, hasStatus, onClose }) {
     {
       title: 'Envie a lista de bots (roster)',
       sub: 'Cada time vira uma sala.',
-      cmd: `curl -d '{"roster":[{"name":"Meu Bot","shape":"blob","color":"green","team":"Ops"}]}' https://ntfy.sh/${code}`,
+      cmd: exampleCurl(code, { roster: [{ name: 'Meu Bot', shape: 'blob', color: 'green', team: 'Ops' }] }),
       done: hasRoster,
     },
     {
       title: 'Mande um status de teste',
       sub: 'O bot começa a digitar na mesa.',
-      cmd: `curl -d '{"bot":"Meu Bot","status":"working","step":"Testando o escritório"}' https://ntfy.sh/${code}`,
+      cmd: exampleCurl(code, { bot: 'Meu Bot', status: 'working', step: 'Testando o escritório' }),
       done: hasStatus,
     },
     { title: 'Pronto: cada bot avisa quando começa e termina', sub: 'Passe as regras para o Grok em Configurações → Painel do sistema.', done: hasRoster && hasStatus },
