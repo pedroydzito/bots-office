@@ -13,6 +13,7 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return
           if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'react'
+          if (id.includes('@supabase')) return 'supabase'
           // three / r3f / drei stay out of manualChunks so Rollup keeps them behind the lazy 3D import
         },
       },

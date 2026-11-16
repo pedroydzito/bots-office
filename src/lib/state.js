@@ -1,6 +1,7 @@
-// Merged bot-office state. Every ntfy message is a partial update; we merge
-// them all (in time order) and persist the result per topic in localStorage,
-// because ntfy only keeps ~12h of history.
+// Merged bot-office state. Every message is a partial update; we merge them
+// all (in time order) and keep a localStorage copy per access code so the
+// office paints immediately. The server keeps roster and usage forever and
+// events for 7 days; this cache is what a reload shows before that fetch returns.
 // Live mode starts empty: roster, teams, looks and chat links all come from
 // the topic. The bundled example roster is only used by demo mode.
 import demoRoster from '../roster.json'
@@ -11,8 +12,8 @@ import { normalizeShape, ACCESSORIES } from './constants'
 const MAX_BOTS = 150
 const MAX_ACTIVITY = 80
 const MAX_SEEN = 500
-// Roster messages this close together are parts of one list (ntfy caps a message at 4 KB,
-// so long rosters arrive split across several messages sent back to back).
+// Roster messages this close together are parts of one list (long rosters are
+// split across several messages sent back to back).
 const ROSTER_GAP_MS = 15000
 const STATUSES = {
   working: 'working', busy: 'working', running: 'working',
@@ -515,7 +516,7 @@ export function loadTopic(topic) {
     if (r && r.bots && typeof r.bots === 'object') {
       // older caches had a single roster: it belonged to the main account
       // rosters saved before v2 (single list, or the first multi-account build) may mix accounts:
-      // start them over; the 12 h replay rebuilds them, and meanwhile every cached bot stays visible
+      // start them over; the history replay rebuilds them, and meanwhile every cached bot stays visible
       const byAcct = r.v === ROSTER_V && r.rosterByAcct && typeof r.rosterByAcct === 'object' ? r.rosterByAcct : {}
       s = { ...s, bots: { ...r.bots }, order: Array.isArray(r.order) ? r.order.filter((n) => r.bots[n]) : Object.keys(r.bots), chat: r.chat || {}, rosterOrder: r.rosterOrder || [], rosterT: r.rosterT || 0, rosterByAcct: byAcct }
     }

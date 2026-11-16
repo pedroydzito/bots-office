@@ -12,7 +12,7 @@ import { world } from './scene/sim'
 import { dataStore, deriveFloors, forgetTopic, loadTopic, ingest } from './lib/state'
 import { useNow, useStore } from './lib/createStore'
 import { chatLink, CORTEX_KEY, effStatus, resolveColor, talkActive } from './lib/constants'
-import { connectNtfy, publish } from './lib/ntfy'
+import { connectOffice, publish } from './lib/transport'
 import { captureHash, clearCode, getCode, isReadonly, rememberOffice, setCode } from './lib/auth'
 import { demoApprove, startDemo } from './lib/demo'
 import { Activity, Brand, PanelIcon, ConnectBanner, Hints, LeftPanel, ModeToggles, Pills, RightPanel, Toast, Weekly } from './ui/Panels'
@@ -34,7 +34,7 @@ function openLink(link) {
 }
 
 export default function App() {
-  // The access code is the ntfy topic. It lives only in localStorage.
+  // The access code is the office secret. It lives only in localStorage.
   const [code, setCodeState] = useState(() => captureHash() || getCode())
   const [demo, setDemo] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -156,12 +156,12 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const night = nightness > 0.5
   const setNight = (v) => setLightMode(v === 'auto' ? 'auto' : v ? 'night' : 'day')
 
-  // ---- data source: ntfy topic (signed in) or demo mode
+  // ---- data source: Supabase office (signed in) or demo mode
   useEffect(() => {
     loadTopic(topic)
     if (topic) {
       setConn('syncing')
-      return connectNtfy(topic, { onMessages: ingest, onStatus: setConn })
+      return connectOffice(topic, { onMessages: ingest, onStatus: setConn, sinceMs: dataStore.get().lastTime || 0 })
     }
     setConn('demo')
     return startDemo()

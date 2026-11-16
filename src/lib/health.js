@@ -2,7 +2,7 @@
 export const health = {
   connectedAt: 0,
   lastAt: 0, // when the last message arrived (local clock)
-  lastMsgT: 0, // its ntfy timestamp
+  lastMsgT: 0, // the message's server timestamp
   delays: [], // receive delay of live messages, ms
   received: [], // arrival times (last hour)
 }

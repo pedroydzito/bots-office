@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { validTopic } from '../lib/ntfy'
+import { validTopic } from '../lib/transport'
 import { Bell, Gear, Speaker, Tv } from './Icons'
 import { chime, enableNotifications, notificationsSupported, prefs, prefStore, setPref } from '../lib/notify'
 import { useStore } from '../lib/createStore'

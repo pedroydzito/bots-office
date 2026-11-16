@@ -1,6 +1,6 @@
-// Access-code login. The code is the ntfy topic. It is kept only in this
+// Access-code login. The code is the office secret. It is kept only in this
 // browser's localStorage and is never rendered, logged or left in the URL.
-import { validTopic } from './ntfy'
+import { validTopic } from './transport'
 
 const KEY = 'bot-office:code'
 
