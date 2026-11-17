@@ -43,7 +43,8 @@ export const STATES = {
   approving: { clips: ['Rotation_C'] },
   celebrate: { clips: ['Rotation_A'], face: 'happy' },
   waiting: { clips: ['Idle_D'], face: 'surprised' },
-  blocked: { clips: ['Blocked_A'] },
+  blocked: { clips: ['Blocked_A', 'Blocked_B'] },
+  thinking: { clips: ['Idle_B'] },
   sad: { clips: ['Blocked_B'] },
   drowsy: { clips: ['Blocked_C'] },
   suspicious: { clips: ['Idle_D'], face: 'squinted' },
@@ -165,7 +166,7 @@ export function createFace() {
       const sq = sample(tr.squash, clipT) || [1, 1]
       let lids = (sample(tr.lids, clipT) || [0])[0]
       if (blinkT < BLINK) lids = Math.max(lids, Math.sin((Math.PI * blinkT) / BLINK))
-      return { rot, pos, zoom: zoom / 0.6, sq, lids: Math.min(1, Math.max(0, lids)), eyes: current() }
+      return { rot, pos, zoom: Math.min(1.2, zoom / 0.6), sq, lids: Math.min(1, Math.max(0, lids)), eyes: current() }
     },
   }
 }

@@ -3,7 +3,7 @@
 // Every screen logged into the same code must show exactly the same thing at the same time, so
 // nothing here uses Math.random() or per-device timers. A bot's position, activity and gestures
 // are a pure function of:
-//   - the wall clock (all devices are NTP-synced; ntfy timestamps correct big skews),
+//   - the wall clock (all devices are NTP-synced; server timestamps correct big skews),
 //   - the messages from the topic (statuses, conversations), which every screen receives,
 //   - a hash of the bot's name (its personality).
 // Walking paths go through the same lanes as before; schedules are computed per time slot.

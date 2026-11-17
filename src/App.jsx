@@ -12,7 +12,7 @@ import { world } from './scene/sim'
 import { dataStore, deriveFloors, forgetTopic, loadTopic, ingest } from './lib/state'
 import { useNow, useStore } from './lib/createStore'
 import { chatLink, CORTEX_KEY, effStatus, resolveColor, talkActive } from './lib/constants'
-import { connectNtfy, publish } from './lib/ntfy'
+import { connectOffice, publish } from './lib/transport'
 import { captureHash, clearCode, getCode, isReadonly, rememberOffice, setCode } from './lib/auth'
 import { demoApprove, startDemo } from './lib/demo'
 import { Activity, Brand, PanelIcon, ConnectBanner, Hints, LeftPanel, ModeToggles, Pills, RightPanel, Toast, Weekly } from './ui/Panels'
@@ -20,7 +20,7 @@ import { Login, Settings } from './ui/Login'
 import { LockScreen } from './ui/LockScreen'
 import { Celebration, MobileFloors, MobileTabs, Search, Timeline, TvExit } from './ui/Extras'
 import { EmptyOffice, HealthModal, LookModal, Modal, OfficesModal, QueueModal, SendStatus, ShortcutsModal } from './ui/Ops'
-import { buzz, HoverTip, MiniMap, QuickMenu, SearchField, Welcome } from './ui/Interact'
+import { buzz, HoverTip, QuickMenu, SearchField, Welcome } from './ui/Interact'
 import { campusPath, officeFrom, planOffice, toWorld } from './scene/layout'
 import { ACCENTS, DEFAULT_LOOK, lookStore } from './lib/look'
 import { botsAt } from './lib/metrics'
@@ -34,7 +34,7 @@ function openLink(link) {
 }
 
 export default function App() {
-  // The access code is the ntfy topic. It lives only in localStorage.
+  // The access code is the office secret. It lives only in localStorage.
   const [code, setCodeState] = useState(() => captureHash() || getCode())
   const [demo, setDemo] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -156,19 +156,19 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
   const night = nightness > 0.5
   const setNight = (v) => setLightMode(v === 'auto' ? 'auto' : v ? 'night' : 'day')
 
-  // ---- data source: ntfy topic (signed in) or demo mode
+  // ---- data source: Supabase office (signed in) or demo mode
   useEffect(() => {
     loadTopic(topic)
     if (topic) {
       setConn('syncing')
-      return connectNtfy(topic, { onMessages: ingest, onStatus: setConn })
+      return connectOffice(topic, { onMessages: ingest, onStatus: setConn, sinceMs: dataStore.get().lastTime || 0 })
     }
     setConn('demo')
     return startDemo()
   }, [topic])
 
   // ---- floors
-  const sig = data.order.map((n) => n + '\u0001' + data.bots[n]?.team + '\u0001' + data.bots[n]?.color).join('\u0002')
+  const sig = data.order.map((n) => n + '\u0001' + data.bots[n]?.team + '\u0001' + data.bots[n]?.color + '\u0001' + (data.bots[n]?.role || '') + '\u0001' + (data.bots[n]?.beside || '') + '\u0001' + (data.bots[n]?.hidden ? 1 : 0)).join('\u0002')
   const floors = useMemo(() => {
     const st = dataStore.get()
     const f = deriveFloors(st).map((fl) => {
@@ -189,8 +189,18 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
       }
       // a team lead (diretor, gestor, head...) gets the separate desk: put them first
       const LEAD_ROLE = /^(ceo|principal|founder|fundador|dono|owner|lead|lider|líder|chefe|diretor|diretora|gestor|head)$/i
-      const lead = fl.bots.find((n) => LEAD_ROLE.test(st.bots[n]?.role || '') && !st.bots[n]?.hidden) || (fl.bots.length >= 3 ? fl.bots.find((n) => LEAD_RE.test(n) && !st.bots[n]?.hidden) : null)
-      return { ...fl, color, lead: lead || null, bots: lead ? [lead, ...fl.bots.filter((n) => n !== lead)] : fl.bots }
+      const CO_ROLE = /^(gerente|gerente geral|manager|socio|sócio|partner|co-?lead|coo)$/i
+      // a manager / partner ("gerente", "sócio"...) gets a second executive desk right beside the lead's;
+      // "beside": "<bot>" names whose desk it sits next to (that bot then takes the lead desk)
+      const colead0 = fl.bots.find((n) => CO_ROLE.test(st.bots[n]?.role || '') && !st.bots[n]?.hidden) || null
+      const pool = fl.bots.filter((n) => n !== colead0)
+      const want = colead0 && st.bots[colead0]?.beside
+      let lead = (want && pool.includes(want) && !st.bots[want]?.hidden ? want : null) || pool.find((n) => LEAD_ROLE.test(st.bots[n]?.role || '') && !st.bots[n]?.hidden) || (pool.length >= 3 ? pool.find((n) => LEAD_RE.test(n) && !st.bots[n]?.hidden) : null)
+      // no lead on the floor: the manager simply takes the lead desk
+      const colead = lead ? colead0 : null
+      if (!lead && colead0) lead = colead0
+      const rest = fl.bots.filter((n) => n !== lead && n !== colead)
+      return { ...fl, color, lead: lead || null, colead, bots: lead ? [lead, ...(colead ? [colead] : []), ...rest] : fl.bots }
     })
     return f
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -202,7 +212,8 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
     return planOffice(
       order.map((k) => {
         const n = naturalSize(byKey[k].bots.length)
-        return { key: k, W: n.W + 1, D: n.D + 1 }
+        // a second executive desk by the wall needs a deeper room
+        return { key: k, W: n.W + 1, D: n.D + 1 + (byKey[k].colead ? 3 : 0) }
       }),
     )
   }, [floors])
@@ -211,7 +222,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
       Object.fromEntries(
         floors.map((f) => {
           const p = plan.rooms[f.key]
-          const l = floorLayout(f.bots.length, p.W, p.D, { lead: !!f.lead, furniture: look.furniture, seed: f.key })
+          const l = floorLayout(f.bots.length, p.W, p.D, { lead: !!f.lead, colead: !!f.colead, furniture: look.furniture, seed: f.key })
           Object.assign(l, { ox: p.x, oz: p.z, row: p.row, first: p.first, last: p.last, lastRow: p.row === plan.rows - 1 })
           return [f.key, l]
         }),
@@ -750,7 +761,7 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
           onDecide={readonly ? null : decide}
         />
         {!leftHidden && <Activity data={data} onPick={pickBot} floorBots={floor?.bots || []} />}
-        <Weekly usage={data.usage} data={data} onPickBot={pickBot} onPickTeam={goFloor} />
+        <Weekly data={data} onPickBot={pickBot} onPickTeam={goFloor} />
         <div className="bottom-center">
           {!topic && !replayT && <ConnectBanner onSignIn={onSignIn} />}
           <Timeline history={live.history} talkLog={live.talkLog} value={replayT} onChange={setReplayT} open={tlOpen} setOpen={setTlOpen} />
@@ -789,7 +800,6 @@ function Office({ topic, onSignOut, onSignIn, onSwitch }) {
             onFollow={pickBot}
           />
         )}
-        {!overview && <MiniMap layout={lay} floor={floor} data={data} now={now} onPick={pickBot} selected={selectedBot} />}
         {welcome && <Welcome onDone={() => (prefs.set('welcomed', true), setWelcome(false))} />}
         {officesOpen && <OfficesModal current={topic} onSwitch={onSwitch} onAdd={onSignIn} onClose={() => setOfficesOpen(false)} />}
         {officeCfg && (

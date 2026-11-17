@@ -1096,8 +1096,27 @@ html[data-transicao='onda']::view-transition-new(root) { z-index: 1; }
 .lock { position: fixed; inset: 0; z-index: 1000; overflow: hidden; cursor: none; transition: background 1.2s ease, color 1.2s ease; font-family: inherit; }
 .lock-face { position: absolute; inset: 0; width: 100%; height: 100%; }
 .lock-face path { transition: stroke 1.2s ease; }
+.lock-morph circle { fill: currentColor; }
+.lock-morph [data-m="thinking"] circle { transform-box: fill-box; transform-origin: center; animation: lockDot 1s ease-in-out infinite; }
+.lock-morph [data-m="thinking"] circle:nth-child(2) { animation-delay: .15s; }
+.lock-morph [data-m="thinking"] circle:nth-child(3) { animation-delay: .3s; }
+.lock-morph [data-m="orbit"] circle { fill: none; stroke: currentColor; stroke-width: .02; stroke-dasharray: .18 .14; opacity: .45; transform-box: view-box; transform-origin: center; animation: lockOrbit 8s linear infinite; }
+@keyframes lockDot { 0%, 100% { transform: translateY(0); opacity: .4; } 50% { transform: translateY(-25%); opacity: 1; } }
+@keyframes lockOrbit { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .lock-morph circle { animation: none !important; }
+}
 .lock-info { position: absolute; left: 4vmin; bottom: 4vmin; max-width: 70vw; display: grid; gap: .6vmin; opacity: .85; animation: lockIn .8s ease both; }
 .lock-info b { font-size: 3.6vmin; }
 .lock-info span { font-size: 2.6vmin; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lock-info i { font-style: normal; font-size: 2vmin; opacity: .55; }
 @keyframes lockIn { from { opacity: 0; transform: translateY(1.5vmin); } }
+
+/* several Grok accounts in one office: one limit block per account */
+.weekly.multi { width: 270px; }
+.weekly .acct-limit + .acct-limit { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(127, 127, 127, 0.14); }
+.weekly .acct-limit .hd { padding: 0 0 4px; display: flex; justify-content: space-between; font-size: 12px; }
+.weekly.multi .pct b { font-size: 20px; }
+.weekly .top-spend { display: flex; justify-content: space-between; align-items: center; margin: 8px 0 4px; font-size: 11.5px; }
+.weekly .top-spend .seg2 { margin-bottom: 0; }
+.ub .acct-tag { font-size: 10px; color: var(--muted); padding: 0 5px; border-radius: 6px; background: rgba(127, 127, 127, 0.1); }

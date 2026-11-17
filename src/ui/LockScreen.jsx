@@ -1,13 +1,12 @@
-// `?bloqueio`: a lock-screen style display. Black screen with a pair of Grok-style eyes that idle
-// and animate like the Grok Bot avatar (clips, expressions and states in lib/face.js). When bots are
-// working the background takes the working bot's colour, the face switches to its working clips, and
-// the bot's name + step sit quietly in a corner. Several working bots take turns. Everything is
-// time-based, so a ~10 fps screen just shows fewer frames of the same motion.
+// `?bloqueio`: a lock-screen display. The face plays Grok-avatar-style clips, expressions and states
+// (engine in lib/face.js, projected so head turns lean and foreshorten the eyes) and follows whoever
+// needs the room: working, thinking, waiting, error, done, or idle when the office is quiet.
+// Everything is time-based, so a ~10 fps screen just shows fewer frames of the same motion.
 import { useEffect, useRef, useState } from 'react'
 import { dataStore, loadTopic, ingest } from '../lib/state'
 import { useStore } from '../lib/createStore'
 import { effStatus, resolveColor } from '../lib/constants'
-import { connectNtfy } from '../lib/ntfy'
+import { connectOffice } from '../lib/transport'
 import { startDemo } from '../lib/demo'
 import { createFace, project, STATES } from '../lib/face'
 
@@ -20,7 +19,19 @@ function light(hex) {
   return 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255) > 170
 }
 
+function faceMode(status, step) {
+  if (status === 'working' && /pens|pesquis|analis|busca|think|search/i.test(step || '')) return 'thinking'
+  if (status === 'working') return 'working'
+  if (status === 'waiting_user') return 'waiting'
+  if (status === 'error') return 'error'
+  if (status === 'done') return 'done'
+  return 'resting'
+}
+
+const FACE_STATE = { idle: 'idle', resting: 'idle', working: 'working', thinking: 'thinking', waiting: 'waiting', error: 'blocked', done: 'finished' }
+const MORPH = { thinking: 'thinking', waiting: 'orbit' }
 const rand = (a, b) => a + Math.random() * (b - a)
+const pick = (a) => a[Math.floor(Math.random() * a.length)]
 
 export function LockScreen({ topic, embedded, onExit }) {
   const live = useStore(dataStore)
@@ -30,7 +41,7 @@ export function LockScreen({ topic, embedded, onExit }) {
   useEffect(() => {
     if (embedded) return // inside the office, data is already flowing
     loadTopic(topic)
-    return topic ? connectNtfy(topic, { onMessages: ingest, onStatus: () => {} }) : startDemo()
+    return topic ? connectOffice(topic, { onMessages: ingest, onStatus: () => {}, sinceMs: dataStore.get().lastTime || 0 }) : startDemo()
   }, [topic, embedded])
 
   useEffect(() => {
@@ -55,29 +66,35 @@ export function LockScreen({ topic, embedded, onExit }) {
     return () => clearInterval(id)
   }, [])
 
-  const working = live.order.filter((n) => live.bots[n] && !live.bots[n].hidden && effStatus(live.bots[n], now) === 'working')
-  const name = working.length ? working[turn % working.length] : null
+  const visible = live.order.filter((n) => live.bots[n] && !live.bots[n].hidden)
+  const of = (st) => visible.filter((n) => effStatus(live.bots[n], now) === st)
+  const working = of('working')
+  const waiting = of('waiting_user')
+  const errored = of('error')
+  const done = of('done')
+  const pool = working.length ? working : waiting.length ? waiting : errored.length ? errored : done
+  const name = pool.length ? pool[turn % pool.length] : null
   const bot = name ? live.bots[name] : null
+  const mode = bot ? faceMode(effStatus(bot, now), bot.step) : visible.length ? 'resting' : 'idle'
   const bg = bot ? resolveColor(bot.color) : '#000'
   const eye = bot && light(bg) ? '#111' : '#fff'
-  const busy = !!bot
 
-  // take turns between working bots
   useEffect(() => {
-    if (working.length < 2) return
+    if (pool.length < 2) return
     const id = setInterval(() => setTurn((t) => t + 1), TURN_MS)
     return () => clearInterval(id)
-  }, [working.length])
+  }, [pool.length])
 
-  // the face: Grok-style clips driven by what the office is doing
+  // the face: one engine, its state follows the mode on screen
   const faceRef = useRef(null)
   if (!faceRef.current) faceRef.current = createFace()
   const [eyes, setEyes] = useState(() => project(faceRef.current.tick(0)))
   useEffect(() => {
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     let raf, last = performance.now(), drawn = 0
     const loop = (t) => {
       raf = requestAnimationFrame(loop)
-      const pose = faceRef.current.tick((t - last) / 1000)
+      const pose = faceRef.current.tick(reduce ? 0 : (t - last) / 1000)
       last = t
       if (t - drawn < 33) return // ~30 fps is plenty; slower screens just get fewer frames
       drawn = t
@@ -87,21 +104,16 @@ export function LockScreen({ topic, embedded, onExit }) {
     return () => cancelAnimationFrame(raf)
   }, [])
 
-  // working <-> idle: an excited start, a happy finish
-  const wasBusy = useRef(false)
+  // mode changes: an excited start when work begins, then the mode's own playlist
+  const modeRef = useRef(mode)
+  modeRef.current = mode
+  const lastMode = useRef(mode)
   useEffect(() => {
     const f = faceRef.current
-    const was = wasBusy.current
-    wasBusy.current = busy
-    if (busy) {
-      f.set('working')
-      if (!was) f.play('Done_C')
-    } else if (was) {
-      f.set('finished')
-      const id = setTimeout(() => f.set('idle'), 5500)
-      return () => clearTimeout(id)
-    }
-  }, [busy])
+    f.set(FACE_STATE[mode] || 'idle')
+    if ((mode === 'working' || mode === 'thinking') && !['working', 'thinking'].includes(lastMode.current)) f.play('Done_C')
+    lastMode.current = mode
+  }, [mode])
 
   // a different bot takes the screen: a quick spin, so even same-colour bots read as a change
   const lastName = useRef(null)
@@ -114,8 +126,7 @@ export function LockScreen({ topic, embedded, onExit }) {
   useEffect(() => {
     let id
     const timers = []
-    const pick = (a) => a[Math.floor(Math.random() * a.length)]
-    const back = (ms) => timers.push(setTimeout(() => faceRef.current.state !== 'working' && faceRef.current.set('idle'), ms))
+    const back = (ms) => timers.push(setTimeout(() => faceRef.current.state !== 'working' && faceRef.current.set(FACE_STATE[modeRef.current] || 'idle'), ms))
     const go = () => {
       const f = faceRef.current
       const r = Math.random()
@@ -133,17 +144,21 @@ export function LockScreen({ topic, embedded, onExit }) {
   }, [])
 
   return (
-    <div className={`lock ${busy ? 'busy' : ''}`} style={{ background: bg, color: eye }} onDoubleClick={onExit}>
+    <div className={`lock ${bot ? 'busy' : ''}`} style={{ background: bg, color: eye }} onDoubleClick={onExit}>
       <svg className="lock-face" viewBox="-1.6 -1 3.2 2" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
         {eyes.map((e, i) => (
           <path key={i} d={e.d} fill="none" stroke={eye} strokeWidth={e.w * 2} strokeLinecap="round" strokeLinejoin="round" opacity={e.visible} />
         ))}
+        <g className="lock-morph">
+          {MORPH[mode] === 'thinking' && <g data-m="thinking">{[-0.16, 0, 0.16].map((x) => <circle key={x} cx={x} cy="-0.62" r="0.045" />)}</g>}
+          {MORPH[mode] === 'orbit' && <g data-m="orbit"><circle cx="0" cy="-0.1" r="0.72" /></g>}
+        </g>
       </svg>
       {bot && (
         <div className="lock-info" key={name}>
           <b>{name}</b>
           {bot.step && <span>{bot.step}</span>}
-          {working.length > 1 && <i>{(turn % working.length) + 1}/{working.length}</i>}
+          {pool.length > 1 && <i>{(turn % pool.length) + 1}/{pool.length}</i>}
         </div>
       )}
     </div>

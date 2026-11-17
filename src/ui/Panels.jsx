@@ -4,6 +4,7 @@ import { Clap, Heart, Laugh, Mail, Party, ThumbUp, Trophy } from './Icons'
 import { Arrow, Auto, Search as SearchIco, Brain, Chat, Check, Close, Doc, Down, Minus, Moon, Pause, Play, Plus, Sun, Up } from './Icons'
 import { CORTEX_KEY, durationShort, effStatus, hhmm, isApproval, resolveColor, STATUS, talkActive } from '../lib/constants'
 import { sceneSignals } from '../scene/registry'
+import { accountLabel, DEFAULT_ACCOUNT, sortAccounts } from '../lib/state'
 import { botMetrics, fmtDuration, taskStats } from '../lib/metrics'
 import { DecisionBox, isStuck } from './Ops'
 import { useSwipeDown } from './Interact'
@@ -231,7 +232,10 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
     const talk = data.talks[selectedBot]
     const incoming = Object.entries(data.talks).filter(([f, t]) => t.to === selectedBot && talkActive(t, now))
     const link = chatOf(selectedBot)
-    const usage = data.usage?.bots?.[selectedBot]
+    const acct = b.account || DEFAULT_ACCOUNT
+    const acctUsage = (data.usageByAcct || {})[acct] || (acct === DEFAULT_ACCOUNT ? data.usage : null)
+    const usage = acctUsage?.bots?.[selectedBot]
+    const multiAcct = new Set((data.order || []).map((n) => data.bots[n]?.account || DEFAULT_ACCOUNT)).size > 1
     return (
       <div className={`right card botcard ${full ? 'full' : ''}`} style={swipe.dy ? { transform: `translateY(${swipe.dy}px)`, transition: 'none' } : undefined}>
         <div className="bh" style={{ background: resolveColor(b.color) }} {...swipe.handlers}>
@@ -240,7 +244,7 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
           <Avatar bot={b} size={46} />
           <div>
             <b>{b.name}</b>
-            <span>{b.team}</span>
+            <span>{b.team} · Conta {accountLabel(acct)}</span>
           </div>
         </div>
         <Tabs
@@ -299,7 +303,12 @@ export function RightPanel({ floor, data, now, onPickBot, selectedBot, onClose, 
         {tab === 'hist' && <BotHistory data={data} name={selectedBot} now={now} />}
         {tab === 'metrics' && (
           <div className="bb">
-            {usage != null && <div className="mini"><b>Uso semanal</b><span>{usage}% do limite</span></div>}
+            <div className="mini"><b>Conta Grok</b><span>{accountLabel(acct)}{multiAcct ? '' : ' (única conta no escritório)'}</span></div>
+            {usage != null ? (
+              <div className="mini"><b>Uso semanal</b><span>{usage}% do limite da conta {accountLabel(acct)}</span></div>
+            ) : (
+              <div className="mini"><b>Uso semanal</b><span className="muted">{acctUsage ? 'uso deste bot indisponível' : `limite da conta ${accountLabel(acct)} ainda não informado`}</span></div>
+            )}
             <Metrics data={data} name={selectedBot} now={now} />
             {(() => {
               const ts = taskStats(data, selectedBot, now)
@@ -422,8 +431,8 @@ export const Activity = memo(function Activity({ data, onPick, floorBots = [] })
   )
 })
 
-/** Usage grouped by team, and a "you'll hit 100% on…" forecast from this week's samples. */
-function usageInsights(usage, data) {
+/** Usage grouped by team, and a "you'll hit 100% on…" forecast from this week's samples (per account). */
+function usageInsights(usage, data, acct = DEFAULT_ACCOUNT) {
   const teams = {}
   for (const [n, v] of Object.entries(usage?.bots || {})) {
     const t = data.bots[n]?.team || 'Outros'
@@ -431,7 +440,7 @@ function usageInsights(usage, data) {
   }
   const reset = usage?.resets_at ? Date.parse(usage.resets_at) : NaN
   const weekStart = isFinite(reset) ? reset - 7 * 24 * 3600e3 : Date.now() - 7 * 24 * 3600e3
-  const hist = (data.usageHist || []).filter((h) => h.t >= weekStart)
+  const hist = (data.usageHist || []).filter((h) => h.t >= weekStart && (h.account || DEFAULT_ACCOUNT) === acct)
   let forecast = null
   if (hist.length >= 2 && usage) {
     const a = hist[0], b = hist[hist.length - 1]
@@ -445,47 +454,95 @@ function usageInsights(usage, data) {
 }
 const WEEKDAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
 
-export const Weekly = memo(function Weekly({ usage, data, onPickBot, onPickTeam }) {
-  const [byTeam, setByTeam] = useState(false)
-  const ins = usageInsights(usage, data)
-  const top = usage ? (byTeam ? ins.teams.slice(0, 5) : Object.entries(usage.bots).sort((a, b) => b[1] - a[1]).slice(0, 4)) : []
+/** Weekly limit of every Grok account that publishes to this office (old single-account data = main account). */
+export function usageAccounts(data) {
+  const by = { ...(data.usageByAcct || {}) }
+  if (data.usage && !by[DEFAULT_ACCOUNT]) by[DEFAULT_ACCOUNT] = data.usage
+  // accounts that have bots in the office but never sent a limit still get a row ("sem dado")
+  for (const n of data.order || []) {
+    const a = data.bots[n]?.account || DEFAULT_ACCOUNT
+    if (!(a in by)) by[a] = null
+  }
+  return sortAccounts(Object.keys(by)).map((a) => [a, by[a]])
+}
+
+function AccountLimit({ acct, usage, data, multi }) {
+  const ins = usageInsights(usage, data, acct)
   const reset = ins.reset
+  return (
+    <div className="acct-limit">
+      <div className="hd">
+        <span>{multi ? `Conta ${accountLabel(acct)}` : 'Limite semanal'}</span>
+        <span className="muted" title={isFinite(reset) ? `Renova ${new Date(reset).toLocaleString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : undefined}>
+          {isFinite(reset) ? `Renova em ${durationShort(reset - Date.now())}` : ''}
+        </span>
+      </div>
+      {usage ? (
+        <>
+          <div className="pct"><b>{Math.round(usage.total)}%</b><span className="muted">usado</span></div>
+          <div className="bar"><i style={{ width: `${Math.min(100, usage.total)}%`, background: usage.total > 85 ? '#E5484D' : usage.total > 65 ? '#F5A524' : '#16181d' }} /></div>
+          {usage.total >= 80 && <p className="warnline">Acima de 80% do limite semanal</p>}
+          {ins.forecast && (
+            <p className={`forecast ${ins.forecast.ok ? '' : 'bad'}`}>
+              {ins.forecast.ok
+                ? 'Nesse ritmo, não estoura antes de renovar'
+                : `Nesse ritmo, chega a 100% ${WEEKDAYS[new Date(ins.forecast.eta).getDay()]} ~${String(new Date(ins.forecast.eta).getHours()).padStart(2, '0')}h`}
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="forecast">Limite ainda não informado por esta conta</p>
+      )}
+    </div>
+  )
+}
+
+export const Weekly = memo(function Weekly({ data, onPickBot, onPickTeam }) {
+  const [byTeam, setByTeam] = useState(false)
+  const accts = usageAccounts(data)
+  const multi = accts.length > 1
+  const known = accts.filter(([, u]) => u)
+  // who spends the most, across every account (only real per-bot numbers, never estimates)
+  const perBot = []
+  for (const [a, u] of known) for (const [n, v] of Object.entries(u.bots || {})) perBot.push([n, v, a])
+  const teams = {}
+  for (const [n, v] of perBot) {
+    const t = data.bots[n]?.team || 'Outros'
+    teams[t] = (teams[t] || 0) + v
+  }
+  const top = byTeam ? Object.entries(teams).sort((x, y) => y[1] - x[1]).slice(0, 5) : perBot.sort((x, y) => y[1] - x[1]).slice(0, multi ? 5 : 4)
+  const missing = known.filter(([, u]) => !Object.keys(u.bots || {}).length).map(([a]) => a)
   return (
     <div className="weekly-wrap">
       <div className="zoom card">
         <button onClick={() => (sceneSignals.zoom = 1)} aria-label="Aproximar"><Plus size={16} /></button>
         <button onClick={() => (sceneSignals.zoom = -1)} aria-label="Afastar"><Minus size={16} /></button>
       </div>
-      <div className="card weekly">
-        <div className="hd">
-          <span>Limite semanal</span>
-          <span className="muted" title={isFinite(reset) ? `Renova ${new Date(reset).toLocaleString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : undefined}>
-            {isFinite(reset) ? `Renova em ${durationShort(reset - Date.now())}` : ''}
-          </span>
-        </div>
-        {usage ? (
+      <div className={`card weekly${multi ? ' multi' : ''}`}>
+        {multi && <div className="hd"><span>Limite semanal · {accts.length} contas</span></div>}
+        {known.length ? (
           <>
-            <div className="pct"><b>{Math.round(usage.total)}%</b><span className="muted">usado</span></div>
-            <div className="bar"><i style={{ width: `${Math.min(100, usage.total)}%`, background: usage.total > 85 ? '#E5484D' : usage.total > 65 ? '#F5A524' : '#16181d' }} /></div>
-            {usage.total >= 80 && <p className="warnline">Acima de 80% do limite semanal</p>}
-            {ins.forecast && (
-              <p className={`forecast ${ins.forecast.ok ? '' : 'bad'}`}>
-                {ins.forecast.ok
-                  ? 'Nesse ritmo, não estoura antes de renovar'
-                  : `Nesse ritmo, chega a 100% ${WEEKDAYS[new Date(ins.forecast.eta).getDay()]} ~${String(new Date(ins.forecast.eta).getHours()).padStart(2, '0')}h`}
-              </p>
-            )}
-            <div className="seg2">
-              <button className={!byTeam ? 'on' : ''} aria-pressed={!byTeam} onClick={() => setByTeam(false)}>Bots</button>
-              <button className={byTeam ? 'on' : ''} aria-pressed={byTeam} onClick={() => setByTeam(true)}>Times</button>
+            {accts.map(([a, u]) => <AccountLimit key={a} acct={a} usage={u} data={data} multi={multi} />)}
+            <div className="top-spend">
+              <span className="muted">Quem mais gasta</span>
+              {perBot.length > 0 && (
+                <div className="seg2">
+                  <button className={!byTeam ? 'on' : ''} aria-pressed={!byTeam} onClick={() => setByTeam(false)}>Bots</button>
+                  <button className={byTeam ? 'on' : ''} aria-pressed={byTeam} onClick={() => setByTeam(true)}>Times</button>
+                </div>
+              )}
             </div>
-            {top.map(([n, v]) => (
-              <button key={n} className="ub" onClick={() => (byTeam ? onPickTeam?.(n) : onPickBot?.(n))} title={byTeam ? `Ir para o andar ${n}` : `Ver ${n}`}>
+            {top.map(([n, v, a]) => (
+              <button key={n + (a || '')} className="ub" onClick={() => (byTeam ? onPickTeam?.(n) : onPickBot?.(n))} title={byTeam ? `Ir para o andar ${n}` : `Ver ${n}`}>
                 <i style={{ background: byTeam ? 'var(--accent)' : resolveColor(data.bots[n]?.color) }} />
                 <span>{n}</span>
+                {multi && !byTeam && <small className="acct-tag">{accountLabel(a)}</small>}
                 <em>{Math.round(v * 10) / 10}%</em>
               </button>
             ))}
+            {missing.length > 0 && (
+              <p className="forecast">Uso por bot indisponível{multi ? ` na conta ${missing.map(accountLabel).join(', ')}` : ''}</p>
+            )}
           </>
         ) : (
           <Empty title="Nenhum uso informado ainda" sub='Os bots podem mandar {"usage":…} com o consumo da semana' />
