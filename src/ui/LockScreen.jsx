@@ -1,13 +1,14 @@
-// `?bloqueio`: a lock-screen display. The face runs the same vocabulary as the Grok avatar
-// (9 expressions, glance / squash / spin clips, a few morphs) and follows whoever needs the room:
-// working, thinking, waiting, error, done, or asleep when the office is quiet.
+// `?bloqueio`: a lock-screen display. The face plays Grok-avatar-style clips, expressions and states
+// (engine in lib/face.js, projected so head turns lean and foreshorten the eyes) and follows whoever
+// needs the room: working, thinking, waiting, error, done, or idle when the office is quiet.
+// Everything is time-based, so a ~10 fps screen just shows fewer frames of the same motion.
 import { useEffect, useRef, useState } from 'react'
 import { dataStore, loadTopic, ingest } from '../lib/state'
 import { useStore } from '../lib/createStore'
 import { effStatus, resolveColor } from '../lib/constants'
 import { connectOffice } from '../lib/transport'
 import { startDemo } from '../lib/demo'
-import { poseAt } from './lockAnim'
+import { createFace, project, STATES } from '../lib/face'
 
 const TURN_MS = 9000
 
@@ -27,16 +28,15 @@ function faceMode(status, step) {
   return 'resting'
 }
 
-function EyePair({ name, children }) {
-  return <g data-eye={name}>{children}</g>
-}
+const FACE_STATE = { idle: 'idle', resting: 'idle', working: 'working', thinking: 'thinking', waiting: 'waiting', error: 'blocked', done: 'finished' }
+const MORPH = { thinking: 'thinking', waiting: 'orbit' }
+const rand = (a, b) => a + Math.random() * (b - a)
+const pick = (a) => a[Math.floor(Math.random() * a.length)]
 
 export function LockScreen({ topic, embedded, onExit }) {
   const live = useStore(dataStore)
   const [now, setNow] = useState(Date.now())
   const [turn, setTurn] = useState(0)
-  const stage = useRef(null)
-  const lids = useRef(null)
 
   useEffect(() => {
     if (embedded) return // inside the office, data is already flowing
@@ -85,82 +85,75 @@ export function LockScreen({ topic, embedded, onExit }) {
     return () => clearInterval(id)
   }, [pool.length])
 
-  // paint the face every frame from the shared clock
-  const modeRef = useRef(mode)
-  modeRef.current = mode
+  // the face: one engine, its state follows the mode on screen
+  const faceRef = useRef(null)
+  if (!faceRef.current) faceRef.current = createFace()
+  const [eyes, setEyes] = useState(() => project(faceRef.current.tick(0)))
   useEffect(() => {
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    let raf = 0
-    const paint = (ms) => {
-      const el = stage.current
-      const lid = lids.current
-      if (el) {
-        const p = reduce
-          ? { x: 0, y: 0, tilt: 0, spin: 0, sx: 1, sy: 1, open: 1, expr: 'neutral', morph: '' }
-          : poseAt(modeRef.current, ms)
-        el.dataset.expr = p.expr
-        el.dataset.morph = p.morph || ''
-        el.style.transform = `translate(calc(-50% + ${p.x}vmin), calc(-50% + ${p.y}vmin)) rotate(${p.spin + p.tilt}deg) scale(${p.sx}, ${p.sy})`
-        if (lid) lid.style.transform = `scaleY(${Math.max(0.12, p.open)})`
-      }
-      raf = requestAnimationFrame(paint)
+    let raf, last = performance.now(), drawn = 0
+    const loop = (t) => {
+      raf = requestAnimationFrame(loop)
+      const pose = faceRef.current.tick(reduce ? 0 : (t - last) / 1000)
+      last = t
+      if (t - drawn < 33) return // ~30 fps is plenty; slower screens just get fewer frames
+      drawn = t
+      setEyes(project(pose))
     }
-    raf = requestAnimationFrame(paint)
+    raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
+  }, [])
+
+  // mode changes: an excited start when work begins, then the mode's own playlist
+  const modeRef = useRef(mode)
+  modeRef.current = mode
+  const lastMode = useRef(mode)
+  useEffect(() => {
+    const f = faceRef.current
+    f.set(FACE_STATE[mode] || 'idle')
+    if ((mode === 'working' || mode === 'thinking') && !['working', 'thinking'].includes(lastMode.current)) f.play('Done_C')
+    lastMode.current = mode
+  }, [mode])
+
+  // a different bot takes the screen: a quick spin, so even same-colour bots read as a change
+  const lastName = useRef(null)
+  useEffect(() => {
+    if (name && lastName.current && name !== lastName.current) faceRef.current.play('Rotation_C')
+    lastName.current = name
+  }, [name])
+
+  // every so often, something livelier than the plain loop
+  useEffect(() => {
+    let id
+    const timers = []
+    const back = (ms) => timers.push(setTimeout(() => faceRef.current.state !== 'working' && faceRef.current.set(FACE_STATE[modeRef.current] || 'idle'), ms))
+    const go = () => {
+      const f = faceRef.current
+      const r = Math.random()
+      if (f.state === 'working') f.play(r < 0.5 ? pick(['Streaming_A', 'Streaming_B', 'Streaming_C']) : r < 0.75 ? 'Done_C' : 'Working_B')
+      else if (f.state === 'idle') {
+        if (r < 0.08) (f.set('bored'), back(7000)) // a short doze
+        else if (r < 0.15) (f.set('suspicious'), back(6000))
+        else if (r < 0.25) (f.set('listening'), back(6000))
+        else f.play(pick(STATES.idleExtra.clips))
+      }
+      id = setTimeout(go, rand(16000, 32000))
+    }
+    id = setTimeout(go, rand(10000, 18000))
+    return () => (clearTimeout(id), timers.forEach(clearTimeout))
   }, [])
 
   return (
     <div className={`lock ${bot ? 'busy' : ''}`} style={{ background: bg, color: eye }} onDoubleClick={onExit}>
-      <div className="lock-stage" ref={stage} data-expr="neutral">
-        <svg className="lock-svg" viewBox="-70 -78 140 156" aria-hidden="true">
-          <g ref={lids} className="lock-lids">
-            <EyePair name="neutral">
-              <ellipse cx="-26" cy="0" rx="12" ry="28" />
-              <ellipse cx="26" cy="0" rx="12" ry="28" />
-            </EyePair>
-            <EyePair name="happy">
-              <path d="M-42 12 Q-26 -22 -10 12" />
-              <path d="M10 12 Q26 -22 42 12" />
-            </EyePair>
-            <EyePair name="surprised">
-              <ellipse cx="-26" cy="-2" rx="18" ry="32" />
-              <ellipse cx="26" cy="-2" rx="18" ry="32" />
-            </EyePair>
-            <EyePair name="sad">
-              <ellipse cx="-26" cy="6" rx="11" ry="22" transform="rotate(-22 -26 6)" />
-              <ellipse cx="26" cy="6" rx="11" ry="22" transform="rotate(22 26 6)" />
-            </EyePair>
-            <EyePair name="sleepy">
-              <path d="M-40 4 Q-26 18 -12 4" />
-              <path d="M12 4 Q26 18 40 4" />
-            </EyePair>
-            <EyePair name="squinted">
-              <path d="M-42 6 Q-26 -6 -10 6" />
-              <path d="M10 6 Q26 -6 42 6" />
-            </EyePair>
-            <EyePair name="calm">
-              <ellipse cx="-26" cy="2" rx="20" ry="14" />
-              <ellipse cx="26" cy="2" rx="20" ry="14" />
-            </EyePair>
-            <EyePair name="inspecting">
-              <ellipse cx="-28" cy="-2" rx="18" ry="18" />
-              <ellipse cx="24" cy="8" rx="9" ry="9" />
-            </EyePair>
-            <EyePair name="confused">
-              <ellipse cx="-28" cy="-10" rx="10" ry="22" transform="rotate(14 -28 -10)" />
-              <ellipse cx="24" cy="10" rx="10" ry="20" transform="rotate(-12 24 10)" />
-            </EyePair>
-          </g>
-          <g className="lock-morph">
-            <g data-m="thinking">
-              {[-16, 0, 16].map((x) => <circle key={x} cx={x} cy="-52" r="4.5" />)}
-            </g>
-            <g data-m="orbit">
-              <circle cx="0" cy="0" r="58" />
-            </g>
-          </g>
-        </svg>
-      </div>
+      <svg className="lock-face" viewBox="-1.6 -1 3.2 2" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        {eyes.map((e, i) => (
+          <path key={i} d={e.d} fill="none" stroke={eye} strokeWidth={e.w * 2} strokeLinecap="round" strokeLinejoin="round" opacity={e.visible} />
+        ))}
+        <g className="lock-morph">
+          {MORPH[mode] === 'thinking' && <g data-m="thinking">{[-0.16, 0, 0.16].map((x) => <circle key={x} cx={x} cy="-0.62" r="0.045" />)}</g>}
+          {MORPH[mode] === 'orbit' && <g data-m="orbit"><circle cx="0" cy="-0.1" r="0.72" /></g>}
+        </g>
+      </svg>
       {bot && (
         <div className="lock-info" key={name}>
           <b>{name}</b>
