@@ -88,15 +88,25 @@ const shuffle = (a) => {
 }
 
 const BLINK = 0.22 // s, close + open
+const BLEND = 0.6 // s, ease from one clip into the next
 const MORPH = 0.28 // s, expression change
-const REST = [-30, 36, 0] // resting 3/4 view: looking a bit up and to the right, which leans the eyes like the app icon
-const GAP = 0.5, SHIFT_Y = 0.06, SIZE = 1.45
+const REST = [-16, 20, -12] // resting 3/4 view: looking a bit up and to the right, which leans the eyes like the app icon
+const GAP = 0.5, SHIFT_Y = 0.06, SIZE = 0.82
 
 export function createFace() {
   let state = 'idle', queue = [], clip = null, clipT = 0, once = null
   let face = null // expression forced by the state
   let expr = 'neutral', from = EXPRESSIONS.neutral, fromT = 99, blinkT = 99
   let lastExprKey = null
+  // every clip change (natural end, a new state, a one-off) eases from the pose on screen to the new
+  // clip instead of jumping to its first keyframe
+  let last = null, blendFrom = null, blendT = 1
+  const startClip = (c) => {
+    clip = c
+    clipT = 0
+    lastExprKey = null
+    if (last) (blendFrom = last), (blendT = 0)
+  }
 
   const next = () => {
     if (once) return (clip = CLIPS[once.shift()], once.length || (once = null), clip)
@@ -140,13 +150,10 @@ export function createFace() {
       dt = Math.min(dt, 0.25)
       fromT += dt
       blinkT += dt
-      if (!clip) (clip = next()), (clipT = 0), (lastExprKey = null)
+      if (!clip) startClip(next())
       clipT += dt
-      if (clipT > clip.d) {
-        clip = next()
-        clipT = 0
-        lastExprKey = null
-      }
+      blendT += dt / BLEND
+      if (clipT > clip.d) startClip(next())
       const tr = clip.tr
       // expression track: step events (the latest one passed)
       const ex = tr.expression
@@ -160,13 +167,25 @@ export function createFace() {
           else if (!face) setExpr(v)
         }
       }
-      const rot = sample(tr.rotation, clipT) || [0, 0, 0]
-      const pos = sample(tr.position, clipT) || [0, 0]
-      const zoom = (sample(tr.scale, clipT) || [0.6])[0]
-      const sq = sample(tr.squash, clipT) || [1, 1]
-      let lids = (sample(tr.lids, clipT) || [0])[0]
+      let rot = sample(tr.rotation, clipT) || [0, 0, 0]
+      let pos = sample(tr.position, clipT) || [0, 0]
+      let zoom = Math.min(1.06, (sample(tr.scale, clipT) || [0.6])[0] / 0.6)
+      let sq = sample(tr.squash, clipT) || [1, 1]
+      let lid = (sample(tr.lids, clipT) || [0])[0]
+      if (blendFrom && blendT < 1) {
+        const k = blendT * blendT * (3 - 2 * blendT)
+        const f = blendFrom
+        // turn the short way round: -360 and 0 are the same head
+        rot = rot.map((v, i) => lerp(f.rot[i], v + 360 * Math.round((f.rot[i] - v) / 360), k))
+        pos = pos.map((v, i) => lerp(f.pos[i], v, k))
+        sq = sq.map((v, i) => lerp(f.sq[i], v, k))
+        zoom = lerp(f.zoom, zoom, k)
+        lid = lerp(f.lid, lid, k)
+      }
+      last = { rot, pos, zoom, sq, lid }
+      let lids = lid
       if (blinkT < BLINK) lids = Math.max(lids, Math.sin((Math.PI * blinkT) / BLINK))
-      return { rot, pos, zoom: Math.min(1.2, zoom / 0.6), sq, lids: Math.min(1, Math.max(0, lids)), eyes: current() }
+      return { rot, pos, zoom, sq, lids: Math.min(1, Math.max(0, lids)), eyes: current() }
     },
   }
 }
@@ -182,8 +201,13 @@ function rotate([x, y, z], [p, yw, r]) {
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
 
 /** SVG paths (in a -1..1, y-up space) for the two eyes, plus per-eye stroke widths and opacity */
+// head turns are softened (the eyes would otherwise slide into each other); whole spins stay whole
+const soft = (v, k) => {
+  const turns = 360 * Math.round(v / 360)
+  return turns + (v - turns) * k
+}
 export function project(pose) {
-  const rot = add(pose.rot, REST)
+  const rot = add([soft(pose.rot[0], 0.6), soft(pose.rot[1], 0.6), pose.rot[2] * 0.8], REST)
   // the body is the whole screen, so the face drifts only a little: keep most of the head turn as
   // foreshortening and lean of the eyes rather than travel across the screen
   const mid = rotate([0, SHIFT_Y, 1], rot)
@@ -198,7 +222,7 @@ export function project(pose) {
       const qx = u * u * eye.p[0][0] + 2 * u * t * eye.p[1][0] + t * t * eye.p[2][0]
       const qy = (u * u * eye.p[0][1] + 2 * u * t * eye.p[1][1] + t * t * eye.p[2][1]) * open
       const v = rotate([cx + qx, cy + qy, cz], rot)
-      pts.push([(v[0] - mid[0] * 0.7) * pose.sq[0] * pose.zoom * SIZE + pose.pos[0] * 1.5, (v[1] - mid[1] * 0.7 - SHIFT_Y) * pose.sq[1] * pose.zoom * SIZE + pose.pos[1] * 1.5 + 0.12])
+      pts.push([(v[0] - mid[0] * 0.7) * pose.sq[0] * pose.zoom * SIZE + pose.pos[0] * SIZE, (v[1] - mid[1] * 0.7 - SHIFT_Y) * pose.sq[1] * pose.zoom * SIZE + pose.pos[1] * SIZE + 0.06])
     }
     const n = rotate([cx, cy, cz], rot)[2]
     // lids squeeze thin shapes too: a closed eye is a short flat line
