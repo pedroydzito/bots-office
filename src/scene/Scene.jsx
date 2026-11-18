@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import Sky from './Sky'
 import { shadowDirty } from './Floor'
@@ -441,12 +441,42 @@ function ReadySignal() {
   return null
 }
 
+/**
+ * Holds the first frame back until every visible shader is compiled. compileAsync hands the
+ * compiles to the driver in parallel (KHR_parallel_shader_compile) instead of linking them one by
+ * one inside the first render, which froze the page on a full office. The loading cover stays up
+ * (and keeps animating) meanwhile. A slow or failing compile never blocks for more than 4 s.
+ */
+function Warmup({ onDone }) {
+  const { gl, scene, camera } = useThree()
+  useFrame(() => {}, 1) // a priority callback takes over rendering: nothing is drawn while warming
+  useEffect(() => {
+    let off = false
+    const done = () => !off && ((off = true), onDone())
+    const id = setTimeout(done, 4000)
+    // let React finish mounting the office first
+    const start = setTimeout(() => {
+      try {
+        const p = gl.compileAsync ? gl.compileAsync(scene, camera) : (gl.compile(scene, camera), null)
+        p ? p.then(done, done) : done()
+      } catch {
+        done()
+      }
+    }, 0)
+    return () => ((off = true), clearTimeout(id), clearTimeout(start))
+  }, [gl, scene, camera, onDone])
+  return null
+}
+
 function Precompile() {
   const { gl, scene, camera } = useThree()
   useEffect(() => {
+    // compileAsync lets the driver compile in parallel and only finishes the programs that are
+    // ready, so this no longer freezes the page for a second right after it opens
     const id = setTimeout(() => {
       try {
-        gl.compile(scene, camera)
+        const p = gl.compileAsync ? gl.compileAsync(scene, camera) : gl.compile(scene, camera)
+        p?.catch?.(() => {})
       } catch {
         /* not critical */
       }
@@ -487,6 +517,10 @@ export default function Scene(props) {
   // Phones drop the GPU context when the app goes to the background (black building on return).
   // Rebuild the canvas when that happens.
   const [glKey, setGlKey] = useState(0)
+  // first frames wait for shaders (see Warmup); again after a lost WebGL context
+  const [warm, setWarm] = useState(true)
+  const onWarm = useCallback(() => setWarm(false), [])
+  useEffect(() => setWarm(true), [glKey])
   const glRef = useRef(null)
   useEffect(() => {
     const check = () => {
@@ -524,6 +558,9 @@ export default function Scene(props) {
         // hidden things (other rooms while one is open) can't be clicked or hovered
         setEvents({ filter: (hits) => hits.filter((h) => { for (let o = h.object; o; o = o.parent) if (!o.visible) return false; return true }) })
         glRef.current = gl
+        // checking every shader for errors makes the browser wait for each compile in turn; without it
+        // the driver compiles them in parallel (KHR_parallel_shader_compile). Kept on in dev.
+        if (!import.meta.env.DEV) gl.debug.checkShaderErrors = false
         // ?perf: expose the renderer for measuring draw calls (debug only)
         if (window.location.search.includes('perf')) (window.__gl = gl), (window.__scene = scene)
         gl.domElement.addEventListener('webglcontextlost', (e) => e.preventDefault())
@@ -546,8 +583,8 @@ export default function Scene(props) {
       <IdleSaver cap={q === 'leve'} />
       <LabelLayer />
       {/* highest graphics: bloom + colour finish (its own chunk, never downloaded otherwise) */}
+      {warm ? <Warmup onDone={onWarm} /> : <ReadySignal />}
       <Precompile />
-      <ReadySignal />
       <PipFeed />
       <PerformanceMonitor
         flipflops={3}
